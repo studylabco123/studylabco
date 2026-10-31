@@ -5,18 +5,36 @@
  * share one database.
  *
  * - `db` / `pool`: connects as `postgres` (bypasses RLS) for arrange/assert.
- * - `asUser(id, aal)` / `asAnon()`: run SQL the way PostgREST would for that
- *   caller, so `auth.uid()`, `auth.jwt()` and RLS policies apply.
+ * - `asUser(id, aal)` / `asAnon()` / `asService()`: run SQL the way PostgREST
+ *   would for that caller, so `auth.uid()`, `auth.jwt()` and RLS policies apply.
+ * - Safety: refuses to run unless SUPABASE_DB_URL points at localhost, so
+ *   `resetData()` can never wipe a remote database.
  * - `resetData()`: wipes business data between tests (see its doc comment).
  * - `createUser()`: inserts an auth user plus its profile row.
  */
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 
-const connectionString = process.env.SUPABASE_DB_URL;
-if (!connectionString) {
+const envUrl = process.env.SUPABASE_DB_URL;
+if (!envUrl) {
   throw new Error("SUPABASE_DB_URL is not set (expected from .env.test)");
 }
+const connectionString: string = envUrl;
+
+/** Throws unless `url`'s host is 127.0.0.1 or localhost. */
+export function assertLocalDbUrl(url: string): void {
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    throw new Error("SUPABASE_DB_URL is not a valid URL");
+  }
+  if (host !== "127.0.0.1" && host !== "localhost") {
+    throw new Error(`Refusing to run DB tests against non-local host "${host}"`);
+  }
+}
+
+assertLocalDbUrl(connectionString);
 
 export const pool = new pg.Pool({ connectionString, max: 4 });
 
@@ -42,7 +60,7 @@ export interface Scoped {
   tx<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T>;
 }
 
-function scoped(role: "authenticated" | "anon", claims: Record<string, unknown>): Scoped {
+function scoped(role: "authenticated" | "anon" | "service_role", claims: Record<string, unknown>): Scoped {
   const tx = async <T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> => {
     const client = await pool.connect();
     try {
@@ -76,6 +94,11 @@ export function asUser(id: string, aal: Aal = "aal1"): Scoped {
 /** Acts as a signed-out visitor: role `anon`. */
 export function asAnon(): Scoped {
   return scoped("anon", { role: "anon" });
+}
+
+/** Acts as the server's service-role client: role `service_role` (bypasses RLS). */
+export function asService(): Scoped {
+  return scoped("service_role", { role: "service_role" });
 }
 
 export interface TestUser {
@@ -141,6 +164,7 @@ export async function createChild(
  * The payment_ref_seq sequence is not reset.
  */
 export async function resetData(): Promise<void> {
+  assertLocalDbUrl(connectionString);
   await pool.query(`
     truncate table
       public.email_log, public.ledger, public.mileage, public.expenses,
