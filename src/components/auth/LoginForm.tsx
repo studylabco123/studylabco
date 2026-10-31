@@ -18,7 +18,7 @@ export function LoginForm({ next }: { next: string }) {
       <input type="hidden" name="next" value={next} />
       <Field label="Email" name="email" type="email" autoComplete="email" defaultValue={state.email} required />
       <Field label="Password" name="password" type="password" autoComplete="current-password" required />
-      <Turnstile />
+      <Turnstile resetSignal={state} />
       <Button type="submit" size="lg" disabled={pending} className="w-full">
         {pending ? "Logging in…" : "Log in"}
       </Button>

@@ -71,7 +71,7 @@ export function SignupForm() {
           label="Send me occasional updates about Study Lab Co (optional)"
         />
       </fieldset>
-      <Turnstile />
+      <Turnstile resetSignal={state} />
       <Button type="submit" size="lg" disabled={pending} className="w-full">
         {pending ? "Creating account…" : "Create account"}
       </Button>

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { commonAuthMessage } from "@/lib/auth/errors";
 import { signupSchema } from "@/lib/auth/validation";
 import { turnstileToken } from "@/lib/auth/turnstile-token";
 import { POLICY_VERSION } from "@/lib/policy";
@@ -60,11 +61,10 @@ export async function signUp(_prev: SignupState, formData: FormData): Promise<Si
   });
   if (error) {
     const message =
-      error.code === "weak_password"
+      commonAuthMessage(error) ??
+      (error.code === "weak_password"
         ? "That password is too easy to guess. Try a longer one."
-        : error.status === 429
-          ? "Too many attempts. Please wait a few minutes and try again."
-          : "We could not create your account. Please check your details and try again.";
+        : "We could not create your account. Please check your details and try again.");
     return { formError: message, values };
   }
 

@@ -20,7 +20,7 @@ export function RequestResetForm() {
     <form action={action} className="flex flex-col gap-5">
       {state.error ? <FormError>{state.error}</FormError> : null}
       <Field label="Email" name="email" type="email" autoComplete="email" required />
-      <Turnstile />
+      <Turnstile resetSignal={state} />
       <Button type="submit" size="lg" disabled={pending} className="w-full">
         {pending ? "Sending…" : "Send reset link"}
       </Button>

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { commonAuthMessage } from "@/lib/auth/errors";
 import { safeNextPath } from "@/lib/auth/validation";
 import { turnstileToken } from "@/lib/auth/turnstile-token";
 import { createServerClient } from "@/lib/supabase/server";
@@ -23,10 +24,11 @@ export async function logIn(_prev: LoginState, formData: FormData): Promise<Logi
     options: { captchaToken: turnstileToken(formData) },
   });
   if (error) {
+    const common = commonAuthMessage(error);
+    if (common) return { error: common, email };
     if (error.code === "email_not_confirmed") {
       return { error: "Please confirm your email first. Check your inbox for the link we sent.", email };
     }
-    if (error.status === 429) return { error: "Too many attempts. Please wait a few minutes and try again.", email };
     return { error: "Email or password is incorrect.", email };
   }
   redirect(next);
