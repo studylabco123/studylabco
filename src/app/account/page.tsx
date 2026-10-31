@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { createServerClient } from "@/lib/supabase/server";
 import { signOut } from "./actions";
 
@@ -16,6 +16,7 @@ export default async function AccountPage() {
   return (
     <div className="mx-auto flex max-w-content flex-col items-start gap-6 px-5 py-12 sm:px-8">
       <h1 className="text-h1">Welcome, {name}</h1>
+      <ButtonLink href="/account/children">Your children and agreements</ButtonLink>
       <form action={signOut}>
         <Button type="submit" variant="secondary">
           Sign out
