@@ -1,9 +1,29 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Atkinson_Hyperlegible_Next, Lexend } from "next/font/google";
+import { ToastProvider } from "@/components/ui/Toast";
 import "./globals.css";
 
+// Self-hosted at build time by next/font: no requests to Google at runtime.
+const lexend = Lexend({ subsets: ["latin"], variable: "--font-lexend", display: "swap" });
+const atkinson = Atkinson_Hyperlegible_Next({
+  subsets: ["latin"],
+  variable: "--font-atkinson",
+  display: "swap",
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
-  title: "Study Lab Co",
-  description: "Study Lab Co tuition",
+  title: { default: "Study Lab Co | GCSE Science tuition in Blackburn", template: "%s | Study Lab Co" },
+  description:
+    "GCSE Science tuition in Blackburn from a qualified teacher (QTS), enhanced DBS checked, for all exam boards.",
+  applicationName: "Study Lab Co",
+  appleWebApp: { title: "Study Lab Co", capable: true, statusBarStyle: "default" },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#ffffff",
+  colorScheme: "light",
 };
 
 export default function RootLayout({
@@ -12,8 +32,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-GB">
-      <body>{children}</body>
+    <html lang="en-GB" className={`${lexend.variable} ${atkinson.variable}`}>
+      <body>
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

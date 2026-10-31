@@ -1,26 +1,174 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Design tokens. Values and roles are documented in DESIGN.md. */
+@theme {
+  /* Brand palette only: no stray Tailwind colours. */
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-navy-900: #001a42;
+  --color-navy-800: #0f3570;
+  --color-navy-600: #3d5275;
+  --color-navy-400: #5a6e8c;
+  --color-sky-50: #f5fafe;
+  --color-sky-100: #e8f5fe;
+  --color-sky-200: #cfe7fa;
+  --color-sky-300: #b4d6f4;
+  --color-sky-500: #78b3e8; /* decoration only, never text */
+  --color-success-50: #e7f4ec;
+  --color-success-700: #1d6b43;
+  --color-warning-50: #fff4dc;
+  --color-warning-700: #7a4e00;
+  --color-danger-50: #fcebea;
+  --color-danger-700: #b3261e;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
+  /* Type scale (major third, 18px body). */
+  --text-display: clamp(2.5rem, 1.6rem + 3.6vw, 3.75rem);
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.02em;
+  --text-h1: clamp(2rem, 1.55rem + 1.8vw, 2.75rem);
+  --text-h1--line-height: 1.1;
+  --text-h1--letter-spacing: -0.015em;
+  --text-h2: clamp(1.625rem, 1.33rem + 1.2vw, 2.125rem);
+  --text-h2--line-height: 1.2;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h3: 1.375rem;
+  --text-h3--line-height: 1.3;
+  --text-lead: 1.25rem;
+  --text-lead--line-height: 1.55;
+  --text-body: 1.125rem;
+  --text-body--line-height: 1.6;
+  --text-small: 1rem;
+  --text-small--line-height: 1.5;
+  --text-fine: 0.875rem;
+  --text-fine--line-height: 1.45;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --container-content: 72rem;
+  --container-prose: 65ch;
+
+  --radius-field: 0.5rem;
+  --radius-card: 1rem;
+
+  --shadow-card: 0 1px 2px rgb(0 26 66 / 0.06), 0 12px 32px -16px rgb(0 26 66 / 0.22);
+  --shadow-pop: 0 24px 64px -24px rgb(0 26 66 / 0.45);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  --animate-rise: rise 600ms var(--ease-out) both;
+  --animate-menu-in: menu-in 200ms var(--ease-out);
+  --animate-dialog-in: dialog-in 220ms var(--ease-out);
+  --animate-toast-in: toast-in 240ms var(--ease-out);
+
+  /* Page-load entrance for above-the-fold content: pure CSS, so it never waits for JS. */
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+  }
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+/* Font families come from next/font CSS variables set on <html>. */
+@theme inline {
+  --font-sans: var(--font-atkinson), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-lexend), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-white);
+    color: var(--color-navy-900);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-navy-900);
+    outline-offset: 2px;
+  }
+
+  /* Dark (navy) surfaces get a light focus ring. */
+  .surface-navy :focus-visible {
+    outline-color: var(--color-sky-300);
+  }
+
+  dialog::backdrop {
+    background: rgb(0 26 66 / 0.55);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+}
+
+/* Squared exercise-book paper: the site's signature texture. */
+@utility bg-graph {
+  background-color: var(--color-sky-100);
+  background-image:
+    linear-gradient(var(--color-sky-200) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-sky-200) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+
+/*
+ * Reveal on scroll (see components/ui/Reveal.tsx). Content is only hidden when
+ * motion is welcome and scripts run, so it is never stuck invisible.
+ */
+@media (prefers-reduced-motion: no-preference) and (scripting: enabled) {
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(16px);
+    transition:
+      opacity 600ms var(--ease-out),
+      transform 600ms var(--ease-out);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+
+  [data-reveal][data-revealed] {
+    opacity: 1;
+    transform: none;
+  }
 }

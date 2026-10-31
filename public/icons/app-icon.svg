@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Study Lab Co Tutoring logo">
+  <title>Study Lab Co Tutoring</title>
+  <rect width="400" height="400" fill="#E8F5FE"/>
+  <g transform="translate(200 200) scale(1.12) translate(-200 -192)">
+  <g stroke="#78B3E8" stroke-width="4" stroke-linecap="round"><line x1="200" y1="110" x2="200" y2="100"/><line x1="220.57" y1="117.49" x2="227" y2="109.83"/><line x1="179.43" y1="117.49" x2="173" y2="109.83"/><line x1="231.3" y1="135.35" x2="241.08" y2="133.27"/><line x1="168.7" y1="135.35" x2="158.92" y2="133.27"/><line x1="229.67" y1="153.99" x2="238.94" y2="157.73"/><line x1="170.33" y1="153.99" x2="161.06" y2="157.73"/></g>
+  <path d="M190 172 C190 164 179 158 179 143 A21 21 0 1 1 221 143 C221 158 210 164 210 172 Z"
+        fill="#B4D6F4" stroke="#001A42" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M207 130 A12 12 0 0 1 213 140" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+  <path d="M195 171 V157 Q195 150 199 153 L200 155 L201 153 Q205 150 205 157 V171"
+        fill="none" stroke="#001A42" stroke-width="2.5" stroke-linejoin="round"/>
+  <g fill="#001A42">
+    <rect x="189" y="174" width="22" height="4.5" rx="2.25"/>
+    <rect x="190" y="181" width="20" height="4.5" rx="2.25"/>
+    <rect x="192" y="188" width="16" height="4.5" rx="2.25"/>
+    <path d="M195 194 H205 A5 5 0 0 1 195 194 Z"/>
+  </g>
+  <g>
+    <g transform="matrix(-1 0 0 1 400 0)">
+    <path d="M200 286 Q262 262 336 280 L318 236 L200 240 Z" fill="#F7FBFF"/>
+    <path d="M287 184 L296 184 L334 230 Q256 236 200 283 Q236 214 292 208 Z" fill="#B4D6F4" opacity=".6"/>
+    <path d="M277 188 L285 188 L322 232 Q252 238 200 283 Q236 214 292 208 Z" fill="#B4D6F4"/>
+    <g fill="#001A42">
+      <path d="M200 280 Q250 241 309 240 L306 233 L313 233 L319 246 Q256 247 200 282.5 Z"/>
+      <path d="M200 282.5 Q260 248 322 250 L328.5 262 Q264 259 200 284.5 Z"/>
+      <path d="M200 284.5 Q266 263 330.5 268 L335 279.5 Q268 275 200 287 Z"/>
+    </g>
+    <path d="M200 240 C206 214 228 192 268 170 L292 208 Q236 214 200 281 Z"
+          fill="#F7FBFF" stroke="#001A42" stroke-width="3.5" stroke-linejoin="round"/>
+    </g>
+    <path d="M200 286 Q262 262 336 280 L318 236 L200 240 Z" fill="#F7FBFF"/>
+    <path d="M287 184 L296 184 L334 230 Q256 236 200 283 Q236 214 292 208 Z" fill="#B4D6F4" opacity=".6"/>
+    <path d="M277 188 L285 188 L322 232 Q252 238 200 283 Q236 214 292 208 Z" fill="#B4D6F4"/>
+    <g fill="#001A42">
+      <path d="M200 280 Q250 241 309 240 L306 233 L313 233 L319 246 Q256 247 200 282.5 Z"/>
+      <path d="M200 282.5 Q260 248 322 250 L328.5 262 Q264 259 200 284.5 Z"/>
+      <path d="M200 284.5 Q266 263 330.5 268 L335 279.5 Q268 275 200 287 Z"/>
+    </g>
+    <path d="M200 240 C206 214 228 192 268 170 L292 208 Q236 214 200 281 Z"
+          fill="#F7FBFF" stroke="#001A42" stroke-width="3.5" stroke-linejoin="round"/>
+    <path d="M200 240 V282" stroke="#001A42" stroke-width="3"/>
+    <path d="M187 282 A13 12 0 0 0 213 282 Z" fill="#001A42"/>
+  </g>
+  </g>
+</svg>
