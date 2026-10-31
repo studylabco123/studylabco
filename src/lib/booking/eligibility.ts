@@ -11,7 +11,9 @@ export type IneligibleReason =
   | "online_disabled"
   | "location_disabled"
   | "home_visit_sunday_only"
-  | "postcode_not_allowed";
+  | "postcode_not_allowed"
+  /** Not returned by checkEligibility; the booking service checks it (Ruling R9). */
+  | "assessment_already_booked";
 
 export interface EligibilityCtx {
   profile: { isBlocked: boolean };
@@ -72,4 +74,5 @@ export const IneligibleMessage: Record<IneligibleReason, string> = {
   location_disabled: "That location isn't available right now.",
   home_visit_sunday_only: "Home visits are only available on Sundays.",
   postcode_not_allowed: "We only visit BB1 and BB2 postcodes.",
+  assessment_already_booked: "This child already has an Assessment Lesson booked.",
 };

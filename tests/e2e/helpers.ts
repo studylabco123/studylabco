@@ -12,6 +12,10 @@
  *   produce codes for the admin MFA screen. No direct SQL on auth.mfa_factors.
  * - seedApprovedChild(parentId)  service-client insert of a child plus an
  *   approved student_status row.
+ * - seedChild(parentId, { approved?, agreement? })  a child with a signed
+ *   agreement (default), optionally approved.
+ * - setBankDetails() / deleteBookingsFor(parentId)  booking test setup and
+ *   cleanup (bookings use up real slots and seats, so tests remove theirs).
  *
  * Every helper uses unique emails so parallel projects never collide.
  */
@@ -239,4 +243,76 @@ export async function consentsFor(profileId: string) {
     .order("kind");
   if (error) throw error;
   return data;
+}
+
+/**
+ * A Year 10 child for `parentId` with a signed agreement; `approved` also adds
+ * an approved student_status row (assessment done).
+ */
+export async function seedChild(
+  parentId: string,
+  opts: { firstName?: string; approved?: boolean; agreement?: boolean } = {},
+): Promise<string> {
+  const service = serviceClient();
+  const childId = opts.approved
+    ? await seedApprovedChild(parentId, opts.firstName ?? "Sam")
+    : await (async () => {
+        const { data, error } = await service
+          .from("children")
+          .insert({
+            parent_id: parentId,
+            first_name: opts.firstName ?? "Sam",
+            last_name: "Parent",
+            school_year: 10,
+            exam_board: "AQA",
+            tier: "Higher",
+            subjects: ["Combined Science"],
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        return data.id as string;
+      })();
+  if (opts.agreement ?? true) {
+    const { error } = await service.from("agreements").insert({
+      child_id: childId,
+      policy_version: POLICY_VERSION,
+      emergency_contact_name: "Gran Parent",
+      emergency_contact_phone: "01632960123",
+      consent_contact: true,
+      signed_name: "Pat Parent",
+    });
+    if (error) throw error;
+  }
+  return childId;
+}
+
+export const TEST_BANK = {
+  name: "Study Lab Co",
+  sortCode: "12-34-56",
+  accountNumber: "12345678",
+  teachingAddress: "1 Tutor Road, Blackburn BB1 1QR",
+};
+
+/** Sets the private bank details and teaching address the confirmation page shows. */
+export async function setBankDetails(): Promise<void> {
+  const { error } = await serviceClient()
+    .from("settings_private")
+    .update({
+      bank_account_name: TEST_BANK.name,
+      bank_sort_code: TEST_BANK.sortCode,
+      bank_account_number: TEST_BANK.accountNumber,
+      teaching_address: TEST_BANK.teachingAddress,
+    })
+    .eq("id", 1);
+  if (error) throw error;
+}
+
+/** Removes a parent's bookings and blocks so tests don't use up real slots and seats. */
+export async function deleteBookingsFor(parentId: string): Promise<void> {
+  const service = serviceClient();
+  const b = await service.from("bookings").delete().eq("parent_id", parentId);
+  if (b.error) throw b.error;
+  const blocks = await service.from("block_bookings").delete().eq("parent_id", parentId);
+  if (blocks.error) throw blocks.error;
 }

@@ -72,6 +72,7 @@ describe("IneligibleMessage", () => {
     expect(IneligibleMessage.assessment_required).toBe("Each child starts with a £10 Assessment Lesson.");
     expect(IneligibleMessage.money_owed).toBe("You have an unpaid balance. Please pay it before booking again.");
     expect(IneligibleMessage.account_blocked).toBe("Please contact Study Lab Co.");
+    expect(IneligibleMessage.assessment_already_booked).toBe("This child already has an Assessment Lesson booked.");
     for (const [k, m] of Object.entries(IneligibleMessage)) {
       expect(m).not.toMatch(/\b(fine|penalty)\b/i);
       if (k !== "online_disabled") expect(m).not.toMatch(/online/i);

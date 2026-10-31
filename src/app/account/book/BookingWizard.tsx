@@ -1,0 +1,96 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { BlockStep, BundleStep, GroupSessionStep } from "./steps/SessionStep";
+import { ChildStep } from "./steps/ChildStep";
+import { LocationStep } from "./steps/LocationStep";
+import { ReviewStep } from "./steps/ReviewStep";
+import { SlotStep } from "./steps/SlotStep";
+import { summarise } from "./steps/summary";
+import { TypeStep } from "./steps/TypeStep";
+import type { Selection, WizardData } from "./types";
+
+type Step = "child" | "type" | "location" | "slot" | "session" | "review";
+
+/** Child -> type -> location -> slot/session -> review -> confirm. */
+export function BookingWizard({ data }: { data: WizardData }) {
+  const [sel, setSel] = useState<Selection>({});
+  const [history, setHistory] = useState<Step[]>(["child"]);
+  const step = history[history.length - 1];
+
+  const go = (next: Step, patch: Partial<Selection>) => {
+    setSel((s) => ({ ...s, ...patch }));
+    setHistory((h) => [...h, next]);
+  };
+  const back = () => setHistory((h) => (h.length > 1 ? h.slice(0, -1) : h));
+
+  const child = data.children.find((c) => c.id === sel.childId);
+  const lesson = sel.type === "assessment" || sel.type === "one_to_one" ? sel.type : null;
+  const summary = step === "review" ? summarise(sel, data) : null;
+
+  return (
+    <div className="flex flex-col gap-6" data-testid="booking-wizard">
+      {history.length > 1 ? (
+        <div>
+          <Button variant="quiet" onClick={back}>
+            Back
+          </Button>
+        </div>
+      ) : null}
+
+      {step === "child" ? (
+        <ChildStep items={data.children} onSelect={(childId) => go("type", { childId })} />
+      ) : null}
+
+      {step === "type" && child ? (
+        <TypeStep
+          child={child}
+          settings={data.settings}
+          familyMessage={data.familyMessage}
+          onSelect={(type) =>
+            go(type === "assessment" || type === "one_to_one" ? "location" : "session", {
+              type,
+              slot: undefined,
+              sessionId: undefined,
+              bundleDate: undefined,
+              block: undefined,
+            })
+          }
+        />
+      ) : null}
+
+      {step === "location" && lesson ? (
+        <LocationStep
+          type={lesson}
+          settings={data.settings}
+          initial={sel}
+          onDone={(choice) => go("slot", { homeAddress: undefined, postcode: undefined, ...choice })}
+        />
+      ) : null}
+
+      {step === "slot" && lesson && child && sel.location ? (
+        <SlotStep childId={child.id} type={lesson} location={sel.location} onSelect={(slot) => go("review", { slot })} />
+      ) : null}
+
+      {step === "session" && sel.type === "group" ? (
+        <GroupSessionStep sessions={data.sessions} onSelect={(sessionId) => go("review", { sessionId })} />
+      ) : null}
+      {step === "session" && sel.type === "sunday_bundle" ? (
+        <BundleStep sessions={data.sessions} onSelect={(bundleDate) => go("review", { bundleDate })} />
+      ) : null}
+      {step === "session" && sel.type === "block" ? (
+        <BlockStep
+          sessions={data.sessions}
+          settings={data.settings}
+          initial={sel.block}
+          onSelect={(block) => go("review", { block })}
+        />
+      ) : null}
+
+      {step === "review" && summary ? (
+        <ReviewStep summary={summary} noticeHours={data.settings.cancellationNoticeHours} />
+      ) : null}
+    </div>
+  );
+}

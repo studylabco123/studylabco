@@ -12,6 +12,12 @@ const testEnv = (): Record<string, string> => {
 };
 
 const alias = { "@": fileURLToPath(new URL("./src", import.meta.url)) };
+// DB tests import server-only modules (src/lib/booking/service.ts); outside a
+// React Server Components build "server-only" throws, so use its no-op entry.
+const dbAlias = {
+  ...alias,
+  "server-only": fileURLToPath(new URL("./node_modules/server-only/empty.js", import.meta.url)),
+};
 
 export default defineConfig({
   resolve: { alias },
@@ -22,7 +28,7 @@ export default defineConfig({
         test: { name: "unit", include: ["tests/unit/**/*.test.ts"] },
       },
       {
-        resolve: { alias },
+        resolve: { alias: dbAlias },
         test: {
           name: "db",
           include: ["tests/db/**/*.test.ts"],

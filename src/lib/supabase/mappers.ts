@@ -4,7 +4,25 @@
 // `mapX(row: XRow): X` using `toDate`/`toDateOrNull` for timestamptz columns
 // (date-only and time columns stay strings), and for tables that get written
 // add `xPatchToRow` built on `patchToRow` with an explicit column map.
-import type { BlockPrices, BlockWeeks, GroupProduct, PrivateSettings, Settings } from "@/lib/types";
+import type {
+  AvailabilityRule,
+  BlockedRule,
+  BlockedTime,
+  BlockPrices,
+  BlockWeeks,
+  Booking,
+  BookingKind,
+  BookingStatus,
+  GroupProduct,
+  GroupSession,
+  LocationKind,
+  PaymentStatus,
+  PeriodKind,
+  PrivateSettings,
+  Settings,
+  TermPeriod,
+  Weekday,
+} from "@/lib/types";
 
 /** timestamptz (ISO string) to Date. */
 export function toDate(value: string): Date {
@@ -139,4 +157,157 @@ const PRIVATE_SETTINGS_COLUMNS: { [K in keyof PrivateSettings]: string } = {
 
 export function privateSettingsPatchToRow(patch: Partial<PrivateSettings>): Record<string, unknown> {
   return patchToRow(patch, PRIVATE_SETTINGS_COLUMNS);
+}
+
+export interface BookingRow {
+  id: string;
+  created_at: string;
+  parent_id: string | null;
+  child_id: string | null;
+  kind: BookingKind;
+  location: LocationKind;
+  starts_at: string;
+  ends_at: string;
+  busy_until: string;
+  group_session_id: string | null;
+  block_booking_id: string | null;
+  bundle_id: string | null;
+  status: BookingStatus;
+  price_pence: number;
+  travel_fee_pence: number;
+  payment_reference: string;
+  payment_status: PaymentStatus;
+  home_address: string | null;
+  home_postcode: string | null;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  decided_at: string | null;
+}
+
+export function mapBooking(row: BookingRow): Booking {
+  return {
+    id: row.id,
+    createdAt: toDate(row.created_at),
+    parentId: row.parent_id,
+    childId: row.child_id,
+    kind: row.kind,
+    location: row.location,
+    startsAt: toDate(row.starts_at),
+    endsAt: toDate(row.ends_at),
+    busyUntil: toDate(row.busy_until),
+    groupSessionId: row.group_session_id,
+    blockBookingId: row.block_booking_id,
+    bundleId: row.bundle_id,
+    status: row.status,
+    pricePence: row.price_pence,
+    travelFeePence: row.travel_fee_pence,
+    paymentReference: row.payment_reference,
+    paymentStatus: row.payment_status,
+    homeAddress: row.home_address,
+    homePostcode: row.home_postcode,
+    cancelledAt: toDateOrNull(row.cancelled_at),
+    cancelledBy: row.cancelled_by,
+    decidedAt: toDateOrNull(row.decided_at),
+  };
+}
+
+export interface GroupSessionRow {
+  id: string;
+  series_id: string | null;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  capacity: number;
+  price_pence: number;
+  venue: string | null;
+  is_online: boolean;
+  status: "scheduled" | "cancelled";
+}
+
+export function mapGroupSession(row: GroupSessionRow): GroupSession {
+  return {
+    id: row.id,
+    seriesId: row.series_id,
+    title: row.title,
+    startsAt: toDate(row.starts_at),
+    endsAt: toDate(row.ends_at),
+    capacity: row.capacity,
+    pricePence: row.price_pence,
+    venue: row.venue,
+    isOnline: row.is_online,
+    status: row.status,
+  };
+}
+
+export interface AvailabilityRuleRow {
+  id: string;
+  period: PeriodKind;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  kinds: BookingKind[];
+  locations: LocationKind[];
+}
+
+export function mapAvailabilityRule(row: AvailabilityRuleRow): AvailabilityRule {
+  return {
+    id: row.id,
+    period: row.period,
+    weekday: row.weekday as Weekday,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    kinds: row.kinds,
+    locations: row.locations,
+  };
+}
+
+export interface TermPeriodRow {
+  id: string;
+  label: string;
+  starts_on: string;
+  ends_on: string;
+}
+
+export function mapTermPeriod(row: TermPeriodRow): TermPeriod {
+  return { id: row.id, label: row.label, startsOn: row.starts_on, endsOn: row.ends_on };
+}
+
+export interface BlockedTimeRow {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  reason: string;
+  is_default: boolean;
+}
+
+export function mapBlockedTime(row: BlockedTimeRow): BlockedTime {
+  return {
+    id: row.id,
+    startsAt: toDate(row.starts_at),
+    endsAt: toDate(row.ends_at),
+    reason: row.reason,
+    isDefault: row.is_default,
+  };
+}
+
+export interface BlockedRuleRow {
+  id: string;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  valid_from: string;
+  valid_to: string | null;
+  reason: string;
+}
+
+export function mapBlockedRule(row: BlockedRuleRow): BlockedRule {
+  return {
+    id: row.id,
+    weekday: row.weekday as Weekday,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    validFrom: row.valid_from,
+    validTo: row.valid_to,
+    reason: row.reason,
+  };
 }

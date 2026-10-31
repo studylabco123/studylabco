@@ -21,7 +21,18 @@ function split(total: number, n: number): number[] {
   return parts;
 }
 
-export function quote(item: QuoteItem, s: Settings): Quote {
+/** The settings a quote reads (a full Settings object also fits). */
+export type PriceSettings = Pick<
+  Settings,
+  | "priceAssessmentPence"
+  | "priceOneToOnePence"
+  | "priceGroupPence"
+  | "priceSundayBundlePence"
+  | "travelFeePence"
+  | "blockPrices"
+>;
+
+export function quote(item: QuoteItem, s: PriceSettings): Quote {
   switch (item.type) {
     case "assessment":
     case "one_to_one": {
