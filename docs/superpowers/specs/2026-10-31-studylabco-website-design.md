@@ -48,18 +48,19 @@ Block prices are stored as explicit amounts (not percentages) so there is no rou
 
 ### 2.3 Lesson locations
 - **At tutor's place** (BB1 1QR). The address is **never shown publicly**; it is sent only in confirmation emails for confirmed bookings.
-- **Online** via one fixed meeting link (Google Meet/Zoom) set in Settings.
+- **Online** via one fixed meeting link (Google Meet/Zoom) set in Settings. **Switched OFF at launch** (Settings toggle "Online lessons"). While off, no online option appears anywhere on the site and online wording is hidden from public pages.
 - **Home visit:** Sunday 1-to-1 window only, Blackburn postcodes only (**BB1, BB2**), requires tutor approval, and blocks 30 minutes after the lesson for travel.
-- **Group venue:** set in Settings. Until it is set, group listings say "Location confirmed on booking". A group may also be marked as online.
+- **Group venue:** set in Settings. Until it is set, group listings say "Location confirmed on booking". A group may also be marked as online once online lessons are switched on.
 
 ### 2.4 Weekly timetable (defaults; editable)
 
 | Day | Term time | School holidays |
 |---|---|---|
-| Mon–Fri | 1-to-1/assessment slots 17:00, 18:00, 19:00 (tutor's place or online) | Slots hourly from 10:00, last at 17:00 (tutor's place or online) |
+| Mon–Fri | 1-to-1/assessment slots 17:00, 18:00, 19:00 (tutor's place) | Slots hourly from 07:00, last at 21:00 (tutor's place) |
 | Saturday | Group 08:15–09:15 only | Same |
-| Sunday | Groups 08:15–09:15 and 09:15–10:15; then 1-to-1/assessment slots hourly from 10:30, last at 16:30 (tutor's place, online or home visit) | Same |
+| Sunday | Groups 08:15–09:15 and 09:15–10:15; then 1-to-1/assessment slots hourly from 10:30, last at 16:30 (tutor's place or home visit) | Same |
 
+- "Tutor's place" in the table also means online when online lessons are switched on.
 - Lessons are back-to-back with no gap. The only exception is home visits, which add a 30-minute travel buffer afterwards.
 - Assessment Lessons are **in person only** (tutor's place or home visit). Online assessments can only be added manually by the tutor.
 
@@ -70,7 +71,7 @@ Block prices are stored as explicit amounts (not percentages) so there is no rou
 - Spring: 4 Jan 2027 – 25 Mar 2027, excluding half term 15–19 Feb 2027 and the Eid ul Fitr closure 9–10 Mar 2027
 - Summer: 12 Apr 2027 – 22 Jul 2027, excluding the May Day closure 3 May 2027, Eid ul Adha 17–18 May 2027 and half term 31 May – 4 Jun 2027
 
-(Inset days 1 Sep 2026 and 4 Jan 2027 count as term time.)
+(Inset days 1 Sep 2026 and 4 Jan 2027 count as term time and stay open by default. They are highlighted in the admin calendar, and every day has a one-tap **Close this day** / **Reopen** action.)
 
 **Everything outside term periods uses holiday hours**, including the Christmas holiday (21 Dec 2026 – 1 Jan 2027), Easter (26 Mar – 9 Apr 2027) and the summer holiday.
 
@@ -118,8 +119,8 @@ Wording: "late cancellation fee", never "fine" or "penalty". The fee is the less
 ### 3.1 Pages
 | Page | Content |
 |---|---|
-| Home | Logo; headline about GCSE Science tuition from a qualified teacher in Blackburn; badges "Qualified Teacher (QTS) · DBS Checked · All Exam Boards"; 3-step "How it works"; lesson types; upcoming groups; testimonials (hidden until real ones exist); main button "Book your £10 Assessment Lesson" |
-| About | No photo. Qualifications: Grade 9 GCSE Science (Jamiatul Ilm Wal Huda, Blackburn); A-Levels in Biology, Chemistry and Psychology (Clitheroe Royal Grammar School Sixth Form); BSc Biology (University of Salford); PGCE with QTS (Edge Hill University); DBS checked. Teaching approach. |
+| Home | Logo; headline about GCSE Science tuition from a qualified teacher in Blackburn; badges "Qualified Teacher (QTS) · Enhanced DBS Checked · All Exam Boards"; 3-step "How it works"; lesson types; upcoming groups; testimonials (hidden until real ones exist); main button "Book your £10 Assessment Lesson" |
+| About | No photo. Qualifications: Grade 9 GCSE Science (Jamiatul Ilm Wal Huda, Blackburn); A-Levels in Biology, Chemistry and Psychology (Clitheroe Royal Grammar School Sixth Form); BSc Biology (University of Salford); PGCE with QTS (Edge Hill University); Enhanced DBS checked. Teaching approach. |
 | Lessons & Pricing | All lesson types, prices, the travel fee, block discounts and the new student steps |
 | Group Sessions | Upcoming groups: topic, date, time, year group, seats left, venue/online |
 | FAQ | Exam boards, tiers, the assessment, payment, cancellations, safeguarding |
@@ -135,7 +136,7 @@ Wording: "late cancellation fee", never "fine" or "penalty". The fee is the less
 - Colours from the logo: navy (main text and buttons) and soft sky blue (backgrounds and decoration only, never text).
 - Clean, trustworthy and friendly, with science-themed custom illustrations instead of a photo. It must not look like a template.
 - Subtle, purposeful animations (fade/slide-in on scroll, button feedback) that respect "reduce motion" settings.
-- Logo: the owner provides the original file, or it is redrawn as an SVG.
+- Logo: redrawn as a clean SVG from the owner's logo (navy circle, "STUDYLABCO." arched text, lightbulb over open book, "TUTORING"), plus favicon and home-screen icons.
 
 ---
 
@@ -182,12 +183,12 @@ Booking emails are transactional. Marketing emails go only to opted-in parents a
 ## 5. Admin dashboard (tutor only, phone-friendly)
 
 - **Today:** today's lessons (who, when, where, paid/unpaid) and alerts (home visit requests, unpaid lessons, overdue block payments, families awaiting assessment, flagged parents).
-- **Calendar:** week/month views, colour-coded by type. Tap to block a time/day/repeating slot or to add a manual booking.
+- **Calendar:** week/month views, colour-coded by type. Tap to block a time/day/repeating slot, **close/reopen a whole day**, or add a manual booking.
 - **Group sessions manager:** add (title/topic, day, time, one-off or weekly, seats, price, venue/online, year group), edit, cancel one week (automatic emails, credit/refund recorded), remove a series, and "Email everyone in this group". Pre-loaded: Saturday 08:15, Sunday 08:15 and 09:15 weekly.
 - **Bookings:** search/filter; mark Paid / Attended / No-show / Late cancellation / Waive fee; cancel as tutor; approve/decline home visits.
 - **Parents & students:** tap to call, WhatsApp or email; children's details; form signed date/time; assessment status and **Approve student**; booking history; amount owed; late-cancellation/no-show count; private notes; **Block/Unblock** with reason (a blocked parent sees "Please contact Study Lab Co").
 - **Money:** outstanding payments; income by week, month and year; expenses with receipt photos; mileage; **Tax Year Pack** (section 6).
-- **Settings:** all prices and block prices; travel fee; term/holiday hours; term periods and blocked dates; bank details; teaching address; group venue; online meeting link; cancellation notice (48 h); booking window (4 weeks); minimum notice (24 h); seat default (15); private calendar feed link for Google/iPhone Calendar; **Download full backup**.
+- **Settings:** all prices and block prices; travel fee; term/holiday hours; term periods and blocked dates; bank details; **location toggles (Online lessons: off; Home visits: on; At tutor's place: on)**; teaching address; group venue; online meeting link; cancellation notice (48 h); booking window (4 weeks); minimum notice (24 h); seat default (15); private calendar feed link for Google/iPhone Calendar; **Download full backup**.
 - **Security:** admin login requires a password plus 2-step verification (authenticator app).
 
 ---
@@ -289,9 +290,9 @@ Income is counted when payment is received (cash basis). The pack is a record-ke
 Card payments (Stripe); 1-to-1 block bookings; lesson notes/homework for parents; reviews collection; SMS/WhatsApp reminders; KS3.
 
 ## 10. Open items for the owner
-1. Is the DBS **enhanced**? (Changes the badge wording.)
-2. Original logo file, or approval to redraw it as an SVG.
-3. Domain name choice (e.g. `studylabco.co.uk`).
-4. GitHub and Resend accounts (guided setup).
-5. Virtual office address (optional; recommended).
-6. Bank details, teaching address and phone, entered directly in the dashboard, not in chat.
+Resolved: DBS is enhanced; logo will be redrawn; online lessons off at launch.
+
+1. Buy domain **studylabco.co.uk** (available as of 31 Oct 2026).
+2. GitHub and Resend accounts (guided setup).
+3. Virtual office address (optional; recommended).
+4. Bank details, teaching address and phone, entered directly in the dashboard after launch, not in chat.
