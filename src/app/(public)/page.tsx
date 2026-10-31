@@ -5,8 +5,15 @@ import { Reveal } from "@/components/ui/Reveal";
 import { TRUST_BADGES } from "@/lib/site";
 
 // Placeholder home: the full page is built in a later task on these primitives.
-export default function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ notice?: string }> }) {
+  const { notice } = await searchParams;
   return (
+    <>
+      {notice === "account-deleted" ? (
+        <p role="status" className="bg-success-50 px-5 py-3 text-center text-success-700">
+          Your account has been deleted.
+        </p>
+      ) : null}
     <section aria-labelledby="hero-title" className="bg-graph border-b border-sky-200">
       <div className="mx-auto grid max-w-content items-center gap-10 px-5 py-14 sm:px-8 md:grid-cols-12 md:py-24">
         <div className="flex flex-col gap-6 md:col-span-7">
@@ -42,5 +49,6 @@ export default function HomePage() {
         </Reveal>
       </div>
     </section>
+    </>
   );
 }

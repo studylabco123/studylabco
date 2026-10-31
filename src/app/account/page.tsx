@@ -1,30 +1,110 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Badge } from "@/components/ui/Badge";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { loadAccountOverview } from "@/lib/booking/account-data";
+import { formatLondon, formatPence } from "@/lib/format";
 import { createServerClient } from "@/lib/supabase/server";
+import { BookingList } from "./bookings/BookingList";
+import { CancelNotice } from "./bookings/CancelNotice";
 import { signOut } from "./actions";
 
 export const metadata: Metadata = { title: "Your account" };
 
-// Placeholder: the full dashboard is built in a later task.
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cancelled?: string; fee?: string }>;
+}) {
   const supabase = await createServerClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect("/login?next=%2Faccount");
+  const { cancelled, fee } = await searchParams;
   const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", auth.user.id).single();
   const name = profile?.full_name || auth.user.email;
+  const o = await loadAccountOverview(auth.user.id);
+
   return (
-    <div className="mx-auto flex max-w-content flex-col items-start gap-6 px-5 py-12 sm:px-8">
+    <div className="mx-auto flex max-w-content flex-col gap-8 px-5 py-12 sm:px-8">
       <h1 className="text-h1">Welcome, {name}</h1>
-      <ButtonLink href="/account/book">Book a lesson</ButtonLink>
-      <ButtonLink href="/account/children" variant="secondary">
-        Your children and agreements
-      </ButtonLink>
-      <form action={signOut}>
-        <Button type="submit" variant="secondary">
-          Sign out
-        </Button>
-      </form>
+      <CancelNotice cancelled={cancelled} fee={fee} />
+
+      <div>
+        {o.isBlocked ? (
+          <p className="text-lead">Please contact Study Lab Co.</p>
+        ) : (
+          <ButtonLink href="/account/book">Book a lesson</ButtonLink>
+        )}
+      </div>
+
+      {o.owedPence > 0 ? (
+        <Card tone="sky" className="flex flex-col gap-3">
+          <h2 className="text-h2">Balance to pay</h2>
+          <p>
+            You owe <strong data-testid="owed">{formatPence(o.owedPence)}</strong>. Pay by bank transfer or cash, quoting
+            the reference for each lesson.
+          </p>
+          <ul className="flex flex-col gap-1">
+            {o.owedLines.map((l) => (
+              <li key={l.reference}>
+                <span className="font-display font-medium">{l.reference}</span>: {l.title},{" "}
+                {formatLondon(l.startsAt, "d MMM yyyy")}, {formatPence(l.amountPence)}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      <section aria-labelledby="children" className="flex flex-col gap-4">
+        <h2 id="children" className="text-h2">
+          Your children
+        </h2>
+        {o.children.length ? (
+          <ul className="flex flex-col gap-3">
+            {o.children.map((ch) => (
+              <Card as="li" key={ch.id} className="flex flex-wrap items-center gap-3">
+                <span className="text-h3">{ch.name}</span>
+                {ch.hasAgreement ? (
+                  <Badge tone="success">Agreement signed</Badge>
+                ) : (
+                  <Badge tone="warning">Agreement needed</Badge>
+                )}
+                {ch.approved ? <Badge tone="success">Approved</Badge> : <Badge tone="warning">Awaiting assessment</Badge>}
+              </Card>
+            ))}
+          </ul>
+        ) : (
+          <p>You have not added a child yet.</p>
+        )}
+        <div>
+          <ButtonLink href="/account/children" variant="secondary">
+            Your children and agreements
+          </ButtonLink>
+        </div>
+      </section>
+
+      <section aria-labelledby="upcoming" className="flex flex-col gap-4">
+        <h2 id="upcoming" className="text-h2">
+          Upcoming bookings
+        </h2>
+        <BookingList items={o.upcoming} empty="You have no upcoming bookings." />
+        <Link href="/account/bookings" className="underline underline-offset-4">
+          All bookings, including past and cancelled
+        </Link>
+      </section>
+
+      <div className="flex flex-wrap gap-3">
+        <ButtonLink href="/account/settings" variant="secondary">
+          Account settings
+        </ButtonLink>
+        <form action={signOut}>
+          <Button type="submit" variant="secondary">
+            Sign out
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }
