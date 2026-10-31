@@ -52,6 +52,9 @@ describe("deleteAccount", () => {
       "insert into ledger (booking_id, parent_id, kind, method, amount_pence, occurred_on) values ($1, $2, 'payment', 'cash', 3500, '2026-11-05')",
       [id, parentId],
     );
+    await db.query("insert into email_log (booking_id, template, to_email) values ($1, 'booking_confirmed', 'x@example.test')", [id]);
+    await db.query("update ledger set note = 'paid by Pat Parent cash' where booking_id = $1", [id]);
+    await db.query("insert into mileage (booking_id, trip_on, miles, note) values ($1, '2026-11-05', 3, 'visit to Pat Parent')", [id]);
     await db.query("insert into agreements (child_id, policy_version, emergency_contact_name, emergency_contact_phone, consent_contact, signed_name) values ($1, '2026-11-01', 'Gran', '01632960123', true, 'Pat')", [childId]);
 
     const res = await deleteAccount(parentId, { now: NOW });
@@ -69,6 +72,10 @@ describe("deleteAccount", () => {
 
     const l = (await db.query("select amount_pence, parent_id from ledger where booking_id = $1", [id])).rows;
     expect(l).toEqual([{ amount_pence: 3500, parent_id: null }]);
+
+    expect((await db.query("select 1 from email_log")).rowCount).toBe(0);
+    expect((await db.query("select note from ledger where booking_id = $1", [id])).rows[0].note).toBe("");
+    expect((await db.query("select note from mileage where booking_id = $1", [id])).rows[0].note).toBe("");
 
     for (const [table, col, val] of [
       ["children", "id", childId],
@@ -92,5 +99,33 @@ describe("deleteAccount", () => {
     expect(b.home_address).toBe("1 Test Street");
     expect((await db.query("select 1 from auth.users where id = $1", [parentId])).rowCount).toBe(1);
     expect((await db.query("select 1 from children where id = $1", [childId])).rowCount).toBe(1);
+  });
+
+  test("refuses with a lesson inside the notice window", async () => {
+    const id = await insertBooking({ starts: "2026-11-11T10:00:00Z", status: "confirmed", paymentStatus: "paid" });
+    const res = await deleteAccount(parentId, { now: NOW });
+    expect(res).toMatchObject({ ok: false, reason: "lesson_soon" });
+    if (!res.ok) expect(res.message).toBe("You have a lesson within the next 48 hours. Please contact Study Lab Co. or wait until it has passed.");
+    expect((await db.query("select status::text from bookings where id = $1", [id])).rows[0].status).toBe("confirmed");
+    expect((await db.query("select 1 from auth.users where id = $1", [parentId])).rowCount).toBe(1);
+  });
+
+  test("cancels future bookings beyond the window, crediting paid ones", async () => {
+    const paid = await insertBooking({ starts: "2026-11-20T10:00:00Z", status: "confirmed", paymentStatus: "paid" });
+    const unpaid = await insertBooking({ starts: "2026-11-22T10:00:00Z", status: "pending", paymentStatus: "unpaid" });
+    expect(await deleteAccount(parentId, { now: NOW })).toEqual({ ok: true });
+    const rows = (await db.query("select id, status::text, payment_status::text, cancelled_by, cancelled_at, parent_id from bookings")).rows;
+    const p = rows.find((r) => r.id === paid);
+    const u = rows.find((r) => r.id === unpaid);
+    expect(p).toMatchObject({ status: "cancelled", payment_status: "credited", cancelled_by: "parent", parent_id: null });
+    expect(p!.cancelled_at).not.toBeNull();
+    expect(u).toMatchObject({ status: "cancelled", payment_status: "unpaid", cancelled_by: "parent" });
+  });
+
+  test("refuses for a non-parent profile", async () => {
+    await db.query("update profiles set role = 'admin' where id = $1", [parentId]);
+    const res = await deleteAccount(parentId, { now: NOW });
+    expect(res).toMatchObject({ ok: false, reason: "not_a_parent" });
+    expect((await db.query("select 1 from auth.users where id = $1", [parentId])).rowCount).toBe(1);
   });
 });
