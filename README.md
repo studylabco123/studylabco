@@ -14,4 +14,4 @@ Tuition website: Next.js 15 (App Router) + Supabase.
 - `npm run check` - lint, typecheck, unit tests
 - `npm run test:db` - database tests (needs local Supabase)
 - `npm run test:e2e` - Playwright (iphone and windows projects)
-- `npm run db:reset` - reapply migrations
+- `npm run db:reset` - reapply migrations (schema and 2026-27 seed data, `0004_seed.sql`)
