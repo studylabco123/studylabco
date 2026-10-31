@@ -181,7 +181,21 @@ describe("parents", () => {
       "insert into email_log (template, to_email) values ('welcome', 'a@example.test')",
     );
     const me = asUser(parentA);
-    for (const t of ["expenses", "mileage", "email_log", "settings_private", "tutor_notes"]) {
+    await db.query(
+      "insert into blocked_times (starts_at, ends_at, reason) values ('2026-11-02T00:00Z', '2026-11-03T00:00Z', 'private')",
+    );
+    await db.query(
+      "insert into blocked_rules (weekday, start_time, end_time, valid_from, reason) values (2, '09:00', '10:00', '2026-11-01', 'private')",
+    );
+    for (const t of [
+      "expenses",
+      "mileage",
+      "email_log",
+      "settings_private",
+      "tutor_notes",
+      "blocked_times",
+      "blocked_rules",
+    ]) {
       const { rows } = await me.query(`select * from ${t}`);
       expect(rows, t).toHaveLength(0);
     }
@@ -328,6 +342,7 @@ describe("admin", () => {
     expect((await admin.query("select * from profiles")).rows).toHaveLength(3);
     expect((await admin.query("select * from bookings")).rows).toHaveLength(1);
     expect((await admin.query("select * from group_sessions")).rows).toHaveLength(1);
+    expect((await admin.query("select * from blocked_times")).rows).toHaveLength(7);
   });
 
   test("admin with aal2 can write admin tables and change roles", async () => {
@@ -376,7 +391,17 @@ describe("anon", () => {
   test("anon cannot read private tables or write anything", async () => {
     await insertBooking(parentA, childA, "2026-11-02T17:00Z");
     const anon = asAnon();
-    for (const t of ["profiles", "children", "bookings", "settings_private", "ledger", "consents"]) {
+    const tables = [
+      "profiles",
+      "children",
+      "bookings",
+      "settings_private",
+      "ledger",
+      "consents",
+      "blocked_times",
+      "blocked_rules",
+    ];
+    for (const t of tables) {
       const code = await errorCode(anon.query(`select * from ${t}`));
       if (code === undefined) {
         expect((await anon.query(`select * from ${t}`)).rows, t).toHaveLength(0);

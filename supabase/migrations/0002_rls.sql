@@ -39,7 +39,7 @@ revoke insert, update, delete on all tables in schema public from anon;
 revoke select on all tables in schema public from anon;
 grant select on
   public.settings, public.group_sessions, public.group_series, public.term_periods,
-  public.availability_rules, public.blocked_times, public.blocked_rules
+  public.availability_rules
   to anon;
 
 alter default privileges for role postgres in schema public
@@ -149,13 +149,10 @@ create policy parent_select_booked on public.group_sessions
   for select to authenticated using (
     exists (select 1 from public.bookings b
              where b.group_session_id = group_sessions.id and b.parent_id = (select auth.uid())));
--- Blocks are needed to show free slots; only the admin writes them.
-create policy public_read on public.blocked_times
-  for select to anon, authenticated using (true);
-create policy public_read on public.blocked_rules
-  for select to anon, authenticated using (true);
 
--- settings_private, tutor_notes, expenses, mileage, email_log: admin only
+-- settings_private, tutor_notes, expenses, mileage, email_log, blocked_times,
+-- blocked_rules: admin only. Blocks hold the tutor's private absence reasons;
+-- slots are computed server-side with the service role
 -- (no policy besides admin_all).
 
 -- ---------------------------------------------------------------------------
