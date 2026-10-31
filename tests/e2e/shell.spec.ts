@@ -69,6 +69,23 @@ test.describe("site shell", () => {
     expect(results.violations).toEqual([]);
   });
 
+  test("has no axe violations at default motion once animations finish", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.goto("/");
+    // Scroll through the page so every reveal fires, then wait for all motion to end.
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    for (let y = 0; y <= height; y += 300) {
+      await page.mouse.wheel(0, 300);
+      await page.waitForTimeout(50);
+    }
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll("[data-reveal]")].every((el) => el.hasAttribute("data-revealed")),
+    );
+    await page.waitForFunction(() => document.getAnimations().length === 0);
+    const results = await axe(page);
+    expect(results.violations).toEqual([]);
+  });
+
   test("has no axe violations with the mobile menu open", async ({ page }) => {
     await page.setViewportSize({ width: 393, height: 852 });
     await gotoSettled(page);

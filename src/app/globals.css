@@ -53,7 +53,7 @@
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 
-  --animate-rise: rise 600ms var(--ease-out) both;
+  --animate-rise: rise 600ms var(--ease-out) backwards;
   --animate-menu-in: menu-in 200ms var(--ease-out);
   --animate-dialog-in: dialog-in 220ms var(--ease-out);
   --animate-toast-in: toast-in 240ms var(--ease-out);

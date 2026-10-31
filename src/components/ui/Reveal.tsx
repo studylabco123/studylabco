@@ -34,7 +34,9 @@ export function Reveal({ children, as: Tag = "div", delay = 0, className }: Reve
           }
         }
       },
-      { rootMargin: "0px 0px -10% 0px" },
+      // Any visible pixel counts: a negative margin or a ratio threshold would
+      // strand content at the very end of a page or inside very tall elements.
+      { threshold: 0 },
     );
     observer.observe(el);
     return () => observer.disconnect();
