@@ -78,29 +78,33 @@ async function reserveSeat(
 
 /**
  * Takes one seat per session in order with the given prices. All-or-nothing:
- * if any seat fails, the seats already taken (and the block row) are removed.
+ * if any seat fails, or anything throws (an unmapped database error, the
+ * cooling-off insert), the seats already taken and the block row are removed.
  */
 async function reserveAll(
   input: GroupInput,
   seats: { session: GroupSession; price: number; bundleId: string | null }[],
+  opts: ServiceOptions,
   blockId: string | null = null,
 ): Promise<BookingResult> {
   const ids: string[] = [];
-  for (const seat of seats) {
-    const r = await reserveSeat(seat.session, input, seat.price, seat.bundleId, blockId);
-    if (!r.ok) {
-      await rollback(ids, blockId ?? undefined);
-      // A block names the week that filled up meanwhile.
-      return r.reason === "session_full" && blockId
-        ? { ok: false, reason: r.reason, fullDate: londonDateOf(seat.session.startsAt) }
-        : { ok: false, reason: r.reason };
-    }
-    ids.push(r.id);
-  }
+  const undo = () => rollback(ids, blockId ?? undefined);
   try {
+    await opts.beforeSeats?.();
+    for (const seat of seats) {
+      const r = await reserveSeat(seat.session, input, seat.price, seat.bundleId, blockId);
+      if (!r.ok) {
+        await undo();
+        // A block names the week that filled up meanwhile.
+        return r.reason === "session_full" && blockId
+          ? { ok: false, reason: r.reason, fullDate: londonDateOf(seat.session.startsAt) }
+          : { ok: false, reason: r.reason };
+      }
+      ids.push(r.id);
+    }
     await recordCoolingOff(input.parentId, ids[0]);
   } catch (err) {
-    await rollback(ids, blockId ?? undefined);
+    await undo();
     throw err;
   }
   await onBookingCreated(ids);
@@ -130,7 +134,7 @@ export async function createGroupBooking(
   if (!sessionBookable(session, checked.settings, now)) return { ok: false, reason: "session_unavailable" };
 
   const price = quote({ type: "group" }, checked.settings).perBookingPence[0];
-  return reserveAll(input, [{ session, price, bundleId: null }]);
+  return reserveAll(input, [{ session, price, bundleId: null }], opts);
 }
 
 /** Both Sunday sessions on `date` (London), sharing a bundle id, all-or-nothing. */
@@ -158,6 +162,7 @@ export async function createSundayBundle(
   return reserveAll(
     input,
     sessions.map((session, i) => ({ session, price: prices[i], bundleId })),
+    opts,
   );
 }
 
@@ -216,16 +221,24 @@ export async function createBlockBooking(
     .single();
   if (block.error) throw new Error(`Could not create block: ${block.error.message}`);
 
-  const bundles = new Map<string, string>();
-  const bundleFor = (s: GroupSession): string | null => {
-    if (product !== "sunday_bundle") return null;
-    const date = londonDateOf(s.startsAt);
-    if (!bundles.has(date)) bundles.set(date, randomUUID());
-    return bundles.get(date)!;
-  };
-  return reserveAll(
-    input,
-    planned.map((session, i) => ({ session, price: price.perBookingPence[i], bundleId: bundleFor(session) })),
-    block.data.id as string,
-  );
+  const blockId = block.data.id as string;
+  // Nothing may leave a held block row behind (reserveAll also removes its seats).
+  try {
+    const bundles = new Map<string, string>();
+    const bundleFor = (s: GroupSession): string | null => {
+      if (product !== "sunday_bundle") return null;
+      const date = londonDateOf(s.startsAt);
+      if (!bundles.has(date)) bundles.set(date, randomUUID());
+      return bundles.get(date)!;
+    };
+    return await reserveAll(
+      input,
+      planned.map((session, i) => ({ session, price: price.perBookingPence[i], bundleId: bundleFor(session) })),
+      opts,
+      blockId,
+    );
+  } catch (err) {
+    await rollback([], blockId);
+    throw err;
+  }
 }

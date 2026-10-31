@@ -349,6 +349,46 @@ describe("group bookings", () => {
     expect(await count("bookings where child_id = $1", [childId])).toBe(0);
   });
 
+  test("week filled after the block row exists: no seats and no block row remain", async () => {
+    const [week3] = await sessions("2026-11-21");
+    await db.query("update group_sessions set capacity = 1 where id = $1", [week3]);
+    const other = await createUser();
+    const otherChild = await createChild(other.id, { firstName: "Racer" });
+    const r = await createBlockBooking(group({ product: "saturday", weeks: 6, firstDate: "2026-11-07" }), {
+      now: NOW,
+      // Another family takes the last week-3 seat after planning, before our seats.
+      beforeSeats: async () => {
+        expect(await count("block_bookings")).toBe(1);
+        await db.query("select public.reserve_group_seat($1, $2, $3, 1800)", [week3, other.id, otherChild]);
+      },
+    });
+    expect(r).toEqual({ ok: false, reason: "session_full", fullDate: "2026-11-21" });
+    expect(await count("block_bookings")).toBe(0);
+    expect(await count("bookings where parent_id = $1", [parentId])).toBe(0);
+  });
+
+  test("unexpected seat error rolls back seats and block row, then rethrows", async () => {
+    const [week2] = await sessions("2026-11-14");
+    const r = createBlockBooking(group({ product: "saturday", weeks: 6, firstDate: "2026-11-07" }), {
+      now: NOW,
+      // Makes the week-2 seat insert fail with an unmapped error (23514 check violation).
+      beforeSeats: async () => {
+        await db.query(
+          `alter table bookings add constraint test_no_week2
+             check (group_session_id is distinct from '${week2}'::uuid) not valid`,
+        );
+      },
+    });
+    try {
+      await expect(r).rejects.toThrow(/Could not reserve a seat/);
+      expect(await count("block_bookings")).toBe(0);
+      expect(await count("bookings where parent_id = $1", [parentId])).toBe(0);
+      expect(await count("consents where profile_id = $1", [parentId])).toBe(0);
+    } finally {
+      await db.query("alter table bookings drop constraint if exists test_no_week2");
+    }
+  });
+
   test("Sunday bundle 6-week block takes 12 seats", async () => {
     const r = await createBlockBooking(group({ product: "sunday_bundle", weeks: 6, firstDate: "2026-11-08" }), opts);
     expect(r.ok).toBe(true);

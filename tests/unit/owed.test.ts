@@ -16,6 +16,13 @@ describe("amountOwedPence", () => {
   it("late cancellation unpaid counts", () => {
     expect(amountOwedPence([mk({ status: "late_cancelled", startsAt: new Date(now.getTime() + day) })], [], now)).toBe(2500);
   });
+  it("late-cancelled home visit owes the lesson price only, not the travel fee (R11)", () => {
+    const b = mk({ status: "late_cancelled", location: "home_visit", travelFeePence: 500, startsAt: new Date(now.getTime() + day) });
+    expect(amountOwedPence([b], [], now)).toBe(2500);
+  });
+  it("no-show home visit owes price plus travel", () => {
+    expect(amountOwedPence([mk({ status: "no_show", location: "home_visit", travelFeePence: 500 })], [], now)).toBe(3000);
+  });
   it("future confirmed unpaid does not count", () => {
     expect(amountOwedPence([mk({ status: "confirmed", startsAt: new Date(now.getTime() + day) })], [], now)).toBe(0);
   });

@@ -1,7 +1,7 @@
 import { quote } from "@/lib/booking/pricing";
 import { londonDateOf, londonDateTime } from "@/lib/time";
 import type { DraftPayload, Selection, SessionOption, WizardData } from "../types";
-import { LOCATION_LABEL, londonDay, londonTime, londonWhen, PRODUCT_LABEL, TYPE_LABEL } from "./shared";
+import { LOCATION_LABEL, londonDay, londonTime, londonWhen, PRODUCT_LABEL, TYPE_LABEL } from "./labels";
 
 export interface Summary {
   childName: string;
@@ -43,7 +43,8 @@ export function summarise(sel: Selection, data: WizardData): Summary | null {
         where: home ? `Home visit: ${sel.homeAddress}, ${sel.postcode?.toUpperCase()}` : (LOCATION_LABEL[sel.location] ?? ""),
         lines,
         totalPence: q.totalPence,
-        feePence: q.totalPence,
+        // Ruling R11: the late cancellation fee is the lesson price only (no travel).
+        feePence: q.basePence,
         firstStart: new Date(sel.slot),
         pendingApproval: home,
         payload: {
