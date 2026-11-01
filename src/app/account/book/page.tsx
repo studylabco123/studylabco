@@ -50,6 +50,7 @@ async function groupSessions(settings: Settings, now: Date): Promise<SessionOpti
       startsAt: s.startsAt.toISOString(),
       endsAt: s.endsAt.toISOString(),
       seatsLeft: seatsLeft[s.id] ?? 0,
+      pricePence: s.pricePence,
       venue: s.venue,
       product: s.seriesId ? (productOf.get(s.seriesId) ?? null) : null,
     }));

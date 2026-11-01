@@ -35,6 +35,14 @@ describe("booking summary", () => {
     ]);
   });
 
+  test("a single group seat shows the session's own price (R17)", () => {
+    const session = { id: "s1", title: "Wed Group", startsAt: "2026-11-04T17:30:00.000Z", endsAt: "2026-11-04T18:30:00.000Z", seatsLeft: 5, pricePence: 1250, venue: null, product: null };
+    const s = summarise({ childId: "c1", type: "group", sessionId: "s1" }, { ...data, sessions: [session] });
+    expect(s?.totalPence).toBe(1250);
+    expect(s?.lines).toEqual([{ label: "Group session", pence: 1250 }]);
+    expect(s?.feePence).toBe(1250);
+  });
+
   test("tutor's place fee equals the price", () => {
     const s = summarise({ childId: "c1", type: "assessment", location: "tutor_place", slot: "2026-11-02T17:00:00.000Z" }, data);
     expect(s?.feePence).toBe(1000);

@@ -255,6 +255,14 @@ describe("group bookings", () => {
 
   const group = <T extends object>(over: T) => ({ parentId, childId, coolingOff: true, ...over });
 
+  test("a single seat is charged the session's own price, not the global group price (R17)", async () => {
+    const [sat] = await sessions("2026-11-07");
+    await db.query("update group_sessions set price_pence = 1250 where id = $1", [sat]);
+    const r = await createGroupBooking(group({ sessionId: sat }), opts);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(await booking(r.bookingId)).toMatchObject({ kind: "group", price_pence: 1250 });
+  });
+
   test("single group seat at the group price; second seat -> already_booked", async () => {
     const [sat] = await sessions("2026-11-07");
     const r = await createGroupBooking(group({ sessionId: sat }), opts);

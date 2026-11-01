@@ -133,8 +133,8 @@ export async function createGroupBooking(
   const session = mapGroupSession(data as GroupSessionRow);
   if (!sessionBookable(session, checked.settings, now)) return { ok: false, reason: "session_unavailable" };
 
-  const price = quote({ type: "group" }, checked.settings).perBookingPence[0];
-  return reserveAll(input, [{ session, price, bundleId: null }], opts);
+  // Ruling R17: a single seat is charged the session's own price.
+  return reserveAll(input, [{ session, price: session.pricePence, bundleId: null }], opts);
 }
 
 /** Both Sunday sessions on `date` (London), sharing a bundle id, all-or-nothing. */

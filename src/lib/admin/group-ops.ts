@@ -212,6 +212,8 @@ export async function cancelSession(sessionId: string, refund: boolean, opts: Op
   if (seats.error) return unexpected("load seats", seats.error);
 
   let ledgerFailed = false;
+  // One email per family, however many children they had on the session.
+  const families = new Map<string, { bookingId: string; paid: boolean }>();
   for (const seat of seats.data as CancelRow[]) {
     const wasPaid = seat.payment_status === "paid";
     const patch: Record<string, unknown> = { status: "cancelled", cancelled_by: "tutor", cancelled_at: now.toISOString() };
@@ -237,8 +239,13 @@ export async function cancelSession(sessionId: string, refund: boolean, opts: Op
         ledgerFailed = true;
       }
     }
-    await notifyGroupCancelled(seat.id, wasPaid, refund);
+    if (seat.parent_id) {
+      const f = families.get(seat.parent_id);
+      if (f) f.paid ||= wasPaid;
+      else families.set(seat.parent_id, { bookingId: seat.id, paid: wasPaid });
+    }
   }
+  for (const f of families.values()) await notifyGroupCancelled(f.bookingId, f.paid, refund);
   return ledgerFailed
     ? fail("The session is cancelled, but a booking or ledger entry could not be saved. Please check Bookings and Money.")
     : OK;

@@ -19,6 +19,8 @@ export interface SessionOption {
   startsAt: string;
   endsAt: string;
   seatsLeft: number;
+  /** This session's own price (what a single-seat booking is charged). */
+  pricePence: number;
   venue: string | null;
   product: GroupProduct | null;
 }

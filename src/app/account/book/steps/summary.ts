@@ -59,7 +59,9 @@ export function summarise(sel: Selection, data: WizardData): Summary | null {
     case "group": {
       const session = data.sessions.find((x) => x.id === sel.sessionId);
       if (!session) return null;
-      const q = quote({ type: "group" }, s);
+      // A single seat costs the session's own price (set in admin), not the global group price.
+      const price = session.pricePence;
+      const q = { totalPence: price };
       return {
         ...base,
         what: `${TYPE_LABEL.group}: ${session.title}`,

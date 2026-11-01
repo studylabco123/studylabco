@@ -32,7 +32,7 @@ export function icsUtc(d: Date): string {
 
 /** TEXT escaping: backslash, semicolon, comma and newlines. */
 export function icsEscape(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  return text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 }
 
 /** Folds a content line at 75 octets, continuing with a leading space (never splitting a character). */

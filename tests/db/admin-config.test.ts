@@ -259,6 +259,23 @@ describe("group series", () => {
     expect(await rows("select 1 from ledger")).toHaveLength(1);
   });
 
+  test("cancelSession emails a family once even with two children on the session", async () => {
+    await createSeries(series());
+    const [a] = await sessionsOf("TEST Wednesday Group");
+    const p = await createUser({ fullName: "Twin Parent" });
+    for (const name of ["Kid1", "Kid2"]) {
+      const c = await createChild(p.id, { firstName: name });
+      await db.query(
+        `insert into bookings (parent_id, child_id, kind, location, starts_at, ends_at, busy_until, group_session_id, status, price_pence)
+         select $1, $2, 'group', 'group_venue', starts_at, ends_at, ends_at, id, 'confirmed', price_pence from group_sessions where id = $3`,
+        [p.id, c, a.id],
+      );
+    }
+    expect(await cancelSession(a.id, true)).toEqual({ ok: true });
+    expect((await rows("select 1 from bookings where status = 'cancelled'"))).toHaveLength(2);
+    expect(await rows("select 1 from email_log where template = 'group_cancelled'")).toHaveLength(1);
+  });
+
   test("cancelSession can credit instead of refund", async () => {
     await createSeries(series());
     const [a] = await sessionsOf("TEST Wednesday Group");

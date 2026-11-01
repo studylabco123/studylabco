@@ -44,7 +44,10 @@ describe("buildCalendar", () => {
       stamp,
     );
     for (const line of ics.split("\r\n")) expect(Buffer.byteLength(line)).toBeLessThanOrEqual(75);
-    expect(ics.replace(/\r\n /g, "")).toContain("\; a\\nb");
+    // A semicolon in text must be written as backslash + semicolon (one backslash in the file).
+    const unfolded = ics.replace(/\r\n /g, "");
+    expect(unfolded).toContain("x" + String.fromCharCode(92) + "; a" + String.fromCharCode(92) + "nb");
+    expect(unfolded).not.toMatch(/SUMMARY:[^\r]*[^\\];/);
   });
 
   test("folding never splits a multi-byte character", () => {
