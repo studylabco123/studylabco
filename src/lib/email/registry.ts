@@ -9,6 +9,7 @@ import { GroupCancelled } from "./templates/GroupCancelled";
 import { GroupMessage } from "./templates/GroupMessage";
 import { HomeVisitDecision } from "./templates/HomeVisitDecision";
 import { LessonReminder } from "./templates/LessonReminder";
+import { freeCancelUntil } from "./templates/parts";
 import { formatLondon } from "@/lib/format";
 
 interface Def<P> {
@@ -34,7 +35,7 @@ export const TEMPLATES = {
     p.decision === "approved" ? "Your home visit is confirmed" : "About your home visit request",
   ),
   free_cancel_reminder: def(FreeCancelReminder, (p) =>
-    `Free cancellation ends ${formatLondon(new Date(p.session.startsAt.getTime() - (p.noticeHours ?? 48) * 3600_000), "EEE d MMM 'at' h:mmaaa")}`,
+    `Free cancellation ends ${formatLondon(freeCancelUntil(p.session.startsAt, p.noticeHours ?? 48, p.session.bookedAt), "EEE d MMM 'at' h:mmaaa")}`,
   ),
   lesson_reminder: def(LessonReminder, (p) => `Reminder: your lesson on ${formatLondon(p.session.startsAt, "EEEE d MMMM")}`),
   cancellation_receipt: def(CancellationReceipt, () => "Your booking is cancelled"),

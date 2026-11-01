@@ -1,5 +1,6 @@
 import { Body, Container, Head, Hr, Html, Link, Preview, Section, Text } from "@react-email/components";
 import type { ReactNode } from "react";
+import { freeCancellationEnds } from "@/lib/booking/cancellation";
 import { formatLondon, formatPence } from "@/lib/format";
 import type { LocationKind } from "@/lib/types";
 import { businessInbox, siteUrl, SITE_NAME } from "../config";
@@ -60,9 +61,22 @@ export function locationText(
   return "Location confirmed on booking";
 }
 
+/** When free cancellation ends: the notice deadline, or later inside the 14-day cooling-off (R20). */
+export function freeCancelUntil(startsAt: Date, noticeHours = DEFAULT_NOTICE_HOURS, bookedAt?: Date): Date {
+  return bookedAt ? freeCancellationEnds(startsAt, noticeHours, bookedAt) : new Date(startsAt.getTime() - noticeHours * 3600_000);
+}
+
 /** "Free cancellation until <London time>. After that a late cancellation fee of £X applies." */
-export function cancellationLine(startsAt: Date, lessonPricePence: number, noticeHours = DEFAULT_NOTICE_HOURS): string {
-  const until = new Date(startsAt.getTime() - noticeHours * 3600_000);
+export function cancellationLine(
+  startsAt: Date,
+  lessonPricePence: number,
+  noticeHours = DEFAULT_NOTICE_HOURS,
+  bookedAt?: Date,
+): string {
+  const until = freeCancelUntil(startsAt, noticeHours, bookedAt);
+  if (until.getTime() >= startsAt.getTime()) {
+    return "You're within your 14-day cooling-off period, so you can cancel free of charge at any time before this lesson starts.";
+  }
   return `Free cancellation until ${formatLondon(until, "EEEE d MMMM 'at' h:mmaaa")}. After that a late cancellation fee of ${formatPence(lessonPricePence)} applies.`;
 }
 
@@ -95,7 +109,7 @@ export function SessionList({
             <Text style={{ ...text, color: MUTED, fontSize: "14px", margin: 0 }}>
               {s.status === "pending" && s.location === "home_visit"
                 ? "You can cancel this request free of charge until we confirm it."
-                : cancellationLine(s.startsAt, s.pricePence, noticeHours)}
+                : cancellationLine(s.startsAt, s.pricePence, noticeHours, s.bookedAt)}
             </Text>
           )}
         </Section>

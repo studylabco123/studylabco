@@ -11,9 +11,10 @@ const H = 3600_000;
 async function insertBooking(hoursAway: number, over: { location?: string; status?: string; kind?: string } = {}): Promise<string> {
   const starts = new Date(Date.now() + hoursAway * H).toISOString();
   const { rows } = await db.query<{ id: string }>(
-    `insert into bookings (parent_id, child_id, kind, location, starts_at, ends_at, busy_until, status, price_pence, travel_fee_pence)
+    // Booked a month ago, so the 14-day cooling-off (R20) doesn't change the reminders.
+    `insert into bookings (parent_id, child_id, kind, location, starts_at, ends_at, busy_until, status, price_pence, travel_fee_pence, created_at)
      values ($1, $2, $6::booking_kind, $3::location_kind, $4::timestamptz, $4::timestamptz + interval '1 hour',
-             $4::timestamptz + interval '1 hour', $5::booking_status, 2500, 0) returning id`,
+             $4::timestamptz + interval '1 hour', $5::booking_status, 2500, 0, now() - interval '30 days') returning id`,
     [parent.id, childId, over.location ?? "tutor_place", starts, over.status ?? "confirmed", over.kind ?? "one_to_one"],
   );
   return rows[0].id;

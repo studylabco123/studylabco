@@ -70,6 +70,7 @@ export async function buildLines(c: Client, bookings: Booking[]): Promise<Map<st
       pricePence: b.pricePence,
       travelPence: b.travelFeePence,
       homeAddress: b.homeAddress,
+      bookedAt: b.createdAt,
       venue: g ? (g.venue ?? settings.groupVenue) : null,
     });
   }

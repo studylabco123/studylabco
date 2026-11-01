@@ -1,5 +1,6 @@
 "use server";
 
+import { siteUrl } from "@/lib/email/config";
 import { redirect } from "next/navigation";
 import { commonAuthMessage } from "@/lib/auth/errors";
 import { signupSchema } from "@/lib/auth/validation";
@@ -56,7 +57,7 @@ export async function signUp(_prev: SignupState, formData: FormData): Promise<Si
     password: input.password,
     options: {
       data: { full_name: input.full_name, phone: input.phone },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback`,
+      emailRedirectTo: `${siteUrl()}/auth/callback`,
       captchaToken: turnstileToken(formData),
     },
   });

@@ -174,6 +174,18 @@ test("contact form sends and shows thanks", async ({ page }) => {
   expect((after.count ?? 0) - (before.count ?? 0)).toBeGreaterThanOrEqual(2);
 });
 
+test("contact form honeypot: a bot that fills the hidden field sees thanks and nothing is sent", async ({ page }) => {
+  const tag = randomUUID().slice(0, 8);
+  await page.goto("/contact");
+  await expect(page.locator('input[name="website"]')).not.toBeInViewport();
+  await page.getByLabel("Your name").fill(`Bot ${tag}`);
+  await page.getByLabel("Email", { exact: true }).fill(`bot-${tag}@example.test`);
+  await page.getByLabel("Message", { exact: true }).fill("Buy now");
+  await page.locator('input[name="website"]').fill("https://spam.example", { force: true });
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Thanks, your message has been sent" })).toBeVisible();
+});
+
 test("contact form explains what to fix", async ({ page }) => {
   await page.goto("/contact");
   await page.getByLabel("Message", { exact: true }).fill("x".repeat(2001));

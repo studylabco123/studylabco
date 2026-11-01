@@ -12,7 +12,7 @@ test.afterEach(async () => {
 /** Inserts an online one-to-one for `parent` starting `minutesAhead` from now (up to ~33h of random jitter avoids clashes between parallel projects). */
 async function seedBooking(
   childId: string,
-  opts: { minutesAhead: number; status?: string; paymentStatus?: string; price?: number },
+  opts: { minutesAhead: number; status?: string; paymentStatus?: string; price?: number; bookedDaysAgo?: number },
 ) {
   for (let attempt = 0; ; attempt++) {
     const start = new Date(Date.now() + (opts.minutesAhead + randomInt(0, 400) * 5) * 60_000);
@@ -31,6 +31,8 @@ async function seedBooking(
         status: opts.status ?? "confirmed",
         payment_status: opts.paymentStatus ?? "unpaid",
         price_pence: opts.price ?? 3000,
+        // When the booking was made: the 14-day cooling-off counts from here (Ruling R20).
+        created_at: new Date(Date.now() - (opts.bookedDaysAgo ?? 0) * 86_400_000).toISOString(),
       })
       .select("id, payment_reference")
       .single();
@@ -74,7 +76,7 @@ test.describe("dashboard", () => {
   test("late cancellation shows fee dialog and records late_cancelled", async ({ page }) => {
     parent = await createParent(page);
     const child = await seedChild(parent.id, { approved: true });
-    const b = await seedBooking(child, { minutesAhead: 6 * 60, price: 3000 });
+    const b = await seedBooking(child, { minutesAhead: 6 * 60, price: 3000, bookedDaysAgo: 20 });
 
     await page.goto("/account");
     await page.getByRole("button", { name: "Cancel booking" }).click();
@@ -89,6 +91,24 @@ test.describe("dashboard", () => {
     expect(after.cancelled_by).toBe("parent");
     await page.reload();
     await expect(page.getByTestId("owed")).toHaveText("£30");
+  });
+
+  test("inside 48 hours but within 14 days of booking: free, with the cooling-off message", async ({ page }) => {
+    parent = await createParent(page);
+    const child = await seedChild(parent.id, { approved: true });
+    const b = await seedBooking(child, { minutesAhead: 6 * 60, price: 3000, paymentStatus: "paid", bookedDaysAgo: 3 });
+
+    await page.goto("/account/bookings");
+    await page.getByRole("button", { name: "Cancel booking" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("You're within your 14-day cooling-off period, so there's no charge.")).toBeVisible();
+    await expect(dialog.getByText(/late cancellation fee/i)).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Yes, cancel booking" }).click();
+    await expect(page.getByText("Booking cancelled.")).toBeVisible();
+
+    const after = await row(b.id);
+    expect(after.status).toBe("cancelled");
+    expect(after.payment_status).toBe("credited");
   });
 
   test("owed balance blocks new booking with money_owed message", async ({ page }) => {

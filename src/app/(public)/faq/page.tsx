@@ -85,8 +85,9 @@ export default async function FaqPage() {
           q: "What if we need to cancel?",
           a: (
             <>
-              Cancel free from your account up to {s.cancellationNoticeHours} hours before the lesson. Later than that, or if your
-              child doesn&apos;t come, a late cancellation fee equal to the lesson price is due. Read the{" "}
+              Cancel free from your account up to {s.cancellationNoticeHours} hours before the lesson, or at any time in the first
+              14 days after booking (your cooling-off period). Otherwise, cancelling later than that, or your child not coming,
+              means a late cancellation fee equal to the lesson price is due. Read the{" "}
               <Link href="/refunds" className={link}>
                 Refund Policy
               </Link>

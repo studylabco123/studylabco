@@ -51,7 +51,7 @@ export function ContactForm() {
           ref={formRef}
           action={action}
           noValidate
-          className="flex flex-col gap-5"
+          className="relative flex flex-col gap-5"
         >
           {state.formError ? <FormError>{state.formError}</FormError> : null}
           <Field label="Your name" name="name" autoComplete="name" defaultValue={v?.name} error={e.name} required />
@@ -75,6 +75,11 @@ export function ContactForm() {
             error={e.message}
             required
           />
+          {/* Honeypot for bots: hidden from people, screen readers and the Tab order. */}
+          <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+            <label htmlFor="contact-website">Leave this field empty</label>
+            <input id="contact-website" type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" />
+          </div>
           <Turnstile resetSignal={state} />
           <Button type="submit" size="lg" disabled={pending} className="w-full sm:w-auto sm:self-start">
             {pending ? "Sending…" : "Send message"}

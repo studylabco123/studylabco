@@ -164,10 +164,21 @@ test.describe("booking", () => {
   test("late-cancellation and 48-hour policy shown before confirm", async ({ page }) => {
     const at = await toTutorPlaceReview(page);
     const deadline = formatLondon(new Date(at.getTime() - 48 * 3600_000), "EEEE d MMMM yyyy, HH:mm");
-    await expect(page.getByText("You can cancel for free up to 48 hours before the lesson.")).toBeVisible();
     await expect(
-      page.getByText(`Free cancellation until ${deadline}. After that a late cancellation fee of £10 applies.`),
+      page.getByText(
+        "You can cancel for free up to 48 hours before the lesson, and at any time in the first 14 days after booking (your cooling-off period).",
+      ),
     ).toBeVisible();
+    // Ruling R20: inside the 14-day cooling-off cancelling is free whatever the notice.
+    const daysAway = (at.getTime() - Date.now()) / 86_400_000;
+    if (daysAway <= 14) {
+      await expect(page.getByText("The lesson starts within your 14-day cooling-off period, so you can cancel it for free at any time before it starts.")).toBeVisible();
+      await expect(page.getByText(/Free cancellation until/)).toHaveCount(0);
+    } else if (daysAway > 16) {
+      await expect(page.getByText(`Free cancellation until ${deadline}. After that a late cancellation fee of £10 applies.`)).toBeVisible();
+    } else {
+      await expect(page.getByText(/^Free cancellation until .*\. After that a late cancellation fee of £10 applies\.$/)).toBeVisible();
+    }
     await expect(page.getByText(/\b(fine|penalty)\b/i)).toHaveCount(0);
   });
 

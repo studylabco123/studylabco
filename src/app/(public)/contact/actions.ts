@@ -26,6 +26,8 @@ function text(formData: FormData, key: string): string {
  * the inbox address, no message content).
  */
 export async function sendContact(_prev: ContactState, formData: FormData): Promise<ContactState> {
+  // Honeypot: people never see the "website" field, bots fill it in. Look successful, send nothing.
+  if (text(formData, "website").trim()) return { sent: true };
   const values = {
     name: text(formData, "name"),
     email: text(formData, "email"),

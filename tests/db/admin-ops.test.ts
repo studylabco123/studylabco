@@ -285,7 +285,9 @@ describe("decideHomeVisit", () => {
     expect(await emails()).toEqual(["home_visit_decision"]);
     const out = JSON.stringify(stdout.mock.calls);
     expect(out).toContain("7 Elm Street");
-    expect(out).toContain("late cancellation fee of £25");
+    // Booked just now for 5 days ahead: the whole run-up is inside the 14-day cooling-off (R20).
+    expect(out).toContain("within your 14-day cooling-off period");
+    expect(out).not.toContain("late cancellation fee of £25");
   });
   test("decline marks declined and sends a friendly email, no mileage", async () => {
     const id = await request();

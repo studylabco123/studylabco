@@ -9,7 +9,8 @@ function booking(hoursAway: number, over: Partial<Booking> = {}): Booking {
   const startsAt = new Date(NOW.getTime() + hoursAway * H);
   return {
     id: `b-${hoursAway}`,
-    createdAt: NOW,
+    // Booked a month ago, so the 14-day cooling-off is over unless a test says otherwise.
+    createdAt: new Date(NOW.getTime() - 30 * 24 * H),
     parentId: "p",
     childId: "c",
     kind: "one_to_one",
@@ -48,6 +49,16 @@ describe("dueReminders", () => {
 
   it("cancelled booking -> none", () => {
     expect(dueReminders([booking(30, { status: "cancelled" }), booking(72, { status: "late_cancelled" })], NOW)).toEqual([]);
+  });
+
+  it("booked 5 days ago, lesson 72h away: free to cancel until it starts, so no free-cancellation reminder (R20)", () => {
+    expect(dueReminders([booking(72, { createdAt: new Date(NOW.getTime() - 5 * 24 * H) })], NOW)).toEqual([]);
+  });
+
+  it("booked 12 days ago, lesson 72h away: the reminder carries the end of the cooling-off", () => {
+    const createdAt = new Date(NOW.getTime() - 12 * 24 * H);
+    const r = dueReminders([booking(72, { createdAt })], NOW);
+    expect((r[0] as { freeCancelUntil: Date }).freeCancelUntil).toEqual(new Date(createdAt.getTime() + 14 * 24 * H));
   });
 
   it("lesson 40h away -> none", () => {

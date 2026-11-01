@@ -18,6 +18,8 @@ export type CancelResult =
  * - Only the parent's own pending/confirmed bookings that start in the future.
  * - Inside the notice window the cancellation is 'late' (status late_cancelled,
  *   fee = lesson price only, Ruling R11) and needs `confirmLate`.
+ * - Within 14 days of making the booking it is free whatever the notice
+ *   (cooling-off, Ruling R20): for a block week the block's created_at counts.
  * - A pending home visit is always free, whatever the time: the tutor never
  *   confirmed it, so no fee can be due.
  * - Free cancel of a paid booking sets payment_status 'credited' (the tutor
@@ -42,10 +44,16 @@ export async function cancelBookingForParent(
   }
 
   const settings = await getSettings();
+  let bookedAt = booking.createdAt;
+  if (booking.blockBookingId) {
+    const block = await c.from("block_bookings").select("created_at").eq("id", booking.blockBookingId).maybeSingle();
+    if (block.error) return { ok: false, reason: "error" };
+    if (block.data) bookedAt = new Date(block.data.created_at as string);
+  }
   const neverConfirmed = booking.status === "pending" && booking.location === "home_visit";
   const outcome = neverConfirmed
     ? "free"
-    : cancellationOutcome(booking.startsAt, now, settings.cancellationNoticeHours, "parent");
+    : cancellationOutcome(booking.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt);
   if (outcome === "late" && !opts.confirmLate) {
     return { ok: false, reason: "late_confirmation_needed", feePence: booking.pricePence };
   }

@@ -14,6 +14,8 @@ export interface SessionLine {
   travelPence: number;
   /** Family address for a home visit. */
   homeAddress?: string | null;
+  /** When the booking was made (for the 14-day cooling-off). Unknown: notice rule only. */
+  bookedAt?: Date;
   /** Venue for a group session. */
   venue?: string | null;
 }

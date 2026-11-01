@@ -147,7 +147,7 @@ export default async function LessonsPage() {
             <dt className="font-display font-semibold">Booking</dt>
             <dd className="text-navy-600">
               Book at least {settings.minNoticeHours} hours ahead. Cancel free up to {settings.cancellationNoticeHours} hours before the
-              lesson.
+              lesson, or at any time in the first 14 days after booking.
             </dd>
           </div>
         </dl>

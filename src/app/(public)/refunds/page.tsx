@@ -15,9 +15,16 @@ export default async function RefundsPage() {
   const s = await publicSettings();
   const h = s.cancellationNoticeHours;
   const rows: [string, string][] = [
-    [`You cancel ${h} hours or more before the lesson`, "Free. The slot reopens. Anything you have paid is refunded or kept as credit, as you prefer."],
     [
-      `You cancel less than ${h} hours before the lesson`,
+      `You cancel ${h} hours or more before the lesson`,
+      "Free. The slot reopens. Anything you have paid is refunded or kept as credit, as you prefer.",
+    ],
+    [
+      "You cancel within 14 days of making the booking (your cooling-off period)",
+      `Free, even if the lesson is less than ${h} hours away. Anything you have paid is refunded or kept as credit.`,
+    ],
+    [
+      `You cancel less than ${h} hours before the lesson, more than 14 days after booking`,
       "You can still cancel from your account, after a clear warning. It is recorded as a late cancellation and the late cancellation fee is due.",
     ],
     ["The student doesn't attend (no-show)", "Recorded as a no-show. The lesson price is due."],
@@ -28,7 +35,10 @@ export default async function RefundsPage() {
     ],
     ["An emergency", "Tell us. The tutor can waive the fee."],
     ["The tutor cancels", "You are not charged. Anything you have paid is refunded or kept as credit."],
-    ["Your child misses one week of a block booking", `The same ${h}-hour rule applies to that week.`],
+    [
+      "Your child misses one week of a block booking",
+      `The same rules apply to that week: free with ${h} hours' notice, or within 14 days of booking the block.`,
+    ],
   ];
   return (
     <LegalPage

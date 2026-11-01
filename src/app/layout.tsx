@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible_Next, Lexend } from "next/font/google";
 import { ToastProvider } from "@/components/ui/Toast";
+import { siteUrl } from "@/lib/email/config";
 import { OG_IMAGE } from "@/lib/public/meta";
 import "./globals.css";
 
@@ -14,7 +15,7 @@ const atkinson = Atkinson_Hyperlegible_Next({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
+  metadataBase: new URL(siteUrl()),
   title: { default: "Study Lab Co | GCSE Science tuition in Blackburn", template: "%s | Study Lab Co" },
   description:
     "GCSE Science tuition in Blackburn from a qualified teacher (QTS), enhanced DBS checked, for all exam boards.",

@@ -3,7 +3,7 @@ import { getSettings } from "@/lib/settings";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { Booking, Settings } from "@/lib/types";
-import { cancellationOutcome } from "./cancellation";
+import { cancellationDecision, cancellationOutcome } from "./cancellation";
 import { amountOwedPence } from "./owed";
 
 export interface BookingView {
@@ -16,6 +16,8 @@ export interface BookingView {
   cancellable: boolean;
   /** Fee due if cancelled now (lesson price only, R11); null when it would be free. */
   lateFeePence: number | null;
+  /** Cancelling now is free only because the booking is in its 14-day cooling-off. */
+  coolingOff: boolean;
 }
 
 export interface ChildOverview {
@@ -81,10 +83,13 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
   const blockIds = [...new Set(all.map((b) => b.blockBookingId).filter((x): x is string => x !== null))];
   const [sessions, blocks] = await Promise.all([
     sessionIds.length ? c.from("group_sessions").select("id, title").in("id", sessionIds) : null,
-    blockIds.length ? c.from("block_bookings").select("id, weeks").in("id", blockIds) : null,
+    blockIds.length ? c.from("block_bookings").select("id, weeks, created_at").in("id", blockIds) : null,
   ]);
   const titles = new Map((sessions?.data ?? []).map((s) => [s.id as string, s.title as string]));
   const weeks = new Map((blocks?.data ?? []).map((b) => [b.id as string, b.weeks as number]));
+  // When each booking was made, for the 14-day cooling-off: a block week counts from the block.
+  const blockMade = new Map((blocks?.data ?? []).map((b) => [b.id as string, new Date(b.created_at as string)]));
+  const bookedAt = (b: Booking) => (b.blockBookingId && blockMade.get(b.blockBookingId)) || b.createdAt;
 
   const view = (b: Booking): BookingView => {
     let membership: string | null = null;
@@ -101,7 +106,8 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
       childName: b.childId ? (names.get(b.childId) ?? null) : null,
       membership,
       cancellable,
-      lateFeePence: cancellable ? lateFee(b, now, settings) : null,
+      lateFeePence: cancellable ? lateFee(b, now, settings, bookedAt(b)) : null,
+      coolingOff: cancellable && freeBecauseCoolingOff(b, now, settings, bookedAt(b)),
     };
   };
 
@@ -132,9 +138,15 @@ function isCancellable(b: Booking, now: Date): boolean {
 }
 
 /** The fee a parent would owe cancelling now, or null if free. A pending home visit is always free. */
-function lateFee(b: Booking, now: Date, settings: Settings): number | null {
+function lateFee(b: Booking, now: Date, settings: Settings, bookedAt: Date): number | null {
   if (b.status === "pending" && b.location === "home_visit") return null;
-  return cancellationOutcome(b.startsAt, now, settings.cancellationNoticeHours, "parent") === "late"
+  return cancellationOutcome(b.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt) === "late"
     ? b.pricePence
     : null;
+}
+
+/** Free only because of the 14-day cooling-off (it would be late otherwise). */
+function freeBecauseCoolingOff(b: Booking, now: Date, settings: Settings, bookedAt: Date): boolean {
+  if (b.status === "pending" && b.location === "home_visit") return false;
+  return cancellationDecision(b.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt).reason === "cooling_off";
 }

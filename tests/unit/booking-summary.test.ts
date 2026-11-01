@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { summarise } from "@/app/account/book/steps/summary";
+import { cancellationTerms, summarise } from "@/app/account/book/steps/summary";
 import type { WizardData } from "@/app/account/book/types";
 
 const data: WizardData = {
@@ -47,5 +47,29 @@ describe("booking summary", () => {
     const s = summarise({ childId: "c1", type: "assessment", location: "tutor_place", slot: "2026-11-02T17:00:00.000Z" }, data);
     expect(s?.feePence).toBe(1000);
     expect(s?.totalPence).toBe(1000);
+  });
+});
+
+describe("cancellationTerms (cooling-off, Ruling R20)", () => {
+  const start = new Date("2026-12-01T17:00:00Z");
+  const D = 86_400_000;
+  test("a lesson more than 14 days away keeps the 48-hour deadline and mentions the cooling-off", () => {
+    const t = cancellationTerms(start, 48, false, new Date(start.getTime() - 20 * D));
+    expect(t.rule).toBe(
+      "You can cancel for free up to 48 hours before the lesson, and at any time in the first 14 days after booking (your cooling-off period).",
+    );
+    expect(t.deadline).toEqual(new Date(start.getTime() - 48 * 3600_000));
+    expect(t.coolingOffCovers).toBeNull();
+  });
+  test("a lesson 15 days away: free until the cooling-off ends, a day before the lesson", () => {
+    const bookedAt = new Date(start.getTime() - 15 * D);
+    expect(cancellationTerms(start, 48, false, bookedAt).deadline).toEqual(new Date(bookedAt.getTime() + 14 * D));
+  });
+  test("a lesson within 14 days is free to cancel until it starts", () => {
+    const t = cancellationTerms(start, 48, true, new Date(start.getTime() - 5 * D));
+    expect(t.deadline).toBeNull();
+    expect(t.coolingOffCovers).toBe(
+      "The first session starts within your 14-day cooling-off period, so you can cancel it for free at any time before it starts.",
+    );
   });
 });

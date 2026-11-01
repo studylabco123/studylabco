@@ -44,7 +44,7 @@ export function BookingList({ items, empty }: { items: BookingView[]; empty: str
               <Link href={`/account/bookings/${b.id}`} className="underline underline-offset-4">
                 View details
               </Link>
-              {v.cancellable ? <CancelBooking bookingId={b.id} lateFeePence={v.lateFeePence} /> : null}
+              {v.cancellable ? <CancelBooking bookingId={b.id} lateFeePence={v.lateFeePence} coolingOff={v.coolingOff} /> : null}
             </div>
           </Card>
         );

@@ -146,6 +146,34 @@ const sample: { [K in TemplateName]: Parameters<(typeof TEMPLATES)[K]["component
   admin_block_hold_expired: { title: "Block hold expired", lines: ["x"] },
 };
 
+describe("cancellation line and the 14-day cooling-off (R20)", () => {
+  it("a lesson inside the cooling-off is free to cancel until it starts", async () => {
+    const out = await html(
+      createElement(BookingConfirmed, {
+        parentName: "Pat",
+        sessions: [line({ bookedAt: new Date(START.getTime() - 3 * 86_400_000) })],
+        totalPence: 2500,
+        bank: BANK,
+        teachingAddress: null,
+        meetingLink: null,
+        blockReference: null,
+      }),
+    );
+    expect(out).toContain("cooling-off period, so you can cancel free of charge at any time before this lesson starts");
+    expect(out).not.toContain("Free cancellation until");
+  });
+  it("the reminder subject uses the end of the cooling-off when that is later", () => {
+    const bookedAt = new Date(START.getTime() - 15 * 86_400_000); // cooling-off ends 1 day before
+    const subject = TEMPLATES.free_cancel_reminder.subject({
+      parentName: "Pat",
+      session: line({ bookedAt }),
+      teachingAddress: null,
+      meetingLink: null,
+    });
+    expect(subject).toBe("Free cancellation ends Mon 9 Nov at 4:00pm");
+  });
+});
+
 describe("ContactMessage", () => {
   it("keeps the sender's line breaks", async () => {
     const def = TEMPLATES.contact_message;

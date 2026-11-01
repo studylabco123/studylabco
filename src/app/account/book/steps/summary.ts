@@ -1,3 +1,4 @@
+import { freeCancellationEnds } from "@/lib/booking/cancellation";
 import { quote } from "@/lib/booking/pricing";
 import { londonDateOf, londonDateTime } from "@/lib/time";
 import type { DraftPayload, Selection, SessionOption, WizardData } from "../types";
@@ -113,4 +114,26 @@ export function summarise(sel: Selection, data: WizardData): Summary | null {
 
 function sameDay(x: SessionOption, date?: string): boolean {
   return !!date && londonDateOf(new Date(x.startsAt)) === date;
+}
+
+/**
+ * The review step's cancellation wording (Ruling R20): the 48-hour rule plus
+ * the 14-day cooling-off counted from now (the moment of booking). `deadline`
+ * is null when the whole run-up to the (first) lesson is inside the cooling-off.
+ */
+export function cancellationTerms(
+  firstStart: Date,
+  noticeHours: number,
+  multi: boolean,
+  bookedAt: Date,
+): { rule: string; deadline: Date | null; coolingOffCovers: string | null } {
+  const ends = freeCancellationEnds(firstStart, noticeHours, bookedAt);
+  const covered = ends.getTime() >= firstStart.getTime();
+  return {
+    rule: `You can cancel for free up to ${noticeHours} hours before ${multi ? "each session" : "the lesson"}, and at any time in the first 14 days after booking (your cooling-off period).`,
+    deadline: covered ? null : ends,
+    coolingOffCovers: covered
+      ? `${multi ? "The first session starts" : "The lesson starts"} within your 14-day cooling-off period, so you can cancel it for free at any time before it starts.`
+      : null,
+  };
 }

@@ -82,13 +82,18 @@ export default async function TermsPage() {
       <h2>Cancelling and missed lessons</h2>
       <ul>
         <li>
-          You can cancel free of charge from your account up to {s.cancellationNoticeHours} hours before the lesson starts. Any
-          money you have paid is refunded or kept as credit.
+          You can cancel free of charge from your account up to {s.cancellationNoticeHours} hours before the lesson starts.
         </li>
         <li>
-          If you cancel less than {s.cancellationNoticeHours} hours before, you can still do it from your account, and we will
-          warn you first. It is recorded as a late cancellation and a late cancellation fee is due. The fee is the lesson price
-          only (not any travel fee).
+          You can also cancel free of charge at any time in the first 14 days after making a booking, however close the
+          lesson is. This is your cooling-off period (see below). For a block booking, the 14 days count from when you booked
+          the block.
+        </li>
+        <li>When a cancellation is free, any money you have paid is refunded or kept as credit.</li>
+        <li>
+          If you cancel less than {s.cancellationNoticeHours} hours before the lesson and more than 14 days after making the
+          booking, you can still do it from your account, and we will warn you first. It is recorded as a late cancellation and a
+          late cancellation fee is due. The fee is the lesson price only (not any travel fee).
         </li>
         <li>If the student doesn&apos;t attend without cancelling, it is recorded as a no-show and the lesson price is due.</li>
         <li>In an emergency, please tell us. We can waive the fee.</li>
@@ -108,15 +113,15 @@ export default async function TermsPage() {
 
       <h2>Your 14-day cooling-off right</h2>
       <p>
-        Under the Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013 you normally have 14
-        days from making a booking to cancel it for a full refund. When you book, you can ask for lessons to start within those
-        14 days by ticking the box that says &ldquo;I want lessons to start within 14 days and understand I lose the right to
-        cancel once a lesson has taken place&rdquo;.
+        Under the Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013 you have 14 days from
+        making a booking to change your mind. During those 14 days you can cancel any lesson in the booking that hasn&apos;t
+        taken place yet, free of charge, even if it is less than {s.cancellationNoticeHours} hours away. Anything you have paid
+        for it is refunded or kept as credit.
       </p>
       <p>
-        This means that within the 14 days you can still cancel any lesson that hasn&apos;t taken place yet and get your money
-        back for it, but once a lesson has been taught it can&apos;t be cancelled under the cooling-off right. To cancel, use your
-        account or email us.
+        When you book, you can ask for lessons to start within those 14 days by ticking the box that says &ldquo;I want lessons
+        to start within 14 days and understand I lose the right to cancel once a lesson has taken place&rdquo;. Once a lesson has
+        been taught, it can&apos;t be cancelled. To cancel, use your account or email us.
       </p>
 
       <h2>Conduct and safety</h2>

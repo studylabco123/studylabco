@@ -1,5 +1,6 @@
 "use server";
 
+import { siteUrl } from "@/lib/email/config";
 import { redirect } from "next/navigation";
 import { commonAuthMessage } from "@/lib/auth/errors";
 import { turnstileToken } from "@/lib/auth/turnstile-token";
@@ -14,7 +15,7 @@ export async function requestReset(_prev: ResetState, formData: FormData): Promi
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email) return { error: "Enter your email address." };
   const supabase = await createServerClient();
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const site = siteUrl();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${site}/auth/callback?next=${encodeURIComponent("/reset?mode=update")}`,
     captchaToken: turnstileToken(formData),

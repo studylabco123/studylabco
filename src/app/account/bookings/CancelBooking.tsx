@@ -12,7 +12,16 @@ import { cancelBooking } from "./actions";
  * computed at render time (null = free); the action re-checks and may ask
  * again if the booking slipped into the notice window meanwhile.
  */
-export function CancelBooking({ bookingId, lateFeePence }: { bookingId: string; lateFeePence: number | null }) {
+export function CancelBooking({
+  bookingId,
+  lateFeePence,
+  coolingOff = false,
+}: {
+  bookingId: string;
+  lateFeePence: number | null;
+  /** Free only because the booking is within its 14-day cooling-off period. */
+  coolingOff?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -50,7 +59,9 @@ export function CancelBooking({ bookingId, lateFeePence }: { bookingId: string; 
         description={
           fee !== null
             ? `A late cancellation fee of ${formatPence(fee)} will be due. It applies because the lesson is inside our cancellation notice period.`
-            : "This booking is outside the cancellation notice period, so it is free to cancel."
+            : coolingOff
+              ? "You're within your 14-day cooling-off period, so there's no charge."
+              : "This booking is outside the cancellation notice period, so it is free to cancel."
         }
         actions={
           <>
