@@ -3,8 +3,11 @@
 -- parents get nothing. The app also serves receipts only through short-lived
 -- signed URLs, never public ones.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('receipts', 'receipts', false, 10485760, null)
-on conflict (id) do update set public = false, file_size_limit = 10485760;
+values ('receipts', 'receipts', false, 10485760,
+        array['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'])
+on conflict (id) do update
+  set public = false, file_size_limit = 10485760,
+      allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'];
 
 create policy receipts_admin_select on storage.objects for select to authenticated
   using (bucket_id = 'receipts' and (select public.is_admin()));

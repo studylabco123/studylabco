@@ -42,3 +42,16 @@ describe("parseMiles", () => {
     for (const v of ["", "-1", "1.25", "abc", "12345", null, undefined]) expect(parseMiles(v)).toBeNull();
   });
 });
+
+describe("receipt types and paths", () => {
+  test("svg and gif are refused", () => {
+    expect(checkReceipt({ size: 10, type: "image/svg+xml" }).ok).toBe(false);
+    expect(checkReceipt({ size: 10, type: "image/gif" }).ok).toBe(false);
+  });
+  test("only receipts/YYYY/uuid.ext keys match", async () => {
+    const { RECEIPT_PATH } = await import("@/lib/money/validation");
+    expect(RECEIPT_PATH.test("receipts/2026/0b9d6f2e-1c2d-4e5f-8a9b-0c1d2e3f4a5b.jpg")).toBe(true);
+    for (const p of ["../x.jpg", "receipts/2026/x.jpg", "receipts/2026/0b9d6f2e-1c2d-4e5f-8a9b-0c1d2e3f4a5b.svg", "other/2026/0b9d6f2e-1c2d-4e5f-8a9b-0c1d2e3f4a5b.jpg"])
+      expect(RECEIPT_PATH.test(p)).toBe(false);
+  });
+});

@@ -65,10 +65,10 @@ test("expense with a private receipt, miles entry and the tax pack downloads", a
   const pub = await fetch(service.storage.from("receipts").getPublicUrl(path).data.publicUrl);
   expect(pub.status).not.toBe(200);
 
-  // A wrong file type is refused with a message.
+  // A wrong file type is refused with a message, before any upload.
   await page.getByLabel("Amount (pounds)").fill("5");
   await page.getByLabel("Category").selectOption("other");
-  await page.getByLabel("Or choose a receipt file").setInputFiles({ name: "bad.txt", mimeType: "text/plain", buffer: Buffer.from("hi") });
+  await page.getByLabel("Or choose a receipt file").setInputFiles({ name: "bad.svg", mimeType: "image/svg+xml", buffer: Buffer.from("<svg/>") });
   await page.getByRole("button", { name: "Add expense" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "photo or a PDF" })).toBeVisible();
   await page.reload();

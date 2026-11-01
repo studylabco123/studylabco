@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-guard";
-import { addExpense as add, recordRefund as refund, setMiles as miles } from "@/lib/admin/money-ops";
+import { addExpense as add, prepareReceiptUpload as prepare, recordRefund as refund, setMiles as miles, type ExpenseForm, type UploadTicket } from "@/lib/admin/money-ops";
 import { fail, type AdminResult } from "@/lib/admin/result";
 
 /**
@@ -17,20 +17,14 @@ function done(res: AdminResult): AdminResult {
   return res;
 }
 
-export async function addExpense(formData: FormData): Promise<AdminResult> {
+export async function prepareReceiptUpload(type: string, size: number, spentOn: string): Promise<UploadTicket> {
   await requireAdmin();
-  // Two file inputs: "Take a photo" (camera) and "Choose a file" (photo or PDF). Use whichever was filled.
-  const picks = [formData.get("receipt"), formData.get("receiptFile")];
-  const file = picks.find((f): f is File => f instanceof File && f.size > 0) ?? null;
-  return done(
-    await add({
-      date: formData.get("date"),
-      category: formData.get("category"),
-      description: formData.get("description"),
-      amount: formData.get("amount"),
-      receipt: file,
-    }),
-  );
+  return prepare(type, size, spentOn);
+}
+
+export async function addExpense(input: ExpenseForm): Promise<AdminResult> {
+  await requireAdmin();
+  return done(await add(input));
 }
 
 export async function setMiles(mileageId: string, value: string): Promise<AdminResult> {

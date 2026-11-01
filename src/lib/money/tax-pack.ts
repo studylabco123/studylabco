@@ -160,14 +160,26 @@ export function buildTaxPack(
     monthly.push({ month: key, turnoverPence: t, expensesPence: e, mileagePence: mi, profitPence: t - e - mi });
   }
 
-  // Unpaid at the end of the range, by the same owed rules as everywhere else (late cancellation: price only).
+  // Unpaid at the end of the range: owed by the same rules as everywhere else (late cancellation: price
+  // only), and no payment, waiver or credit dated on or before the end covers it (its own, its Sunday
+  // bundle's, or its block's). Today's payment_status is deliberately ignored: it may have changed since.
   const endInstant = londonDateTime(range.end, "23:59:59");
+  const settled = ledger.filter((l) => l.kind !== "refund" && l.occurredOn <= range.end);
+  const settledBookings = new Set(settled.map((l) => l.bookingId).filter((i): i is string => !!i));
+  const settledBlocks = new Set(settled.map((l) => l.blockBookingId).filter((i): i is string => !!i));
+  const bundleMembers = new Map<string, string[]>();
+  for (const b of bookings) if (b.bundleId) bundleMembers.set(b.bundleId, [...(bundleMembers.get(b.bundleId) ?? []), b.id]);
+  const isSettled = (b: Booking) =>
+    settledBookings.has(b.id) ||
+    (b.blockBookingId !== null && settledBlocks.has(b.blockBookingId)) ||
+    (b.bundleId !== null && (bundleMembers.get(b.bundleId) ?? []).some((id) => settledBookings.has(id)));
   const unpaidAtEnd = byDate(
     bookings
       .filter((b) => b.createdAt.getTime() <= endInstant.getTime())
       // A late-cancellation fee arises when the booking is cancelled; anything else when the lesson starts.
       .filter((b) => (b.status === "late_cancelled" ? (b.cancelledAt ?? b.startsAt) : b.startsAt).getTime() <= endInstant.getTime())
-      .map((b) => ({ b, owed: amountOwedPence([b], [], endInstant) }))
+      .filter((b) => !isSettled(b))
+      .map((b) => ({ b, owed: amountOwedPence([{ ...b, paymentStatus: "unpaid" }], [], endInstant) }))
       .filter((x) => x.owed > 0)
       .map<Row>(({ b, owed }) => ({
         date: londonDateOf(b.startsAt),

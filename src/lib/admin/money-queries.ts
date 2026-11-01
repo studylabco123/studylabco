@@ -45,7 +45,8 @@ export async function loadTaxPack(range: PackRange): Promise<TaxPack> {
   const year = taxYearFor(range.start);
   const [ledger, expenses, mileage, bookings] = await Promise.all([
     all<LedgerRow>("ledger", (a, b) =>
-      c.from("ledger").select("*").gte("occurred_on", range.start).lte("occurred_on", range.end).order("occurred_on").order("id").range(a, b),
+      // From the start of time: settlements before the range decide what was unpaid at its end.
+      c.from("ledger").select("*").lte("occurred_on", range.end).order("occurred_on").order("id").range(a, b),
     ),
     all<ExpenseRowDb>("expenses", (a, b) =>
       c.from("expenses").select("*").gte("spent_on", range.start).lte("spent_on", range.end).order("spent_on").order("id").range(a, b),
@@ -54,7 +55,8 @@ export async function loadTaxPack(range: PackRange): Promise<TaxPack> {
       c.from("mileage").select("*").gte("trip_on", year.start).lte("trip_on", range.end).order("trip_on").order("id").range(a, b),
     ),
     all<BookingRow>("bookings", (a, b) =>
-      c.from("bookings").select("*").eq("payment_status", "unpaid").lte("created_at", `${addDays(range.end, 1)}T00:00:00Z`).order("id").range(a, b),
+      // Every booking that existed by the range end, whatever its status today (it may have been paid since).
+      c.from("bookings").select("*").lte("created_at", `${addDays(range.end, 1)}T00:00:00Z`).or(`starts_at.lte.${addDays(range.end, 1)}T00:00:00Z,cancelled_at.lte.${addDays(range.end, 1)}T00:00:00Z`).order("id").range(a, b),
     ),
   ]);
   const ids = [...new Set([...ledger.map((l) => l.parent_id), ...bookings.map((b) => b.parent_id)].filter((i): i is string => !!i))];

@@ -34,23 +34,25 @@ export function parseExpense(raw: { date: unknown; category: unknown; descriptio
   return { ok: true, value: { spentOn: date, category: raw.category, description, amountPence: pence } };
 }
 
-const EXT_BY_TYPE: Record<string, string> = {
+/** Receipt types allowed, with the file extension used for each (no SVG: it can carry script). */
+export const EXT_BY_TYPE: Record<string, string> = {
   "application/pdf": "pdf",
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
-  "image/gif": "gif",
   "image/heic": "heic",
   "image/heif": "heif",
 };
 
-/** The receipt file: an image or PDF up to 10 MB. The extension comes from the type, never the file name. */
+/** receipts/YYYY/<uuid>.<ext>, the only object keys an expense may point at. */
+export const RECEIPT_PATH = /^receipts\/\d{4}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|heic|heif|pdf)$/;
+
+/** The receipt file: a photo or PDF up to 10 MB. The extension comes from the type, never the file name. */
 export function checkReceipt(file: { size: number; type: string }): Parsed<{ ext: string }> {
   if (file.size <= 0) return bad("That receipt file is empty.");
   if (file.size > MAX_RECEIPT_BYTES) return bad("The receipt must be 10 MB or smaller.");
-  const type = file.type.toLowerCase();
-  if (type !== "application/pdf" && !type.startsWith("image/")) return bad("The receipt must be a photo or a PDF.");
-  const ext = EXT_BY_TYPE[type] ?? (/^image\/([a-z0-9]{1,8})$/.exec(type)?.[1] ?? "img");
+  const ext = EXT_BY_TYPE[file.type.toLowerCase()];
+  if (!ext) return bad("The receipt must be a photo or a PDF.");
   return { ok: true, value: { ext } };
 }
 

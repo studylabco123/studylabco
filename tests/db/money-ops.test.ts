@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from "vitest";
-import { addExpense, recordRefund, setMiles } from "@/lib/admin/money-ops";
+import { addExpense, prepareReceiptUpload, recordRefund, setMiles } from "@/lib/admin/money-ops";
+import { createServiceClient } from "@/lib/supabase/service";
 import { londonDateOf } from "@/lib/time";
 import { asAnon, asUser, closeDb, createChild, createUser, db, resetData } from "./setup";
 
@@ -24,26 +25,48 @@ async function paidBooking(payment = 2500): Promise<string> {
   return rows[0].id;
 }
 
-describe("addExpense", () => {
+describe("receipt upload and addExpense", () => {
   const form = { date: "2026-01-05", category: "stationery", description: "Pens", amount: "21.50" };
-  test("saves pence, and a receipt privately under receipts/YYYY/uuid.ext", async () => {
-    const file = new File([new Uint8Array([1, 2, 3])], "../../evil.php", { type: "image/jpeg" });
-    expect(await addExpense({ ...form, receipt: file }, { now: new Date("2026-02-01T12:00:00Z") })).toEqual({ ok: true });
-    const { rows } = await db.query("select amount_pence, receipt_path from expenses");
-    expect(rows[0].amount_pence).toBe(2150);
-    expect(rows[0].receipt_path).toMatch(/^receipts\/2026\/[0-9a-f-]{36}\.jpg$/);
-    const obj = await db.query("select bucket_id from storage.objects where name = $1", [rows[0].receipt_path]);
-    expect(obj.rows[0].bucket_id).toBe("receipts");
+  const now = { now: new Date("2026-02-01T12:00:00Z") };
+  const bucket = () => createServiceClient().storage.from("receipts");
+
+  async function upload(type: string, bytes: Uint8Array, spentOn = "2026-01-05") {
+    const t = await prepareReceiptUpload(type, bytes.length, spentOn);
+    if (!t.ok) throw new Error(t.message);
+    // The browser's step: upload to the signed URL.
+    const up = await bucket().uploadToSignedUrl(t.path, t.token, new Blob([bytes as BlobPart], { type }), { contentType: type });
+    return { ticket: t, error: up.error };
+  }
+
+  test("a ticket is only issued for allowed types and sizes, at receipts/YYYY/uuid.ext", async () => {
+    const t = await prepareReceiptUpload("image/jpeg", 1000, "2026-01-05");
+    expect(t.ok && t.path).toMatch(/^receipts\/2026\/[0-9a-f-]{36}\.jpg$/);
+    for (const [type, size] of [["image/svg+xml", 10], ["text/html", 10], ["image/png", 10 * 1024 * 1024 + 1], ["image/png", 0]] as const)
+      expect((await prepareReceiptUpload(type, size, "2026-01-05")).ok).toBe(false);
+    expect((await prepareReceiptUpload("image/png", 10, "nope")).ok).toBe(false);
   });
-  test("rejects bad receipts and bad amounts without saving", async () => {
-    const now = { now: new Date("2026-02-01T12:00:00Z") };
-    expect((await addExpense({ ...form, receipt: new File(["x"], "a.html", { type: "text/html" }) }, now)).ok).toBe(false);
-    expect((await addExpense({ ...form, receipt: new File([new Uint8Array(10 * 1024 * 1024 + 1)], "a.png", { type: "image/png" }) }, now)).ok).toBe(false);
+  test("upload then save: pence, private path, object in the receipts bucket", async () => {
+    const { ticket, error } = await upload("image/png", new Uint8Array([1, 2, 3]));
+    expect(error).toBeNull();
+    expect(await addExpense({ ...form, receiptPath: ticket.path }, now)).toEqual({ ok: true });
+    const { rows } = await db.query("select amount_pence, receipt_path from expenses");
+    expect(rows[0]).toMatchObject({ amount_pence: 2150, receipt_path: ticket.path });
+    expect((await db.query("select bucket_id from storage.objects where name = $1", [ticket.path])).rows[0].bucket_id).toBe("receipts");
+    // The same object cannot back a second expense.
+    expect((await addExpense({ ...form, receiptPath: ticket.path }, now)).ok).toBe(false);
+  });
+  test("the bucket itself refuses other types (svg)", async () => {
+    const { error } = await upload("image/svg+xml", new Uint8Array([1])).catch((e: Error) => ({ error: e }));
+    expect(error).toBeTruthy();
+  });
+  test("a receipt path that is not a fresh upload is refused, with no row saved", async () => {
+    for (const receiptPath of ["../etc/passwd", "receipts/2026/not-a-uuid.jpg", "receipts/2026/0b9d6f2e-1c2d-4e5f-8a9b-0c1d2e3f4a5b.jpg"])
+      expect((await addExpense({ ...form, receiptPath }, now)).ok).toBe(false);
     expect((await addExpense({ ...form, amount: "x" }, now)).ok).toBe(false);
     expect((await db.query("select 1 from expenses")).rowCount).toBe(0);
   });
   test("works without a receipt", async () => {
-    expect((await addExpense(form, { now: new Date("2026-02-01T12:00:00Z") })).ok).toBe(true);
+    expect((await addExpense(form, now)).ok).toBe(true);
     expect((await db.query("select receipt_path from expenses")).rows[0].receipt_path).toBeNull();
   });
 });
@@ -69,6 +92,22 @@ describe("recordRefund", () => {
     expect((await recordRefund(id, "15")).ok).toBe(true);
     expect((await db.query("select payment_status from bookings")).rows[0].payment_status).toBe("refunded");
     expect((await recordRefund(id, "1")).ok).toBe(false);
+  });
+  test("refunds on sessions of one block share a single cap", async () => {
+    const blk = await db.query<{ id: string }>(
+      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, status) values ($1,$2,'saturday',6,10000,'paid') returning id`, [parentId, childId]);
+    const mk = async (days: number) =>
+      (await db.query<{ id: string }>(
+        `insert into bookings (parent_id, child_id, kind, location, starts_at, ends_at, busy_until, status, price_pence, payment_status, block_booking_id)
+         values ($1,$2,'one_to_one','tutor_place', now() - make_interval(days => $4), now() - make_interval(days => $4) + interval '1 hour', now() - make_interval(days => $4) + interval '1 hour', 'attended', 2500, 'paid', $3) returning id`,
+        [parentId, childId, blk.rows[0].id, days])).rows[0].id;
+    const [s1, s2] = [await mk(1), await mk(2)];
+    await db.query(`insert into ledger (block_booking_id, parent_id, kind, method, amount_pence, occurred_on) values ($1,$2,'payment','cash',10000,current_date)`, [blk.rows[0].id, parentId]);
+    expect((await recordRefund(s1, "60")).ok).toBe(true);
+    expect((await recordRefund(s2, "60")).ok).toBe(false);
+    expect((await recordRefund(s2, "40")).ok).toBe(true);
+    expect((await recordRefund(s1, "0.01")).ok).toBe(false);
+    expect((await db.query("select count(*)::int n from ledger where kind='refund' and block_booking_id = $1", [blk.rows[0].id])).rows[0].n).toBe(2);
   });
   test("refuses an unpaid booking, bad amounts and unknown bookings", async () => {
     const { rows } = await db.query<{ id: string }>(

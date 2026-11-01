@@ -2,9 +2,9 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { createServiceClient } from "@/lib/supabase/service";
 import { londonDateOf } from "@/lib/time";
-import { checkReceipt, parseExpense, parseMiles } from "@/lib/money/validation";
+import { checkReceipt, parseExpense, parseMiles, RECEIPT_PATH } from "@/lib/money/validation";
 import { poundsToPence } from "./settings-validation";
-import { fail, OK, unexpected, type AdminResult, type OpOptions } from "./result";
+import { fail, OK, unexpected, type AdminResult, type Failure, type OpOptions } from "./result";
 
 const db = () => createServiceClient();
 export const RECEIPT_BUCKET = "receipts";
@@ -14,14 +14,33 @@ export interface ExpenseForm {
   category: unknown;
   description: unknown;
   amount: unknown;
-  receipt?: File | null;
+  /** Object key from prepareReceiptUpload, once the browser has uploaded the file. */
+  receiptPath?: unknown;
+}
+
+export type UploadTicket = { ok: true; path: string; token: string } | Failure;
+
+/**
+ * Step 1 of a receipt: checks the file's declared type and size and returns a
+ * one-off signed upload URL token for receipts/YYYY/<uuid>.<ext>, so the file
+ * goes from the browser straight to storage (not through a server action).
+ */
+export async function prepareReceiptUpload(type: unknown, size: unknown, spentOn: unknown): Promise<UploadTicket> {
+  const checked = checkReceipt({ size: typeof size === "number" ? size : 0, type: typeof type === "string" ? type : "" });
+  if (!checked.ok) return fail(checked.message);
+  const year = typeof spentOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(spentOn) ? spentOn.slice(0, 4) : null;
+  if (!year) return fail("Choose the date you spent the money.");
+  const path = `receipts/${year}/${randomUUID()}.${checked.value.ext}`;
+  const res = await db().storage.from(RECEIPT_BUCKET).createSignedUploadUrl(path);
+  if (res.error) return unexpected("prepare receipt upload", res.error);
+  return { ok: true, path, token: res.data.token };
 }
 
 /**
- * Records an expense, with an optional receipt (image or PDF, 10 MB at most)
- * stored privately at receipts/YYYY/<uuid>.<ext>. The file is checked here,
- * on the server, whatever the browser said. If the row cannot be saved the
- * uploaded file is removed again.
+ * Step 2: records the expense. A receipt must be an object the browser already
+ * uploaded to a receipts/YYYY/<uuid>.<ext> key; its size and type are read back
+ * from storage (never trusted from the browser) and an invalid object is deleted.
+ * If the row cannot be saved the object is removed again.
  */
 export async function addExpense(form: ExpenseForm, opts: OpOptions = {}): Promise<AdminResult> {
   const parsed = parseExpense(form, londonDateOf(opts.now ?? new Date()));
@@ -29,16 +48,19 @@ export async function addExpense(form: ExpenseForm, opts: OpOptions = {}): Promi
   const e = parsed.value;
 
   let path: string | null = null;
-  const file = form.receipt;
-  if (file && file.size > 0) {
-    const checked = checkReceipt(file);
-    if (!checked.ok) return fail(checked.message);
-    path = `receipts/${e.spentOn.slice(0, 4)}/${randomUUID()}.${checked.value.ext}`;
-    const up = await db().storage.from(RECEIPT_BUCKET).upload(path, await file.arrayBuffer(), {
-      contentType: file.type,
-      upsert: false,
-    });
-    if (up.error) return unexpected("upload receipt", up.error);
+  if (form.receiptPath !== undefined && form.receiptPath !== null && form.receiptPath !== "") {
+    if (typeof form.receiptPath !== "string" || !RECEIPT_PATH.test(form.receiptPath)) return fail("That receipt could not be used. Please upload it again.");
+    path = form.receiptPath;
+    const info = await db().storage.from(RECEIPT_BUCKET).info(path);
+    if (info.error || !info.data) return fail("The receipt did not upload. Please try again.");
+    const checked = checkReceipt({ size: info.data.size ?? 0, type: info.data.contentType ?? "" });
+    if (!checked.ok) {
+      await db().storage.from(RECEIPT_BUCKET).remove([path]);
+      return fail(checked.message);
+    }
+    const taken = await db().from("expenses").select("id").eq("receipt_path", path).limit(1);
+    if (taken.error) return unexpected("check receipt", taken.error);
+    if (taken.data.length) return fail("That receipt is already attached to an expense.");
   }
 
   const ins = await db().from("expenses").insert({
@@ -79,13 +101,17 @@ export async function recordRefund(bookingId: string, amountText: unknown, opts:
   if (b.error) return b.error.code === "22P02" ? fail("We could not find that booking.") : unexpected("load booking", b.error);
   if (!b.data) return fail("We could not find that booking.");
 
-  let ids = [bookingId];
-  if (b.data.bundle_id) {
-    const siblings = await db().from("bookings").select("id").eq("bundle_id", b.data.bundle_id);
-    if (siblings.error) return unexpected("load bundle", siblings.error);
-    ids = siblings.data.map((r) => r.id as string);
+  // Everything that shares the money: the booking, its Sunday bundle and its block (a block is paid once for all sessions).
+  const ids = new Set([bookingId]);
+  const sharers = [
+    b.data.bundle_id ? await db().from("bookings").select("id").eq("bundle_id", b.data.bundle_id) : null,
+    b.data.block_booking_id ? await db().from("bookings").select("id").eq("block_booking_id", b.data.block_booking_id) : null,
+  ];
+  for (const r of sharers) {
+    if (r?.error) return unexpected("load related bookings", r.error);
+    for (const row of r?.data ?? []) ids.add(row.id as string);
   }
-  const ors = [`booking_id.in.(${ids.join(",")})`];
+  const ors = [`booking_id.in.(${[...ids].join(",")})`];
   if (b.data.block_booking_id) ors.push(`block_booking_id.eq.${b.data.block_booking_id}`);
   const led = await db().from("ledger").select("kind, amount_pence").or(ors.join(",")).in("kind", ["payment", "refund"]);
   if (led.error) return unexpected("load ledger", led.error);
@@ -95,6 +121,7 @@ export async function recordRefund(bookingId: string, amountText: unknown, opts:
 
   const entry = await db().from("ledger").insert({
     booking_id: bookingId,
+    block_booking_id: b.data.block_booking_id,
     parent_id: b.data.parent_id,
     kind: "refund",
     amount_pence: pence,
@@ -102,7 +129,7 @@ export async function recordRefund(bookingId: string, amountText: unknown, opts:
     note: "Refund",
   });
   if (entry.error) return unexpected("write refund", entry.error);
-  if (pence === paid && ids.length === 1 && !b.data.block_booking_id && b.data.payment_status === "paid") {
+  if (pence === paid && ids.size === 1 && !b.data.block_booking_id && b.data.payment_status === "paid") {
     await db().from("bookings").update({ payment_status: "refunded" }).eq("id", bookingId).eq("payment_status", "paid");
   }
   return OK;

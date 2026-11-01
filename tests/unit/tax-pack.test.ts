@@ -99,15 +99,37 @@ describe("buildTaxPack", () => {
     expect(p.summary.mileagePence).toBe(700);
   });
   test("unpaid at year end uses owed semantics: late cancel is price only", () => {
-    const rng = { label: "2026-27", start: "2026-04-06", end: "2027-04-05" };
     const bs = [
       booking({ id: "a", status: "late_cancelled", location: "home_visit", travelFeePence: 500, startsAt: new Date("2027-02-01T10:00:00Z") }),
       booking({ id: "b", status: "attended", travelFeePence: 500, startsAt: new Date("2027-02-02T10:00:00Z") }),
       booking({ id: "c", paymentStatus: "paid" }),
       booking({ id: "d", status: "attended", startsAt: new Date("2027-04-20T10:00:00Z") }),
     ];
-    const p = buildTaxPack(rng, [], bs, [], []);
+    const p = buildTaxPack(range, [led({ bookingId: "c", occurredOn: "2027-03-02" })], bs, [], []);
     expect(p.unpaidAtEnd.map((r) => r.amountPence).sort()).toEqual([2500, 3000]);
+  });
+  test("a booking owed on 5 April 2027 and paid on 20 April is unpaid at the end of 2026-27 only", () => {
+    const b = booking({ id: "x", paymentStatus: "paid", startsAt: new Date("2027-03-20T10:00:00Z") });
+    const l = [led({ bookingId: "x", occurredOn: "2027-04-20" })];
+    expect(buildTaxPack(range, l, [b], [], []).unpaidAtEnd.map((r) => r.amountPence)).toEqual([2500]);
+    const next = { label: "2027-28", start: "2027-04-06", end: "2028-04-05" };
+    expect(buildTaxPack(next, l, [b], [], []).unpaidAtEnd).toEqual([]);
+  });
+  test("a payment, waiver or credit on the booking, its bundle or its block settles it", () => {
+    const bs = [
+      booking({ id: "w" }),
+      booking({ id: "b1", bundleId: "bun" }),
+      booking({ id: "b2", bundleId: "bun" }),
+      booking({ id: "k", blockBookingId: "blk" }),
+      booking({ id: "r" }),
+    ];
+    const l = [
+      led({ bookingId: "w", kind: "waiver", occurredOn: "2027-03-02" }),
+      led({ bookingId: "b1", occurredOn: "2027-03-02" }),
+      led({ blockBookingId: "blk", occurredOn: "2027-03-02" }),
+      led({ bookingId: "r", kind: "refund", occurredOn: "2027-03-02" }),
+    ];
+    expect(buildTaxPack(range, l, bs, [], []).unpaidAtEnd).toHaveLength(1);
   });
   test("names are looked up for rows", () => {
     const p = buildTaxPack(range, [led({ parentId: "p1", amountPence: 5, occurredOn: "2026-10-01" })], [], [], [], new Map([["p1", "Jo Bloggs"]]));
