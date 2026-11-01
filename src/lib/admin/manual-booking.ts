@@ -1,4 +1,5 @@
 import "server-only";
+import { onBookingCreated } from "@/lib/booking/notify";
 import { quote } from "@/lib/booking/pricing";
 import { normalisePostcode } from "@/lib/booking/postcode";
 import { getSettings } from "@/lib/settings";
@@ -27,7 +28,8 @@ const LESSON_MS = 60 * 60_000;
  * The tutor adds a booking by hand: no eligibility, approval, slot, notice or
  * location-toggle rules (so 'online' works even when it is switched off for
  * parents). Database constraints still apply: an overlap is refused. The
- * booking is confirmed and priced from the current settings.
+ * booking is confirmed and priced from the current settings, and the family
+ * is emailed the usual confirmation (an email failure never undoes it).
  */
 export async function addManualBooking(input: ManualBookingInput, opts: OpOptions = {}): Promise<ManualBookingResult> {
   const now = opts.now ?? new Date();
@@ -83,5 +85,7 @@ export async function addManualBooking(input: ManualBookingInput, opts: OpOption
     const m = await c.from("mileage").insert({ booking_id: data.id, trip_on: input.date, miles: null, note: "Home visit" });
     if (m.error) console.error("admin: mileage row failed", m.error.message);
   }
+  // The family gets the usual confirmation (reference, payment details). Email failures are caught and logged inside.
+  await onBookingCreated([data.id as string]);
   return { ok: true, bookingId: data.id as string };
 }

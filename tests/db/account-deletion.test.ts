@@ -122,6 +122,20 @@ describe("deleteAccount", () => {
     expect(u).toMatchObject({ status: "cancelled", payment_status: "unpaid", cancelled_by: "parent" });
   });
 
+  test("releases the parent's held blocks so the cron stops reporting them (R25)", async () => {
+    const { rows } = await db.query<{ id: string; status: string }>(
+      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, status, hold_expires_at) values
+         ($1, $2, 'saturday', 6, 10200, 'held', '2026-11-12T12:00:00Z'),
+         ($1, $2, 'saturday', 6, 10200, 'paid', null)
+       returning id, status`,
+      [parentId, childId],
+    );
+    expect(await deleteAccount(parentId, { now: NOW })).toEqual({ ok: true });
+    const after = (await db.query("select id, status, parent_id from block_bookings")).rows;
+    expect(after.find((r) => r.id === rows[0].id)).toMatchObject({ status: "released", parent_id: null });
+    expect(after.find((r) => r.id === rows[1].id)).toMatchObject({ status: "paid" });
+  });
+
   test("refuses for a non-parent profile", async () => {
     await db.query("update profiles set role = 'admin' where id = $1", [parentId]);
     const res = await deleteAccount(parentId, { now: NOW });

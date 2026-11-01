@@ -18,7 +18,7 @@ export type DeleteAccountResult =
  * Refuses for non-parent profiles (R13), while money is owed, and while a
  * pending/confirmed lesson starts inside the cancellation notice window (R12).
  * Otherwise, in this order: cancel every future pending/confirmed booking (free,
- * paid -> credited, so slots and seats are released), delete email_log rows and
+ * paid -> credited, so slots and seats are released), release held blocks, delete email_log rows and
  * free-text notes tied to the parent's bookings, detach bookings
  * (parent, child, home address and postcode set to null; price, travel fee,
  * status, dates and the ledger are kept), delete consents, delete children
@@ -90,6 +90,10 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
     const r = await q;
     if (r.error) return failed("cancel future bookings", r.error);
   }
+
+  // An unpaid (held) block would otherwise stay held, and the daily cron would keep reporting its expired hold.
+  const released = await c.from("block_bookings").update({ status: "released" }).eq("parent_id", parentId).eq("status", "held");
+  if (released.error) return failed("release held blocks", released.error);
 
   // Personal data hanging off the parent's bookings (not the money columns).
   const bookingIds = mine.map((b) => b.id);

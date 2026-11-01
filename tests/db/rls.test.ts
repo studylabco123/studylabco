@@ -92,7 +92,7 @@ describe("parents", () => {
     expect(own.rows.map((r) => r.id)).toEqual([childA]);
   });
 
-  test("parent has full CRUD on own children only", async () => {
+  test("parent can read, add and edit own children only, and delete none (R25)", async () => {
     const me = asUser(parentA);
     const ins = await me.query<{ id: string }>(
       `insert into children (parent_id, first_name, last_name, school_year, exam_board, tier, subjects)
@@ -103,8 +103,14 @@ describe("parents", () => {
       ins.rows[0].id,
     ]);
     expect(upd.rowCount).toBe(1);
+    // No delete policy: a delete would cascade to the agreement, approval and tutor notes.
     const del = await me.query("delete from children where id = $1", [ins.rows[0].id]);
-    expect(del.rowCount).toBe(1);
+    expect(del.rowCount).toBe(0);
+    expect((await db.query("select 1 from children where id = $1", [ins.rows[0].id])).rowCount).toBe(1);
+    // Nor can a child be moved to another parent.
+    expect(
+      await errorCode(me.query("update children set parent_id = $1 where id = $2", [parentB, ins.rows[0].id])),
+    ).toBe("42501");
 
     // Another parent's child: invisible to update/delete, and cannot be created for them.
     expect((await me.query("update children set target_grade = '9' where id = $1", [childB])).rowCount).toBe(0);

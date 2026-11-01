@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeEach, describe, expect, test, vi } from "vit
 import { addManualBooking } from "@/lib/admin/manual-booking";
 import { approveStudent, addNote, setBlocked } from "@/lib/admin/family-ops";
 import { decideHomeVisit, markAttended, markNoShow, releaseBlock, tutorCancel } from "@/lib/admin/lifecycle";
-import { markBlockPaid, markPaid, waiveFee } from "@/lib/admin/payments";
+import { familyCreditPence, markBlockPaid, markPaid, payFromCredit, waiveFee } from "@/lib/admin/payments";
+import { testOutbox } from "@/lib/email/send";
 import { londonDateOf } from "@/lib/time";
 import { closeDb, createChild, createUser, db, resetData } from "./setup";
 
@@ -65,6 +66,7 @@ beforeEach(async () => {
   parentId = (await createUser({ fullName: "Pat Parent" })).id;
   childId = await createChild(parentId);
   stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true) as unknown as typeof stdout;
+  testOutbox.length = 0;
 });
 afterEach(() => stdout.mockRestore());
 afterAll(closeDb);
@@ -144,6 +146,17 @@ describe("payments", () => {
     expect(await ledger()).toHaveLength(1);
   });
 
+  test("markBlockPaid records the block price less weeks cancelled for free (I3)", async () => {
+    const block = await heldBlock(5100, 6);
+    await insertBooking(48, { block, price: 1700 });
+    const freed = await insertBooking(48 + 168, { block, price: 1700, status: "cancelled" });
+    await insertBooking(48 + 336, { block, price: 1700, status: "late_cancelled" });
+    expect(await markBlockPaid(block, "cash")).toEqual({ ok: true });
+    expect((await ledger()).map((l) => l.amount_pence)).toEqual([3400]);
+    // The week cancelled for free stays unpaid and cancelled: nothing was paid for it.
+    expect(await bookingRow(freed)).toMatchObject({ status: "cancelled", payment_status: "unpaid" });
+  });
+
   test("a row of a block cannot be paid on its own", async () => {
     const block = await heldBlock();
     const id = await insertBooking(48, { block, price: 1700 });
@@ -193,6 +206,101 @@ describe("payments", () => {
   });
 });
 
+describe("pay from credit (R23)", () => {
+  async function credit(amount: number, parent = parentId) {
+    await db.query(
+      "insert into ledger (parent_id, kind, amount_pence, occurred_on, note) values ($1, 'credit', $2, current_date, 'test')",
+      [parent, amount],
+    );
+  }
+  async function heldBlock(price: number) {
+    const { rows } = await db.query<{ id: string }>(
+      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, hold_expires_at, status)
+       values ($1, $2, 'saturday', 6, $3, now() + interval '2 days', 'held') returning id`,
+      [parentId, childId, price],
+    );
+    return rows[0].id;
+  }
+
+  test("the family credit is credit issued minus credit applied", async () => {
+    await credit(2500);
+    await credit(1000);
+    expect(await familyCreditPence(parentId)).toBe(3500);
+  });
+
+  test("pays an upcoming unpaid booking without a payment row, and reduces the balance", async () => {
+    await credit(3000);
+    const id = await insertBooking(48, { price: 2500, travel: 500, location: "home_visit", address: "1 Road" });
+    expect(await payFromCredit(id, { now: new Date("2026-06-30T23:30:00Z") })).toEqual({ ok: true });
+    expect((await bookingRow(id)).payment_status).toBe("paid");
+    const l = await ledger();
+    expect(l.filter((r) => r.kind === "payment")).toEqual([]);
+    expect(l.find((r) => r.kind === "credit_applied")).toMatchObject({ amount_pence: 3000, booking_id: id, occurred_on: "2026-07-01" });
+    expect(await familyCreditPence(parentId)).toBe(0);
+    // Twice is refused.
+    expect((await payFromCredit(id)).ok).toBe(false);
+  });
+
+  test("a late-cancelled lesson is paid from credit at the lesson price only (R11)", async () => {
+    await credit(2500);
+    const id = await insertBooking(-5, { status: "late_cancelled", price: 2500, travel: 500, location: "home_visit", address: "1 Road" });
+    expect(await payFromCredit(id)).toEqual({ ok: true });
+    expect(await familyCreditPence(parentId)).toBe(0);
+  });
+
+  test("refused when the balance is not enough, and nothing changes", async () => {
+    await credit(2000);
+    const id = await insertBooking(48, { price: 2500 });
+    const r = await payFromCredit(id);
+    expect(r).toEqual({ ok: false, message: "This family has £20 of credit, which does not cover £25." });
+    expect((await bookingRow(id)).payment_status).toBe("unpaid");
+    expect((await ledger()).filter((l) => l.kind === "credit_applied")).toEqual([]);
+  });
+
+  test("another family's credit cannot be used", async () => {
+    const other = (await createUser()).id;
+    await credit(5000, other);
+    const id = await insertBooking(48, { price: 2500 });
+    expect((await payFromCredit(id)).ok).toBe(false);
+    expect(await familyCreditPence(other)).toBe(5000);
+  });
+
+  test("refuses cancelled, declined, pending home visits and paid bookings", async () => {
+    await credit(10000);
+    const rows = [
+      await insertBooking(48, { status: "cancelled" }),
+      await insertBooking(100, { status: "declined" }),
+      await insertBooking(150, { status: "pending", location: "home_visit", address: "x" }),
+      await insertBooking(200, { payment: "paid" }),
+    ];
+    for (const id of rows) expect((await payFromCredit(id)).ok).toBe(false);
+    expect(await familyCreditPence(parentId)).toBe(10000);
+  });
+
+  test("a week of a held block pays the whole block from credit, at its amount due (I3)", async () => {
+    await credit(5000);
+    const block = await heldBlock(5100);
+    const a = await insertBooking(48, { block, price: 1700 });
+    await insertBooking(48 + 168, { block, price: 1700 });
+    await insertBooking(48 + 336, { block, price: 1700, status: "cancelled" });
+    expect(await payFromCredit(a)).toEqual({ ok: true });
+    expect((await one<{ status: string }>("select status from block_bookings where id = $1", [block])).status).toBe("paid");
+    expect((await ledger()).find((l) => l.kind === "credit_applied")).toMatchObject({ amount_pence: 3400, block_booking_id: block });
+    expect(await familyCreditPence(parentId)).toBe(1600);
+  });
+
+  test("two applications at once cannot overspend the balance", async () => {
+    await credit(2500);
+    const a = await insertBooking(48, { price: 2500 });
+    const b = await insertBooking(96, { price: 2500 });
+    const results = await Promise.all([payFromCredit(a), payFromCredit(b)]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(await familyCreditPence(parentId)).toBe(0);
+    const paid = (await db.query("select id from bookings where payment_status = 'paid'")).rows;
+    expect(paid).toHaveLength(1);
+  });
+});
+
 describe("attendance", () => {
   test("markAttended and markNoShow need a started, confirmed lesson", async () => {
     const past = await insertBooking(-3);
@@ -220,7 +328,7 @@ describe("tutorCancel", () => {
     expect(r.cancelled_at).not.toBeNull();
     expect(await ledger()).toEqual([]);
     expect(await emails()).toEqual(["cancellation_receipt"]);
-    const out = JSON.stringify(stdout.mock.calls);
+    const out = JSON.stringify(testOutbox);
     expect(out).toContain("cancelled");
     expect(out).not.toContain("late cancellation fee");
   });
@@ -283,7 +391,7 @@ describe("decideHomeVisit", () => {
     const when = (await one<{ s: Date }>("select starts_at as s from bookings where id = $1", [id])).s;
     expect(m.rows[0].trip_on).toBe(londonDateOf(when));
     expect(await emails()).toEqual(["home_visit_decision"]);
-    const out = JSON.stringify(stdout.mock.calls);
+    const out = JSON.stringify(testOutbox);
     expect(out).toContain("7 Elm Street");
     // Booked just now for 5 days ahead: the whole run-up is inside the 14-day cooling-off (R20).
     expect(out).toContain("within your 14-day cooling-off period");
@@ -397,6 +505,28 @@ describe("addManualBooking", () => {
     expect(b.price_pence).toBe(2500);
     expect(b.travel_fee_pence).toBe(0);
     expect(b.starts_at.toISOString()).toBe("2027-03-02T07:00:00.000Z");
+  });
+  test("emails the family a confirmation with the reference (R25)", async () => {
+    const r = await addManualBooking({ parentId, childId, kind: "one_to_one", location: "tutor_place", date: "2027-03-02", time: "18:00" });
+    expect(r.ok).toBe(true);
+    expect(await emails()).toContain("booking_confirmed");
+    const ref = (await one<{ payment_reference: string }>("select payment_reference from bookings")).payment_reference;
+    expect(testOutbox.find((e) => e.template === "booking_confirmed")?.text).toContain(ref);
+  });
+  test("an email failure does not undo a manual booking", async () => {
+    const before = { t: process.env.EMAIL_TRANSPORT, k: process.env.RESEND_API_KEY };
+    process.env.EMAIL_TRANSPORT = "resend";
+    delete process.env.RESEND_API_KEY;
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const r = await addManualBooking({ parentId, childId, kind: "one_to_one", location: "tutor_place", date: "2027-03-03", time: "18:00" });
+      expect(r.ok).toBe(true);
+      expect((await db.query("select 1 from bookings")).rowCount).toBe(1);
+    } finally {
+      err.mockRestore();
+      process.env.EMAIL_TRANSPORT = before.t;
+      if (before.k !== undefined) process.env.RESEND_API_KEY = before.k;
+    }
   });
   test("a home visit adds travel, a buffer, and a mileage row", async () => {
     const r = await addManualBooking({
