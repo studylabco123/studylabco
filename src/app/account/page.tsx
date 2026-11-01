@@ -98,6 +98,9 @@ export default async function AccountPage({
                   <Badge tone="warning">Agreement needed</Badge>
                 )}
                 {ch.approved ? <Badge tone="success">Approved</Badge> : <Badge tone="warning">Awaiting assessment</Badge>}
+                <Link href={`/account/children/${ch.id}/results`} aria-label={`Results for ${ch.name}`} className="underline underline-offset-4">
+                  Results
+                </Link>
               </Card>
             ))}
           </ul>

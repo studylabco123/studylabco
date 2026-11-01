@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApproveStudentButton, BlockToggle, CreditAdjustForm, ManualBookingForm, NoteForm, PayFromCreditButton, RecordLateCancellationButton } from "@/components/admin/FamilyControls";
+import { ResultsSection } from "@/components/admin/results/ResultsSection";
 import { PassList } from "@/components/admin/passes/PassList";
 import { Badge } from "@/components/ui/Badge";
 import { buttonClasses } from "@/components/ui/Button";
@@ -14,6 +15,8 @@ import { loadFamily, type FamilyChild } from "@/lib/admin/queries";
 import { seatDuePence, willBeOwed } from "@/lib/booking/payment-view";
 import { childLevelLine } from "@/lib/children/summary";
 import { formatLondon, formatPence } from "@/lib/format";
+import { loadResultsByChild } from "@/lib/results/queries";
+import { londonDateOf } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Family" };
 export const dynamic = "force-dynamic";
@@ -39,6 +42,8 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
   const f = await loadFamily(id);
   if (!f) notFound();
   const passes = await loadAdminPasses({ parentId: f.id });
+  const results = await loadResultsByChild(f.children.map((c) => c.id));
+  const today = londonDateOf(new Date());
 
   const tel = telHref(f.phone);
   const wa = whatsappHref(f.phone);
@@ -180,6 +185,13 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
                   )}
                   <NoteForm childId={c.id} name={c.firstName} />
                 </div>
+
+                <ResultsSection
+                  childId={c.id}
+                  name={c.firstName}
+                  today={today}
+                  items={(results.get(c.id) ?? []).map((r) => ({ ...r, published: r.publishedAt !== null }))}
+                />
 
                 <details className="rounded-field border border-sky-200 p-3">
                   <summary className="inline-flex min-h-11 cursor-pointer items-center font-display font-semibold">

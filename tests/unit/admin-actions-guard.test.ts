@@ -91,3 +91,15 @@ describe("credit administration (V6)", () => {
     for (const f of users) expect(readFileSync(f, "utf8")).toContain("@/lib/admin/credit-ops");
   });
 });
+
+describe("test results (V7)", () => {
+  const FILE = "src/app/admin/(secure)/families/results-actions.ts";
+  test("the results actions file is a guarded server-actions file", () => {
+    const src = readFileSync(FILE, "utf8");
+    expect(src.startsWith('"use server"')).toBe(true);
+    const fns = [...src.matchAll(/export async function (\w+)\([^)]*\)[^{]*\{\n([^\n]*)/g)];
+    expect(fns.map((m) => m[1]).sort()).toEqual(["deleteResult", "prepareResultUpload", "publishResult", "saveResult", "unpublishResult"]);
+    for (const m of fns) expect(m[2].trim()).toBe("await requireAdmin();");
+    expect([...src.matchAll(/^export (?!async function)/gm)]).toEqual([]);
+  });
+});

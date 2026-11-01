@@ -24,7 +24,7 @@ export type DeleteAccountResult =
  * delete email_log rows and free-text notes tied to the parent's bookings and passes, detach bookings
  * (parent, child, home address and postcode set to null; price, travel fee,
  * status, dates and the ledger are kept), delete consents, delete children
- * (cascades agreements, notes and student status), and finally delete the auth
+ * (cascades agreements, notes, student status and test results; result files are removed from storage first), and finally delete the auth
  * user (cascades the profile; ledger and pass rows keep their amounts with a
  * null parent). The auth user goes last so a failure part-way leaves an account
  * that can still log in and retry, never a half-deleted one that cannot. Every
@@ -152,6 +152,20 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
 
   const consents = await c.from("consents").delete().eq("profile_id", parentId);
   if (consents.error) return failed("delete consents", consents.error);
+
+  // Result attachments live in storage, which a cascade does not reach: remove the objects first.
+  // A repeat finds the rows still there until the children go, so a failure part-way is safe to retry.
+  const kids = await c.from("children").select("id").eq("parent_id", parentId);
+  if (kids.error) return failed("load children", kids.error);
+  if (kids.data.length) {
+    const files = await c.from("test_results").select("attachment_path").in("child_id", kids.data.map((k) => k.id as string)).not("attachment_path", "is", null);
+    if (files.error) return failed("load result files", files.error);
+    const paths = files.data.map((f) => f.attachment_path as string);
+    if (paths.length) {
+      const rm = await c.storage.from("results").remove(paths);
+      if (rm.error) return failed("delete result files", rm.error);
+    }
+  }
 
   const children = await c.from("children").delete().eq("parent_id", parentId);
   if (children.error) return failed("delete children", children.error);

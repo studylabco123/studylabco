@@ -10,6 +10,7 @@ import { HomeVisitDecision } from "./templates/HomeVisitDecision";
 import { LessonReminder } from "./templates/LessonReminder";
 import { PassConfirmed } from "./templates/PassConfirmed";
 import { PassPaymentReminder } from "./templates/PassPaymentReminder";
+import { ResultsPublished } from "./templates/ResultsPublished";
 import { freeCancelUntil } from "./templates/parts";
 import { formatLondon } from "@/lib/format";
 
@@ -44,6 +45,7 @@ export const TEMPLATES = {
   group_message: def(GroupMessage, (p) => p.subject),
   pass_confirmed: def(PassConfirmed, (p) => `Your ${p.level} group pass (${p.reference}): how to pay`),
   pass_payment_reminder: def(PassPaymentReminder, (p) => `Reminder: payment for your group pass (${p.reference})`),
+  results_published: def(ResultsPublished, (p) => `New results for ${p.childName}`),
   contact_message: def(ContactMessage, (p) => `Contact form: ${p.name}`),
   admin_new_booking: admin,
   admin_home_visit_request: admin,

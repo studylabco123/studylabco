@@ -53,6 +53,13 @@ export default async function ChildrenPage() {
                     </>
                   )}
                   <Link
+                    href={`/account/children/${c.id}/results`}
+                    aria-label={`Results for ${c.first_name} ${c.last_name}`}
+                    className="underline underline-offset-4"
+                  >
+                    Results
+                  </Link>
+                  <Link
                     href={`/account/children/${c.id}/level`}
                     aria-label={`Change level for ${c.first_name} ${c.last_name}`}
                     className="underline underline-offset-4"

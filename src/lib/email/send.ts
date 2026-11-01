@@ -14,6 +14,8 @@ export interface SendEmailArgs<T extends TemplateName> {
   bookingId?: string;
   /** For pass-level emails (no single booking): idempotent per pass and template. */
   passId?: string;
+  /** For result emails: idempotent per test result and template. */
+  resultId?: string;
   /** Where replies go (the contact form sets the sender's address). */
   replyTo?: string;
 }
@@ -85,6 +87,7 @@ export async function sendEmail<T extends TemplateName>(args: SendEmailArgs<T>):
     .insert({
       booking_id: args.bookingId ?? null,
       pass_id: args.passId ?? null,
+      result_id: args.resultId ?? null,
       template: args.template,
       to_email: args.to,
     })

@@ -137,6 +137,7 @@ const sample: { [K in TemplateName]: Parameters<(typeof TEMPLATES)[K]["component
     passMinNoticeDays: 7,
   },
   pass_payment_reminder: { parentName: "Pat", level: "KS3", sessions: 6, totalPence: 7900, reference: "SLC-1003", bank: BANK },
+  results_published: { parentName: "Pat", childName: "Sam", link: "https://example.test/account/children/abc/results" },
   contact_message: { name: "Lee", email: "lee@example.test", phone: null, message: "Hello there" },
   admin_new_booking: { title: "New booking", lines: ["Pat booked a lesson"] },
   admin_home_visit_request: { title: "Home visit request - needs approval", lines: ["x"] },

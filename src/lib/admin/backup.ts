@@ -24,6 +24,7 @@ export const BACKUP_TABLES = [
   "settings_private",
   "student_status",
   "term_periods",
+  "test_results",
   "tutor_notes",
 ] as const;
 
