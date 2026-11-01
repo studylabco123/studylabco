@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { createAdmin, createParent, login, serviceClient, totpCode, uniqueEmail } from "./helpers";
+import { anonClient, createAdmin, createParent, login, serviceClient, totpCode, uniqueEmail } from "./helpers";
 
 /** Logs in and waits for the redirect, so the session cookie is set before the next navigation. */
 async function logInAs(page: import("@playwright/test").Page, email: string, password: string) {
@@ -44,6 +44,8 @@ test.describe("admin access", () => {
     await expect(page).toHaveURL(/\/admin$/);
     await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Calendar" })).toBeVisible();
+    await page.goto("/admin/mfa");
+    await expect(page).toHaveURL(/\/admin$/);
   });
 
   test("wrong code shows error", async ({ page }) => {
@@ -100,5 +102,29 @@ test.describe("admin access", () => {
     await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
     results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  test("password alone cannot add a second authenticator and reach aal2", async () => {
+    const admin = await createAdmin();
+    const attacker = anonClient();
+    const signedIn = await attacker.auth.signInWithPassword({ email: admin.email, password: admin.password });
+    expect(signedIn.error).toBeNull();
+
+    // The attacker has only a password (aal1) and tries to enrol their own factor.
+    const enrol = await attacker.auth.mfa.enroll({ factorType: "totp", friendlyName: "attacker" });
+    if (!enrol.error) {
+      const secret = enrol.data.totp.secret;
+      const verified = await attacker.auth.mfa.challengeAndVerify({ factorId: enrol.data.id, code: totpCode(secret) });
+      expect(verified.error).not.toBeNull();
+    }
+
+    const { data: aal } = await attacker.auth.mfa.getAuthenticatorAssuranceLevel();
+    expect(aal?.currentLevel).not.toBe("aal2");
+    const read = await attacker.from("settings_private").select("*");
+    expect(read.data ?? []).toEqual([]);
+
+    // The real admin factor is unaffected and still the only verified one.
+    const { data: factors } = await serviceClient().auth.admin.mfa.listFactors({ userId: admin.id });
+    expect(factors?.factors.filter((f) => f.status === "verified")).toHaveLength(1);
   });
 });

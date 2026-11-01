@@ -50,7 +50,7 @@ export function serviceClient(): SupabaseClient {
   });
 }
 
-function anonClient(): SupabaseClient {
+export function anonClient(): SupabaseClient {
   return createClient(required("NEXT_PUBLIC_SUPABASE_URL"), required("NEXT_PUBLIC_SUPABASE_ANON_KEY"), {
     auth: { persistSession: false, autoRefreshToken: false },
   });

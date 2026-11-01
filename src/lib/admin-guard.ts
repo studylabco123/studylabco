@@ -10,6 +10,14 @@ import { createServerClient } from "@/lib/supabase/server";
  * EVERY admin page, layout, server action and route handler must call
  * requireAdmin() itself. A layout guard does not protect server actions or
  * route handlers, which can be invoked directly.
+ *
+ * Second-factor enrolment: with a verified factor already on the account,
+ * GoTrue itself refuses mfa.enroll() from an aal1 (password-only) session with
+ * "AAL2 required to enroll a new factor", so a stolen password cannot add an
+ * attacker's authenticator. Verified against the local stack and pinned by the
+ * "password alone cannot add a second authenticator" e2e test. (An admin who
+ * has never enrolled can enrol from aal1; that first enrolment is the setup
+ * step, so create the admin and enrol before sharing the password.)
  */
 
 async function checkAdmin(): Promise<{ userId: string; supabase: Awaited<ReturnType<typeof createServerClient>> }> {
