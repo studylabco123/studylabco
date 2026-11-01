@@ -122,7 +122,7 @@ export async function bookWithGroupPass(payload: z.input<typeof passBookingSchem
     console.error("bookWithGroupPass failed", err);
     return { error: "We could not make that booking. Please try again." };
   }
-  if (!result.ok) return { error: failureMessage(result.reason) };
+  if (!result.ok) return { error: result.message ?? failureMessage(result.reason) };
   redirect(`/account/bookings/${result.bookingId}`);
 }
 

@@ -148,6 +148,9 @@ export function PassBuyReview({ child, sessions, settings }: { child: ChildOptio
   );
 }
 
+/** A pass cannot book a session on or after its expiry (the server refuses it too). */
+const beforeExpiry = (s: SessionOption, pass: WizardPass) => !pass.expiresAt || new Date(s.startsAt).getTime() < new Date(pass.expiresAt).getTime();
+
 export type PassPick = { sessionId: string } | { bundleDate: string };
 
 /** Booking with a pass: sessions at the pass's level far enough ahead; a GCSE pass can also take a Sunday bundle (2). */
@@ -160,7 +163,7 @@ export function PassSessionStep({
   sessions: SessionOption[];
   onSelect: (p: PassPick) => void;
 }) {
-  const open = sessions.filter((s) => s.passBookable && s.level === pass.level);
+  const open = sessions.filter((s) => s.passBookable && s.level === pass.level && beforeExpiry(s, pass));
   const days = pass.level === "GCSE" && pass.remaining >= 2 ? bundleDays(open) : [];
   return (
     <section className="flex flex-col gap-4">
@@ -211,7 +214,7 @@ export function PassBookReview({
   const chosen =
     "sessionId" in pick
       ? sessions.filter((s) => s.id === pick.sessionId)
-      : bundleDays(sessions.filter((s) => s.passBookable)).find((d) => d.date === pick.bundleDate)?.list ?? [];
+      : bundleDays(sessions.filter((s) => s.passBookable && beforeExpiry(s, pass))).find((d) => d.date === pick.bundleDate)?.list ?? [];
   if (!chosen.length) return <p>That session is no longer available. Please go back and choose another.</p>;
   const uses = chosen.length;
   // The fee basis is the pass's own price ÷ its sessions (rounded down), as stored when it was bought.

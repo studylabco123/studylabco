@@ -78,3 +78,16 @@ describe("group passes (V5)", () => {
     expect(src).not.toMatch(/markBlockPaid|releaseBlock/);
   });
 });
+
+describe("credit administration (V6)", () => {
+  test("adjustFamilyCredit and refundFamilyCredit are guarded family actions", () => {
+    const src = readFileSync("src/app/admin/(secure)/families/actions.ts", "utf8");
+    expect(src).toMatch(/export async function adjustFamilyCredit\([^)]*\): Promise<AdminResult> \{\n  await requireAdmin\(\);/);
+    expect(src).toMatch(/export async function refundFamilyCredit\([^)]*\): Promise<AdminResult> \{\n  await requireAdmin\(\);/);
+  });
+
+  test("the credit-ops module is only reachable from the guarded actions", () => {
+    const users = ["src/app/admin/(secure)/families/actions.ts"];
+    for (const f of users) expect(readFileSync(f, "utf8")).toContain("@/lib/admin/credit-ops");
+  });
+});

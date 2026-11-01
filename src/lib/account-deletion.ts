@@ -2,13 +2,15 @@ import "server-only";
 import { formatPence } from "@/lib/format";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
-import { amountOwedPence } from "@/lib/booking/owed";
+import { amountOwedPence, creditBalancePence } from "@/lib/booking/owed";
+import { passRemaining } from "@/lib/booking/pass";
+import { mapLedger, mapPass, type LedgerRow, type PassRow } from "@/lib/supabase/mappers";
 import { getSettings } from "@/lib/settings";
 
 export type DeleteAccountResult =
   | { ok: true }
   | { ok: false; reason: "money_owed"; owedPence: number; message: string }
-  | { ok: false; reason: "lesson_soon" | "not_a_parent"; message: string }
+  | { ok: false; reason: "lesson_soon" | "not_a_parent" | "has_credit_or_pass"; message: string }
   | { ok: false; reason: "error"; message: string };
 
 /**
@@ -56,6 +58,35 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
       reason: "money_owed",
       owedPence,
       message: `You still owe ${formatPence(owedPence)}. We keep a record of what is owed, so please pay your balance before deleting your account.`,
+    };
+  }
+
+  // Credit and unused group-pass sessions are money the family is owed (V6): the tutor settles them first.
+  const [creditRows, passRows] = await Promise.all([
+    c.from("ledger").select("*").eq("parent_id", parentId).in("kind", ["credit", "credit_applied"]),
+    c.from("passes").select("*").eq("parent_id", parentId).eq("status", "active"),
+  ]);
+  if (creditRows.error) return failed("load credit", creditRows.error);
+  if (passRows.error) return failed("load passes", passRows.error);
+  const creditPence = creditBalancePence((creditRows.data as LedgerRow[]).map(mapLedger), parentId);
+  const activePasses = (passRows.data as PassRow[]).map(mapPass);
+  let unusedSessions = false;
+  if (activePasses.length) {
+    const seats = await c.from("bookings").select("id, status, pass_id, starts_at").in("pass_id", activePasses.map((p) => p.id));
+    if (seats.error) return failed("load pass sessions", seats.error);
+    const lite = (seats.data as { id: string; status: never; pass_id: string; starts_at: string }[]).map((r) => ({
+      id: r.id,
+      status: r.status,
+      passId: r.pass_id,
+      startsAt: new Date(r.starts_at),
+    }));
+    unusedSessions = activePasses.some((p) => passRemaining(p, lite) > 0);
+  }
+  if (creditPence > 0 || unusedSessions) {
+    return {
+      ok: false,
+      reason: "has_credit_or_pass",
+      message: `You have ${formatPence(creditPence)} credit or unused group-pass sessions. Please contact Study Lab Co before deleting your account.`,
     };
   }
 

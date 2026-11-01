@@ -122,9 +122,9 @@ describe("deleteAccount", () => {
     expect(u).toMatchObject({ status: "cancelled", payment_status: "unpaid", cancelled_by: "parent" });
   });
 
-  test("a future group-pass seat is cancelled back onto the pass, never credited", async () => {
+  test("(the pass expired after booking) a future group-pass seat is cancelled back onto the pass, never credited", async () => {
     const pass = await db.query<{ id: string }>(
-      "insert into passes (parent_id, child_id, level, sessions_total, price_pence, status) values ($1, $2, 'GCSE', 6, 10200, 'active') returning id",
+      "insert into passes (parent_id, child_id, level, sessions_total, price_pence, status) values ($1, $2, 'GCSE', 6, 10200, 'expired') returning id",
       [parentId, childId],
     );
     const seat = (
@@ -148,5 +148,39 @@ describe("deleteAccount", () => {
     const res = await deleteAccount(parentId, { now: NOW });
     expect(res).toMatchObject({ ok: false, reason: "not_a_parent" });
     expect((await db.query("select 1 from auth.users where id = $1", [parentId])).rowCount).toBe(1);
+  });
+});
+
+describe("deleteAccount guard (V6)", () => {
+  const MSG = (gbp: string) => `You have ${gbp} credit or unused group-pass sessions. Please contact Study Lab Co before deleting your account.`;
+  const exists = async () => (await db.query("select 1 from auth.users where id = $1", [parentId])).rowCount === 1;
+
+  test("deletion refused with credit", async () => {
+    await db.query("insert into ledger (parent_id, kind, amount_pence, occurred_on) values ($1, 'credit', 500, '2026-11-01')", [parentId]);
+    const res = await deleteAccount(parentId, { now: NOW });
+    expect(res).toMatchObject({ ok: false, reason: "has_credit_or_pass", message: MSG("£5") });
+    expect(await exists()).toBe(true);
+    expect((await db.query("select 1 from children where parent_id = $1", [parentId])).rowCount).toBe(1);
+  });
+
+  test("deletion refused with unused active pass", async () => {
+    await db.query(
+      `insert into passes (parent_id, child_id, level, sessions_total, price_pence, status, paid_at, expires_at)
+       values ($1, $2, 'GCSE', 6, 10200, 'active', '2026-11-01T00:00:00Z', '2027-05-01T00:00:00Z')`,
+      [parentId, childId],
+    );
+    const res = await deleteAccount(parentId, { now: NOW });
+    expect(res).toMatchObject({ ok: false, reason: "has_credit_or_pass", message: MSG("£0") });
+    expect(await exists()).toBe(true);
+  });
+
+  test("a used-up pass, an expired pass and a spent credit do not block deletion", async () => {
+    await db.query("insert into ledger (parent_id, kind, amount_pence, occurred_on) values ($1, 'credit', 500, '2026-11-01'), ($1, 'credit_applied', 500, '2026-11-02')", [parentId]);
+    await db.query(
+      `insert into passes (parent_id, child_id, level, sessions_total, price_pence, status, paid_at, expires_at)
+       values ($1, $2, 'GCSE', 6, 10200, 'expired', '2026-01-01T00:00:00Z', '2026-07-01T00:00:00Z')`,
+      [parentId, childId],
+    );
+    expect(await deleteAccount(parentId, { now: NOW })).toEqual({ ok: true });
   });
 });

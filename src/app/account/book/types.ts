@@ -44,6 +44,8 @@ export interface WizardPass {
   reference: string;
   /** "KS3 group pass — 4 of 6 sessions left — expires 1 May 2027". */
   text: string;
+  /** When the pass stops being usable (ISO), or null while awaiting payment. */
+  expiresAt: string | null;
   /** Paid, not expired, with a session left. */
   bookable: boolean;
 }

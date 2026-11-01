@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ApproveStudentButton, BlockToggle, ManualBookingForm, NoteForm, PayFromCreditButton, RecordLateCancellationButton } from "@/components/admin/FamilyControls";
+import { ApproveStudentButton, BlockToggle, CreditAdjustForm, ManualBookingForm, NoteForm, PayFromCreditButton, RecordLateCancellationButton } from "@/components/admin/FamilyControls";
 import { PassList } from "@/components/admin/passes/PassList";
 import { Badge } from "@/components/ui/Badge";
 import { buttonClasses } from "@/components/ui/Button";
@@ -94,6 +94,12 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
             {formatPence(f.creditPence)}
           </p>
           <p className="text-small text-navy-600">From paid lessons cancelled for free. Use it with &ldquo;Pay from credit&rdquo;.</p>
+          <details className="mt-3">
+            <summary className="cursor-pointer text-small font-semibold text-navy-700">Add, remove or refund credit</summary>
+            <div className="mt-3">
+              <CreditAdjustForm parentId={f.id} balanceLabel={formatPence(f.creditPence)} />
+            </div>
+          </details>
         </Card>
         <Card tone="sky" className="p-4 sm:p-5">
           <p className="text-small font-semibold text-navy-600">Late cancellations and no-shows, last 12 months</p>

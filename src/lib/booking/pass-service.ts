@@ -1,8 +1,9 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { notifyPassBought, sendPassPaymentReminder } from "@/lib/email/pass-notifications";
+import { notifyPassBought, notifyPassCancelled, notifyPassCreditFailed, sendPassPaymentReminder } from "@/lib/email/pass-notifications";
 import { POLICY_VERSION } from "@/lib/policy";
 import { mapGroupSession, mapPass, type BookingRow, type GroupSessionRow, type PassRow } from "@/lib/supabase/mappers";
+import { formatLondon } from "@/lib/format";
 import { addDays, londonDateOf, londonDateTime, londonWeekday } from "@/lib/time";
 import type { GroupSession, Pass, PassSessions } from "@/lib/types";
 import { db, loadFamily, loadGroupSessions, mapDbError, rollback, sessionBookable, type ServiceOptions } from "./data";
@@ -131,7 +132,7 @@ export type PassBookingInput =
  * `sundayDate`, which use 2) with a pass. Checks, in order: the pass is this
  * parent's and usable (paid, not expired); the family may book; the child,
  * pass and session(s) are at the same level; the session(s) are bookable and
- * at least `passMinNoticeDays` away; enough sessions are left. Seats are taken
+ * at least `passMinNoticeDays` away and before the pass expires; enough sessions are left. Seats are taken
  * with reserve_group_seat (p_pass, so the database re-checks the pass under a
  * lock) at `passSessionValuePence` each, all-or-nothing. No cooling-off tick
  * is asked: it was given when the pass was bought.
@@ -165,6 +166,15 @@ export async function bookWithPass(input: PassBookingInput, opts: ServiceOptions
   if (!sessions.every((s) => sessionBookable(s, family.settings, now))) return { ok: false, reason: "session_unavailable" };
   const earliest = Math.min(...sessions.map((s) => s.startsAt.getTime()));
   if (earliest - now.getTime() < family.settings.passMinNoticeDays * DAY) return { ok: false, reason: "pass_too_soon" };
+
+  // The pass cannot be used on or after its expiry (R7); say which day that is.
+  if (pass.expiresAt && sessions.some((s) => s.startsAt.getTime() >= pass.expiresAt!.getTime())) {
+    return {
+      ok: false,
+      reason: "pass_expires_first",
+      message: `That session is after your pass expires on ${formatLondon(pass.expiresAt, "d MMMM yyyy")}.`,
+    };
+  }
 
   const needed = sessionsNeeded(input.sundayDate ? "sunday_bundle" : "session");
   if (passRemaining(pass, await passSeats([pass.id])) < needed) return { ok: false, reason: "pass_used_up" };
@@ -228,7 +238,12 @@ async function pickSessions(input: PassBookingInput): Promise<Picked> {
 
 export const PASS_NOT_REFUNDABLE = "Unused sessions can't be refunded — please contact Study Lab Co.";
 
-export type EndPassResult = { ok: true; creditPence: number } | { ok: false; message: string };
+export const CREDIT_PENDING_MESSAGE = "Your pass was cancelled. We'll add your credit shortly — Study Lab Co has been notified.";
+
+export type EndPassResult =
+  | { ok: true; creditPence: number }
+  /** `creditFailed`: the pass is cancelled but its credit row could not be saved (the business has been emailed the amount). */
+  | { ok: false; message: string; creditFailed?: boolean };
 
 /**
  * Ends a pass: status 'cancelled' (conditional on its current status, so two
@@ -268,14 +283,21 @@ export async function endPass(
     });
     if (entry.error) {
       console.error("endPass: credit ledger row failed", entry.error.message);
-      return { ok: false, message: "The pass is cancelled but the credit could not be saved. Please add it in Money." };
+      await notifyPassCreditFailed(pass.id, credit);
+      return {
+        ok: false,
+        creditFailed: true,
+        message:
+          how.by === "parent" ? CREDIT_PENDING_MESSAGE : "The pass is cancelled but the credit could not be saved. Please add it in Money.",
+      };
     }
   }
   return { ok: true, creditPence: credit };
 }
 
 export type CancelPassResult =
-  | { ok: true; creditPence: number }
+  /** `message` is set when the credit is still to be added (the parent sees it instead of the usual text). */
+  | { ok: true; creditPence: number; message?: string }
   | { ok: false; reason: "not_found" | "not_cancellable" | "too_late" | "error"; message: string };
 
 /**
@@ -294,7 +316,15 @@ export async function cancelPassForParent(parentId: string, passId: string, opts
   if (!passInCoolingOff(pass, now)) return { ok: false, reason: "too_late", message: PASS_NOT_REFUNDABLE };
   try {
     const r = await endPass(pass, now, { by: "parent", note: "Group pass cancelled in the 14-day cooling-off" });
-    return r.ok ? r : { ok: false, reason: "error", message: r.message };
+    if (r.ok) {
+      await notifyPassCancelled(pass.id, r.creditPence);
+      return r;
+    }
+    if (r.creditFailed) {
+      await notifyPassCancelled(pass.id, null);
+      return { ok: true, creditPence: 0, message: r.message };
+    }
+    return { ok: false, reason: "error", message: r.message };
   } catch (err) {
     console.error("cancelPassForParent failed", err);
     return { ok: false, reason: "error", message: "We could not cancel the pass. Please try again." };

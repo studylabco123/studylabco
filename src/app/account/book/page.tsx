@@ -90,6 +90,7 @@ async function familyPasses(parentId: string, now: Date): Promise<WizardPass[]> 
       remaining,
       reference: p.paymentReference,
       text: passCardText(p, remaining),
+      expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
       bookable: passUsable(p, now) && remaining > 0,
     };
   });

@@ -62,6 +62,9 @@ export interface TaxPack {
   missingMilesCount: number;
 }
 
+/** Notes on ledger rows written by a tutor's credit adjustment start with this (V6); sheet 6 labels them. */
+export const ADJUSTMENT_NOTE = "Tutor adjustment";
+
 /** The £1,000 trading allowance, in pence. */
 export const TRADING_ALLOWANCE_PENCE = 100_000;
 
@@ -113,7 +116,12 @@ export function buildTaxPack(
       .filter((l) => l.kind !== "payment")
       .map<Row>((l) => ({
         date: l.occurredOn,
-        label: LABELS[l.kind as keyof typeof LABELS],
+        label:
+          (l.kind === "credit" || l.kind === "credit_applied") && l.note.startsWith(ADJUSTMENT_NOTE)
+            ? l.kind === "credit"
+              ? "Credit added by tutor"
+              : "Credit removed by tutor"
+            : LABELS[l.kind as keyof typeof LABELS],
         detail: detailOf(l),
         amountPence: l.amountPence,
       })),

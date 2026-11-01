@@ -14,9 +14,11 @@ export type BookingFailure =
   | "pass_not_found"
   | "pass_not_usable"
   | "pass_too_soon"
+  | "pass_expires_first"
   | "pass_used_up";
 
-export type BookingResult = { ok: true; bookingId: string } | { ok: false; reason: BookingFailure };
+/** `message` (when set) is shown instead of the reason's generic text, for failures that carry a date. */
+export type BookingResult = { ok: true; bookingId: string } | { ok: false; reason: BookingFailure; message?: string };
 
 export const COOLING_OFF_TEXT =
   "I want lessons to start within 14 days and understand I lose the right to cancel once a lesson has taken place.";
@@ -35,6 +37,7 @@ export const BookingFailureMessage: Record<BookingFailure, string> = {
   pass_not_usable:
     "This group pass can't be used right now. Sessions unlock once we've received your payment, and a pass can't be used after it expires.",
   pass_too_soon: "That session is too soon to book with a group pass. Please choose a later one.",
+  pass_expires_first: "That session is after your pass expires.",
   pass_used_up: "There are not enough sessions left on this group pass.",
 };
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { payFromCredit, recordLateCancellation } from "@/app/admin/(secure)/bookings/actions";
-import { addManualBooking, addNote, approveStudent, setBlocked } from "@/app/admin/(secure)/families/actions";
+import { addManualBooking, addNote, adjustFamilyCredit, approveStudent, refundFamilyCredit, setBlocked } from "@/app/admin/(secure)/families/actions";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, SelectField, TextareaField } from "@/components/ui/Field";
@@ -188,6 +188,43 @@ export function ManualBookingForm({ parentId, childId, name }: { parentId: strin
           Add booking
         </Button>
         {added && !error ? <p role="status">Booking added.</p> : null}
+      </div>
+      <ActionError message={error} />
+    </form>
+  );
+}
+
+/**
+ * Adds, removes or refunds a family's credit. The amount is typed in pounds and a reason is required;
+ * the server checks the balance. Credit is never income: nothing here changes turnover except a refund.
+ */
+export function CreditAdjustForm({ parentId, balanceLabel }: { parentId: string; balanceLabel: string }) {
+  const { run, pending, error } = useAdminAction();
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [method, setMethod] = useState<"bank_transfer" | "cash">("bank_transfer");
+  const clear = () => {
+    setAmount("");
+    setReason("");
+  };
+  return (
+    <form className="flex max-w-prose flex-col items-start gap-3" aria-label={`Adjust credit (${balanceLabel} now)`} onSubmit={(e) => e.preventDefault()}>
+      <Field label="Amount (£)" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} maxLength={9} />
+      <Field label="Reason (kept in the record)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} />
+      <SelectField label="If refunding, paid back by" value={method} onChange={(e) => setMethod(e.target.value as "bank_transfer" | "cash")}>
+        <option value="bank_transfer">Bank transfer</option>
+        <option value="cash">Cash</option>
+      </SelectField>
+      <div className="flex flex-wrap gap-3">
+        <Button type="button" variant="secondary" disabled={pending} onClick={() => run(() => adjustFamilyCredit(parentId, amount, "add", reason), clear)}>
+          Add credit
+        </Button>
+        <Button type="button" variant="secondary" disabled={pending} onClick={() => run(() => adjustFamilyCredit(parentId, amount, "remove", reason), clear)}>
+          Remove credit
+        </Button>
+        <Button type="button" variant="secondary" disabled={pending} onClick={() => run(() => refundFamilyCredit(parentId, amount, method), clear)}>
+          Refund credit
+        </Button>
       </div>
       <ActionError message={error} />
     </form>

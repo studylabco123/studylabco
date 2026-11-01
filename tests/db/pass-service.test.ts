@@ -10,6 +10,7 @@ import { cancelSession } from "@/lib/admin/group-ops";
 import { cancelBookingForParent } from "@/lib/booking/cancel";
 import { amountOwedPence } from "@/lib/booking/owed";
 import { bookWithPass, buyPass, cancelPassForParent, runPassCron } from "@/lib/booking/pass-service";
+import { businessInbox } from "@/lib/email/config";
 import { testOutbox } from "@/lib/email/send";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { closeDb, createChild, createUser, db, resetData } from "./setup";
@@ -215,6 +216,21 @@ describe("booking with a pass", () => {
     expect(await runPassCron(later)).toMatchObject({ expired: 0 });
   });
 
+  test("a session on or after the pass expiry date is refused with the date (R7)", async () => {
+    const id = await paidPass(ks3);
+    const [sat] = await sessions("2026-11-14");
+    await db.query("update passes set expires_at = $2 where id = $1", [id, sat.starts_at.toISOString()]);
+    expect(await bookWithPass({ parentId, passId: id, sessionId: sat.id }, opts)).toEqual({
+      ok: false,
+      reason: "pass_expires_first",
+      message: "That session is after your pass expires on 14 November 2026.",
+    });
+    expect(await liveSeats(id)).toBe(0);
+    // One minute before expiry the session is fine.
+    await db.query("update passes set expires_at = $2 where id = $1", [id, new Date(sat.starts_at.getTime() + 60_000).toISOString()]);
+    expect((await bookWithPass({ parentId, passId: id, sessionId: sat.id }, opts)).ok).toBe(true);
+  });
+
   test("level change keeps existing pass but restricts new bookings", async () => {
     const year9 = await createChild(parentId, { firstName: "Middle", schoolYear: 9, level: "KS3" });
     await signAndApprove(year9);
@@ -326,6 +342,39 @@ describe("cancelling a pass", () => {
     expect((await ledger()).filter((l) => l.kind === "credit")).toEqual([
       expect.objectContaining({ kind: "credit", amount_pence: 6580, pass_id: id, booking_id: null }),
     ]);
+  });
+
+  test("a parent cancelling emails the business 'Group pass cancelled' (R8)", async () => {
+    const id = await paidPass(ks3);
+    testOutbox.length = 0;
+    expect((await cancelPassForParent(parentId, id, { now: new Date(NOW.getTime() + DAY) })).ok).toBe(true);
+    const notice = testOutbox.find((e) => e.template === "admin_pass_cancelled");
+    expect(notice).toMatchObject({ to: businessInbox(), subject: "Group pass cancelled" });
+    expect(notice?.text).toContain("Pat Parent");
+    expect(notice?.text).toContain("£79");
+  });
+
+  test("if the credit cannot be saved the parent is told, and the business is emailed the amount (R8)", async () => {
+    const id = await paidPass(ks3);
+    testOutbox.length = 0;
+    await db.query(`create function public.boom() returns trigger language plpgsql as $$ begin raise exception 'boom'; end $$`);
+    await db.query(`create trigger boom before insert on public.ledger for each row when (new.kind = 'credit') execute function public.boom()`);
+    try {
+      const r = await cancelPassForParent(parentId, id, { now: new Date(NOW.getTime() + DAY) });
+      expect(r).toMatchObject({
+        ok: true,
+        creditPence: 0,
+        message: "Your pass was cancelled. We'll add your credit shortly — Study Lab Co has been notified.",
+      });
+    } finally {
+      await db.query("drop trigger boom on public.ledger");
+      await db.query("drop function public.boom()");
+    }
+    expect((await passRow(id)).status).toBe("cancelled");
+    const alert = testOutbox.find((e) => e.template === "admin_pass_credit_failed");
+    expect(alert).toMatchObject({ to: businessInbox() });
+    expect(alert?.text).toContain("£79");
+    expect(alert?.text).toContain("Pat Parent");
   });
 
   test("an unpaid pass is cancelled with nothing owed and no credit", async () => {

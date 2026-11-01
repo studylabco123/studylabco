@@ -52,6 +52,7 @@ export async function notifyPassBought(passId: string): Promise<void> {
             reference: pass.paymentReference,
             bank: priv.bank,
             validityMonths: settings.passValidityMonths,
+            passMinNoticeDays: settings.passMinNoticeDays,
           },
         }),
       );
@@ -95,5 +96,61 @@ export async function sendPassPaymentReminder(passId: string): Promise<"sent" | 
       reference: pass.paymentReference,
       bank: priv.bank,
     },
+  });
+}
+
+/** A parent cancelled their pass (`creditPence` null when the credit could not be saved): tell the business inbox (idempotent per pass; a failure is logged only). */
+export async function notifyPassCancelled(passId: string, creditPence: number | null): Promise<void> {
+  await safely("pass cancelled notice", async () => {
+    const c = createServiceClient();
+    const found = await loadPass(c, passId);
+    if (!found) return;
+    const { pass, childName } = found;
+    const parent = pass.parentId ? (await loadPeople(c, [pass.parentId])).get(pass.parentId) : undefined;
+    await sendEmail({
+      to: businessInbox(),
+      template: "admin_pass_cancelled",
+      passId,
+      props: {
+        title: "Group pass cancelled",
+        lines: [
+          `${parent?.name ?? "A parent"}${parent ? ` (${parent.email})` : ""} has cancelled their ${pass.sessionsTotal}-session ${pass.level} group pass${childName ? ` for ${childName}` : ""}.`,
+          `Reference ${pass.paymentReference}, ${formatPence(pass.pricePence)}. ${
+            !pass.paidAt
+              ? "It had not been paid, so nothing is owed."
+              : creditPence === null
+                ? "The unused value could not be saved as credit; you have been sent a separate email with the amount."
+                : creditPence > 0
+                  ? `${formatPence(creditPence)} of unused value was added as account credit.`
+                  : "There was no unused value to credit."
+          }`,
+        ],
+        link: { href: `${siteUrl()}/admin/money#passes`, label: "Open Money" },
+      },
+    });
+  });
+}
+
+/** The credit for a cancelled pass could not be saved: email the business the amount so they can add it by hand. */
+export async function notifyPassCreditFailed(passId: string, creditPence: number): Promise<void> {
+  await safely("pass credit failed notice", async () => {
+    const c = createServiceClient();
+    const found = await loadPass(c, passId);
+    if (!found) return;
+    const { pass } = found;
+    const parent = pass.parentId ? (await loadPeople(c, [pass.parentId])).get(pass.parentId) : undefined;
+    await sendEmail({
+      to: businessInbox(),
+      template: "admin_pass_credit_failed",
+      passId,
+      props: {
+        title: "Pass cancelled: credit not saved",
+        lines: [
+          `${parent?.name ?? "A parent"}${parent ? ` (${parent.email})` : ""}'s group pass ${pass.paymentReference} was cancelled but its ${formatPence(creditPence)} credit could not be saved.`,
+          `Please add ${formatPence(creditPence)} of credit to their account by hand (Families, Add credit).`,
+        ],
+        link: pass.parentId ? { href: `${siteUrl()}/admin/families/${pass.parentId}`, label: "Open the family" } : null,
+      },
+    });
   });
 }

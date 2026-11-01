@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-guard";
+import { adjustCredit as adjust, refundCredit as refund } from "@/lib/admin/credit-ops";
 import { addNote as note, approveStudent as approve, setBlocked as block } from "@/lib/admin/family-ops";
 import { addManualBooking as addBooking, type ManualBookingInput, type ManualBookingResult } from "@/lib/admin/manual-booking";
 import { fail, type AdminResult } from "@/lib/admin/result";
+import { poundsToPence } from "@/lib/admin/settings-validation";
+import type { PaymentMethod } from "@/lib/types";
 
 /** Family actions. Each one calls requireAdmin() first (see bookings/actions.ts). */
 
@@ -50,4 +53,24 @@ export async function addManualBooking(input: ManualBookingInput): Promise<Manua
       postcode: str(input.postcode, 12),
     }),
   );
+}
+
+const AMOUNT_BAD = "Enter an amount in pounds, like 5 or 12.50.";
+
+/** Adds or removes credit from a family's balance; the amount is typed in pounds, the reason is required. */
+export async function adjustFamilyCredit(parentId: string, amount: string, direction: "add" | "remove", reason: string): Promise<AdminResult> {
+  await requireAdmin();
+  if (!isId(parentId)) return fail(BAD);
+  const pence = typeof amount === "string" ? poundsToPence(amount) : null;
+  if (pence === null || pence <= 0) return fail(AMOUNT_BAD);
+  return done(await adjust(parentId, pence, direction === "remove" ? "remove" : "add", str(reason, 1000)));
+}
+
+/** Refunds some of a family's credit to them (bank transfer or cash); uses the credit up. */
+export async function refundFamilyCredit(parentId: string, amount: string, method: PaymentMethod): Promise<AdminResult> {
+  await requireAdmin();
+  if (!isId(parentId)) return fail(BAD);
+  const pence = typeof amount === "string" ? poundsToPence(amount) : null;
+  if (pence === null || pence <= 0) return fail(AMOUNT_BAD);
+  return done(await refund(parentId, pence, method === "cash" ? "cash" : "bank_transfer"));
 }

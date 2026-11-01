@@ -134,6 +134,7 @@ const sample: { [K in TemplateName]: Parameters<(typeof TEMPLATES)[K]["component
     reference: "SLC-1003",
     bank: BANK,
     validityMonths: 6,
+    passMinNoticeDays: 7,
   },
   pass_payment_reminder: { parentName: "Pat", level: "KS3", sessions: 6, totalPence: 7900, reference: "SLC-1003", bank: BANK },
   contact_message: { name: "Lee", email: "lee@example.test", phone: null, message: "Hello there" },
@@ -141,6 +142,8 @@ const sample: { [K in TemplateName]: Parameters<(typeof TEMPLATES)[K]["component
   admin_home_visit_request: { title: "Home visit request - needs approval", lines: ["x"] },
   admin_late_cancellation: { title: "Late cancellation", lines: ["x"] },
   admin_new_signup: { title: "New sign-up", lines: ["x"] },
+  admin_pass_cancelled: { title: "Group pass cancelled", lines: ["x"] },
+  admin_pass_credit_failed: { title: "Pass credit not saved", lines: ["x"] },
   admin_new_pass: { title: "New group pass — awaiting payment", lines: ["x"] },
 };
 
@@ -207,6 +210,10 @@ describe("group passes", () => {
     expect(out).toContain("Sessions unlock once we've received your payment");
     expect(out).toContain("6 months from the day we mark it paid");
     expect(out).toContain("within 14 days of buying");
+    expect(out).toContain("at least 7 days before it takes place");
+    expect(out).not.toContain("at least a week");
+    const three = await render(def.component({ ...sample.pass_confirmed, passMinNoticeDays: 3 }), { plainText: true });
+    expect(three).toContain("at least 3 days before it takes place");
     expect(def.subject(sample.pass_confirmed)).toBe("Your KS3 group pass (SLC-1003): how to pay");
   });
 

@@ -50,6 +50,8 @@ export const TEMPLATES = {
   admin_late_cancellation: admin,
   admin_new_signup: admin,
   admin_new_pass: admin,
+  admin_pass_cancelled: admin,
+  admin_pass_credit_failed: admin,
 } as const;
 
 export type TemplateName = keyof typeof TEMPLATES;

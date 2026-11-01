@@ -20,8 +20,9 @@ export async function cancelPass(passId: string): Promise<CancelPassState> {
   return {
     ok: true,
     message:
-      res.creditPence > 0
+      res.message ??
+      (res.creditPence > 0
         ? `Your pass is cancelled. ${formatPence(res.creditPence)} for the unused sessions is now credit on your account.`
-        : "Your pass is cancelled. Nothing is owed.",
+        : "Your pass is cancelled. Nothing is owed."),
   };
 }

@@ -8,6 +8,7 @@ import { InfoTip } from "@/components/ui/InfoTip";
 import { loadAccountOverview } from "@/lib/booking/account-data";
 import { CREDIT_INFO } from "@/lib/booking/info";
 import { formatLondon, formatPence } from "@/lib/format";
+import { FALLBACK_EMAIL } from "@/lib/site";
 import { createServerClient } from "@/lib/supabase/server";
 import { BookingList, contactFrom } from "./bookings/BookingList";
 import { CancelNotice } from "./bookings/CancelNotice";
@@ -69,6 +70,13 @@ export default async function AccountPage({
             </p>
             <InfoTip label="credit" text={CREDIT_INFO} />
           </div>
+          <p data-testid="credit-refund" className="text-small">
+            Want it refunded to your card instead? Email{" "}
+            <a href={`mailto:${FALLBACK_EMAIL}`} className="font-semibold underline">
+              {FALLBACK_EMAIL}
+            </a>
+            .
+          </p>
         </Card>
       ) : null}
 
