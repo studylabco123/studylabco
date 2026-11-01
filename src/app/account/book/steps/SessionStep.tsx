@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatPence } from "@/lib/format";
+import { BLOCK_HOLD_HOURS } from "@/lib/policy";
 import { londonDateOf } from "@/lib/time";
 import type { BlockWeeks, GroupProduct } from "@/lib/types";
 import type { BlockChoice, SessionOption, WizardSettings } from "../types";
@@ -31,7 +32,7 @@ export function GroupSessionStep({ sessions, onSelect }: { sessions: SessionOpti
           <Choice
             key={s.id}
             title={`${londonDay(s.startsAt)}, ${londonTime(s.startsAt)}–${londonTime(s.endsAt)}`}
-            detail={`${s.title} · ${seats(s.seatsLeft)}`}
+            detail={`${s.title} · ${formatPence(s.pricePence)} · ${seats(s.seatsLeft)}`}
             disabled={s.seatsLeft <= 0}
             onSelect={() => onSelect(s.id)}
           />
@@ -107,7 +108,7 @@ export function BlockStep({
       <h3 className="text-h3">First week</h3>
       <p className="max-w-prose text-small text-navy-600">
         Weeks without a session (for example holidays) are skipped, so the block carries on the next week. Seats are
-        held for 72 hours while you pay.
+        held for {BLOCK_HOLD_HOURS} hours while you pay.
       </p>
       {starts.length === 0 ? <p>There are no start dates open for booking right now.</p> : null}
       <ChoiceList label="Start dates">

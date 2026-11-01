@@ -24,6 +24,7 @@ describe("mountTurnstile", () => {
         return "w1";
       }),
       reset: vi.fn(),
+      remove: vi.fn(),
     };
     const tokens: string[] = [];
     const widget = mountTurnstile(api, {} as HTMLElement, "site", (t) => tokens.push(t));
@@ -41,5 +42,10 @@ describe("mountTurnstile", () => {
     widget.reset();
     expect(tokens).toEqual([""]);
     expect(api.reset).toHaveBeenCalledWith("w1");
+  });
+  test("remove takes the Cloudflare widget out of the page", () => {
+    const { api, widget } = setup();
+    widget.remove();
+    expect(api.remove).toHaveBeenCalledWith("w1");
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BLOCK_HOLD_HOURS, bookingWindowText } from "@/lib/policy";
 import { blockOffers, groupTimesByDay, lessonPrices } from "@/lib/public/prices";
 import { SETTINGS } from "./fixtures";
 
@@ -46,5 +47,14 @@ describe("groupTimesByDay", () => {
         { weekday: 3, startTime: "18:00:00", active: false },
       ]),
     ).toEqual({ 6: ["8:15am"], 0: ["8:15am", "9:15am"] });
+  });
+});
+
+describe("bookingWindowText", () => {
+  it("whole weeks read as weeks, anything else as days", () => {
+    expect(bookingWindowText(28)).toBe("4 weeks");
+    expect(bookingWindowText(7)).toBe("1 week");
+    expect(bookingWindowText(30)).toBe("30 days");
+    expect(BLOCK_HOLD_HOURS).toBe(72);
   });
 });

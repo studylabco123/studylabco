@@ -1,6 +1,6 @@
-import { formatLondon } from "@/lib/format";
+import { formatLondon, formatPence } from "@/lib/format";
 import type { LocationKind } from "@/lib/types";
-import type { WizardType } from "../types";
+import type { SessionOption, WizardType } from "../types";
 
 // Plain labels and London-time formatting for the booking wizard (no JSX, so
 // unit tests can import them).
@@ -33,4 +33,16 @@ export function londonDay(iso: string | Date): string {
 
 export function londonTime(iso: string | Date): string {
   return formatLondon(new Date(iso), "HH:mm");
+}
+
+/**
+ * The price line for a single group session: each session carries its own
+ * price, so this is "£12.50" when every open session costs the same, "from
+ * £10" when they differ, or null when none has a free seat.
+ */
+export function groupPriceText(sessions: SessionOption[]): string | null {
+  const prices = sessions.filter((s) => s.seatsLeft > 0).map((s) => s.pricePence);
+  if (!prices.length) return null;
+  const low = Math.min(...prices);
+  return prices.every((p) => p === low) ? formatPence(low) : `from ${formatPence(low)}`;
 }

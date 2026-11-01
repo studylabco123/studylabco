@@ -41,13 +41,29 @@ export function Choice({
         disabled={disabled}
         aria-label={label}
         className={cn(
-          "flex min-h-14 w-full flex-col items-start gap-0.5 rounded-card border-2 border-sky-200 bg-white px-5 py-4 text-left",
-          "transition-[border-color,background-color] duration-150 ease-out hover:border-navy-900 hover:bg-sky-50",
+          "group flex min-h-14 w-full items-center gap-4 rounded-card border-2 border-sky-200 bg-white px-5 py-4 text-left",
+          "transition-[border-color,background-color,transform] duration-150 ease-out hover:border-navy-900 hover:bg-sky-50",
+          "motion-safe:active:scale-[0.99] motion-safe:active:duration-100",
           "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-sky-200 disabled:hover:bg-white",
         )}
       >
-        <span className="font-display text-body font-medium">{title}</span>
-        {detail ? <span className="text-small text-navy-600">{detail}</span> : null}
+        <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+          <span className="font-display text-body font-medium">{title}</span>
+          {detail ? <span className="text-small text-navy-600 tabular-nums">{detail}</span> : null}
+        </span>
+        {/* A chevron says "this moves you on", so the cards don't read as static information. */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 20 20"
+          className="size-5 shrink-0 text-navy-600 transition-transform duration-150 ease-out group-hover:translate-x-0.5 group-disabled:hidden"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M8 5l5 5-5 5" />
+        </svg>
       </button>
     </li>
   );

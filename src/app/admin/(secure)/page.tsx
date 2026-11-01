@@ -88,7 +88,8 @@ export default async function AdminTodayPage() {
                 <h3 className="font-display text-h3">
                   {g.title} ({g.items.length})
                 </h3>
-                <ul className="flex flex-col">
+                {/* Columns on wider screens keep a long list from pushing everything else off the page. */}
+                <ul className="grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
                   {g.items.map((a) => (
                     <li key={a.key} className="flex flex-wrap items-center gap-x-2">
                       <Link href={a.href} className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4">

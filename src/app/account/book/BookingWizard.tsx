@@ -7,6 +7,7 @@ import { ChildStep } from "./steps/ChildStep";
 import { LocationStep } from "./steps/LocationStep";
 import { ReviewStep } from "./steps/ReviewStep";
 import { SlotStep } from "./steps/SlotStep";
+import { LOCATION_LABEL, TYPE_LABEL } from "./steps/labels";
 import { summarise } from "./steps/summary";
 import { TypeStep } from "./steps/TypeStep";
 import type { Selection, WizardData } from "./types";
@@ -28,14 +29,24 @@ export function BookingWizard({ data }: { data: WizardData }) {
   const child = data.children.find((c) => c.id === sel.childId);
   const lesson = sel.type === "assessment" || sel.type === "one_to_one" ? sel.type : null;
   const summary = step === "review" ? summarise(sel, data) : null;
+  // What has been chosen on the steps before this one (the review step lists everything itself).
+  const chosen = [
+    step !== "child" && step !== "review" ? child?.name : undefined,
+    (step === "location" || step === "slot" || step === "session") && sel.type ? TYPE_LABEL[sel.type] : undefined,
+    step === "slot" && sel.location ? LOCATION_LABEL[sel.location] : undefined,
+  ].filter(Boolean);
 
   return (
     <div className="flex flex-col gap-6" data-testid="booking-wizard">
       {history.length > 1 ? (
-        <div>
-          <Button variant="quiet" onClick={back}>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <Button variant="quiet" onClick={back} className="-ml-5">
+            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5l-5 5 5 5" />
+            </svg>
             Back
           </Button>
+          {chosen.length ? <p className="text-small text-navy-600">{chosen.join(" · ")}</p> : null}
         </div>
       ) : null}
 
@@ -47,6 +58,7 @@ export function BookingWizard({ data }: { data: WizardData }) {
         <TypeStep
           child={child}
           settings={data.settings}
+          sessions={data.sessions}
           familyMessage={data.familyMessage}
           onSelect={(type) =>
             go(type === "assessment" || type === "one_to_one" ? "location" : "session", {

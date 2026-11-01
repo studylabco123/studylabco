@@ -59,11 +59,11 @@ export default async function AgreementPage({ params }: { params: Promise<{ id: 
             </div>
             <div>
               <dt className="font-semibold">Medical information</dt>
-              <dd>{agreement.medical_info ?? "None given"}</dd>
+              <dd className="whitespace-pre-line">{agreement.medical_info || "None given"}</dd>
             </div>
             <div>
               <dt className="font-semibold">Special educational needs</dt>
-              <dd>{agreement.sen_info ?? "None given"}</dd>
+              <dd className="whitespace-pre-line">{agreement.sen_info || "None given"}</dd>
             </div>
           </dl>
         </Card>

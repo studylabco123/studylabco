@@ -12,6 +12,8 @@ export interface BookingView {
   childName: string | null;
   /** "Sunday bundle" or "Week 3 of 6"; null for standalone bookings. */
   membership: string | null;
+  /** The reference to pay with: the block's own reference for a week of a block, else the booking's. */
+  reference: string;
   /** Whether the parent may cancel it now. */
   cancellable: boolean;
   /** Fee due if cancelled now (lesson price only, R11); null when it would be free. */
@@ -83,10 +85,16 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
   const blockIds = [...new Set(all.map((b) => b.blockBookingId).filter((x): x is string => x !== null))];
   const [sessions, blocks] = await Promise.all([
     sessionIds.length ? c.from("group_sessions").select("id, title").in("id", sessionIds) : null,
-    blockIds.length ? c.from("block_bookings").select("id, weeks, created_at").in("id", blockIds) : null,
+    blockIds.length ? c.from("block_bookings").select("id, weeks, created_at, payment_reference, status").in("id", blockIds) : null,
   ]);
   const titles = new Map((sessions?.data ?? []).map((s) => [s.id as string, s.title as string]));
   const weeks = new Map((blocks?.data ?? []).map((b) => [b.id as string, b.weeks as number]));
+  // A week of a block is paid with the block's reference, unless the block was released: then any
+  // lesson already taught from it is paid on its own (Ruling R16), with its own reference.
+  const blockRef = new Map(
+    (blocks?.data ?? []).filter((b) => b.status !== "released").map((b) => [b.id as string, b.payment_reference as string]),
+  );
+  const referenceOf = (b: Booking) => (b.blockBookingId && blockRef.get(b.blockBookingId)) || b.paymentReference;
   // When each booking was made, for the 14-day cooling-off: a block week counts from the block.
   const blockMade = new Map((blocks?.data ?? []).map((b) => [b.id as string, new Date(b.created_at as string)]));
   const bookedAt = (b: Booking) => (b.blockBookingId && blockMade.get(b.blockBookingId)) || b.createdAt;
@@ -105,6 +113,7 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
       title: (b.groupSessionId && titles.get(b.groupSessionId)) || KIND_TITLE[b.kind],
       childName: b.childId ? (names.get(b.childId) ?? null) : null,
       membership,
+      reference: referenceOf(b),
       cancellable,
       lateFeePence: cancellable ? lateFee(b, now, settings, bookedAt(b)) : null,
       coolingOff: cancellable && freeBecauseCoolingOff(b, now, settings, bookedAt(b)),
@@ -119,7 +128,7 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
   for (const b of all) {
     const amount = amountOwedPence([b], [], now);
     if (amount > 0) {
-      owedLines.push({ reference: b.paymentReference, title: view(b).title, startsAt: b.startsAt, amountPence: amount });
+      owedLines.push({ reference: referenceOf(b), title: view(b).title, startsAt: b.startsAt, amountPence: amount });
     }
   }
 

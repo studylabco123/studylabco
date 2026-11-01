@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mapGroupSession, type GroupSessionRow } from "@/lib/supabase/mappers";
 import { addDays, londonDateOf, londonDateTime, londonWeekday } from "@/lib/time";
 import type { BlockWeeks, GroupProduct, GroupSession, Settings } from "@/lib/types";
+import { BLOCK_HOLD_HOURS } from "@/lib/policy";
 import { planBlock } from "./block";
 import {
   db,
@@ -168,7 +169,7 @@ export async function createSundayBundle(
 
 /**
  * A 6- or 10-week Saturday or Sunday-bundle block from `firstDate`: one held
- * block_bookings row (hold 72 h) and one seat per planned session.
+ * block_bookings row (held for BLOCK_HOLD_HOURS) and one seat per planned session.
  */
 export async function createBlockBooking(
   input: GroupInput & { product: GroupProduct; weeks: BlockWeeks; firstDate: string },
@@ -214,7 +215,7 @@ export async function createBlockBooking(
       product,
       weeks,
       price_pence: price.totalPence,
-      hold_expires_at: new Date(now.getTime() + 72 * 3600_000).toISOString(),
+      hold_expires_at: new Date(now.getTime() + BLOCK_HOLD_HOURS * 3600_000).toISOString(),
       status: "held",
     })
     .select("id")

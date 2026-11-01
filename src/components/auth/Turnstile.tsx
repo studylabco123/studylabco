@@ -33,6 +33,16 @@ export function Turnstile({ resetSignal }: { resetSignal?: unknown }) {
     if (scriptReady || window.turnstile) mount();
   }, [scriptReady, mount]);
 
+  // Remove the widget on unmount: otherwise navigating away and back leaves Cloudflare's
+  // widget registered against a detached element and a remount renders a second one.
+  useEffect(
+    () => () => {
+      widget.current?.remove();
+      widget.current = null;
+    },
+    [],
+  );
+
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {

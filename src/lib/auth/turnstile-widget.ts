@@ -10,12 +10,14 @@ export interface TurnstileApi {
     },
   ): string;
   reset(widgetId?: string): void;
+  remove(widgetId: string): void;
 }
 
 /**
  * Renders the widget explicitly and reports each token (or "" when it expires,
  * errors or is reset). Tokens are single use: call reset() after every submit
- * that returned an error so the next submit carries a fresh token.
+ * that returned an error so the next submit carries a fresh token, and
+ * remove() when the component unmounts.
  */
 export function mountTurnstile(api: TurnstileApi, el: HTMLElement, siteKey: string, onToken: (t: string) => void) {
   const id = api.render(el, {
@@ -28,6 +30,10 @@ export function mountTurnstile(api: TurnstileApi, el: HTMLElement, siteKey: stri
     reset() {
       onToken("");
       api.reset(id);
+    },
+    /** Removes the widget (on unmount), so a remount renders a fresh one instead of a second iframe. */
+    remove() {
+      api.remove(id);
     },
   };
 }

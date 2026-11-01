@@ -38,7 +38,7 @@ export function BookingList({ items, empty }: { items: BookingView[]; empty: str
               {v.childName ? ` for ${v.childName}` : ""}
             </p>
             <p className="text-small text-navy-600">
-              {formatPence(b.pricePence + b.travelFeePence)} · Reference {b.paymentReference}
+              {formatPence(b.pricePence + b.travelFeePence)} · Reference {v.reference}
             </p>
             <div className="flex flex-wrap items-center gap-4">
               <Link href={`/account/bookings/${b.id}`} className="underline underline-offset-4">

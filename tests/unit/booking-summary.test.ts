@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { groupPriceText } from "@/app/account/book/steps/labels";
 import { cancellationTerms, summarise } from "@/app/account/book/steps/summary";
 import type { WizardData } from "@/app/account/book/types";
 
@@ -71,5 +72,26 @@ describe("cancellationTerms (cooling-off, Ruling R20)", () => {
     expect(t.coolingOffCovers).toBe(
       "The first session starts within your 14-day cooling-off period, so you can cancel it for free at any time before it starts.",
     );
+  });
+});
+
+describe("groupPriceText", () => {
+  const session = (pricePence: number, seatsLeft = 5) => ({
+    id: `s${pricePence}-${seatsLeft}`,
+    title: "Saturday group",
+    startsAt: "2026-11-07T10:00:00.000Z",
+    endsAt: "2026-11-07T11:00:00.000Z",
+    seatsLeft,
+    pricePence,
+    venue: null,
+    product: "saturday" as const,
+  });
+  test("quotes each session's own price, not the global default", () => {
+    expect(groupPriceText([session(1250), session(1250)])).toBe("£12.50");
+    expect(groupPriceText([session(1500), session(1000)])).toBe("from £10");
+  });
+  test("ignores full sessions, and gives no price when none is open", () => {
+    expect(groupPriceText([session(800, 0), session(1500)])).toBe("£15");
+    expect(groupPriceText([])).toBeNull();
   });
 });

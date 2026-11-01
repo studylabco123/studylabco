@@ -4,6 +4,7 @@ import { PriceTable, type PriceRow } from "@/components/site/PriceTable";
 import { Steps } from "@/components/site/Steps";
 import { ButtonLink } from "@/components/ui/Button";
 import { formatPence } from "@/lib/format";
+import { BLOCK_HOLD_HOURS, bookingWindowText } from "@/lib/policy";
 import { bookHref, loadGroupSeries, publicSettings } from "@/lib/public/data";
 import { pageMetadata } from "@/lib/public/meta";
 import { blockOffers, groupTimesByDay, lessonPrices } from "@/lib/public/prices";
@@ -55,13 +56,13 @@ export default async function LessonsPage() {
     },
     {
       name: "Group session",
-      detail: "60 minutes in a weekend group of up to 15 students. Price per student.",
-      prices: [{ label: "Per session", pence: p.group, testId: "price-group" }],
+      detail: `60 minutes in a weekend group of up to ${settings.defaultGroupCapacity} students.`,
+      prices: [{ label: "Per student", pence: p.group, testId: "price-group" }],
     },
     {
       name: "Sunday bundle",
-      detail: "Both Sunday morning group sessions, back to back. Price per student.",
-      prices: [{ label: "Per Sunday", pence: p.sundayBundle, testId: "price-sunday-bundle" }],
+      detail: "Both Sunday morning group sessions, back to back.",
+      prices: [{ label: "Per student", pence: p.sundayBundle, testId: "price-sunday-bundle" }],
     },
   ];
 
@@ -117,12 +118,12 @@ export default async function LessonsPage() {
           ))}
         </ul>
         <p className="mt-6 max-w-prose text-small text-navy-600">
-          A block is held for 72 hours while you pay. If your child misses a week, the usual cancellation rules apply to that
+          A block is held for {BLOCK_HOLD_HOURS} hours while you pay. If your child misses a week, the usual cancellation rules apply to that
           week. See the <Link href="/refunds" className="font-semibold text-navy-900 underline underline-offset-4">Refund Policy</Link>.
         </p>
       </Section>
 
-      <Section id="times" title="When lessons run" intro="Times change a little through the year. The booking calendar always shows the real free slots, up to four weeks ahead.">
+      <Section id="times" title="When lessons run" intro={`Times change a little through the year. The booking calendar always shows the real free slots, up to ${bookingWindowText(settings.bookingWindowDays)} ahead.`}>
         <dl className="grid gap-6 md:grid-cols-2">
           <div className="border-l-2 border-sky-300 pl-4">
             <dt className="font-display font-semibold">Term time, Monday to Friday</dt>

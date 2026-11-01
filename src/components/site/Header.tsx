@@ -13,13 +13,27 @@ export type HeaderProps = {
   email?: string;
   /** Business phone from settings; hidden when absent. */
   phone?: string;
+  /**
+   * Which part of the site this is. Visitors get "Log in" and "Book Assessment";
+   * inside the parent account the header links back to the account instead, and
+   * inside admin to the admin home: a signed-in user is never offered sign-up.
+   */
+  area?: HeaderArea;
+};
+
+export type HeaderArea = "public" | "account" | "admin";
+
+const AREA_LINK: Record<Exclude<HeaderArea, "public">, { href: string; label: string }> = {
+  account: { href: "/account", label: "Your account" },
+  admin: { href: "/admin", label: "Admin" },
 };
 
 function isCurrent(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function Header({ email = FALLBACK_EMAIL, phone }: HeaderProps) {
+export function Header({ email = FALLBACK_EMAIL, phone, area = "public" }: HeaderProps) {
+  const home = area === "public" ? null : AREA_LINK[area];
   const pathname = usePathname() ?? "/";
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -60,7 +74,7 @@ export function Header({ email = FALLBACK_EMAIL, phone }: HeaderProps) {
     <header ref={headerRef} className="sticky top-0 z-40 border-b border-sky-200 bg-white/95 backdrop-blur-sm">
       <div className="mx-auto flex h-18 max-w-content items-center gap-3 px-5 sm:h-20 sm:px-8">
         <Link href="/" className="-ml-1 flex items-center gap-3 rounded-full p-1">
-          <Logo size={52} priority className="size-12 sm:size-14" />
+          <Logo variant="responsive" size={52} priority className="size-12 sm:size-14" />
           <span className="hidden font-display text-lead font-semibold tracking-tight whitespace-nowrap sm:block" aria-hidden="true">
             Study Lab Co
           </span>
@@ -89,15 +103,23 @@ export function Header({ email = FALLBACK_EMAIL, phone }: HeaderProps) {
         </nav>
 
         <div className="ml-auto flex items-center gap-2 xl:ml-2">
-          <Link
-            href="/login"
-            className="hidden min-h-11 items-center rounded-full px-3 font-display text-small font-medium whitespace-nowrap underline decoration-sky-500 decoration-2 underline-offset-4 hover:bg-sky-100 xl:inline-flex"
-          >
-            Log in
-          </Link>
-          <ButtonLink href="/signup" className="px-4 sm:px-5">
-            Book Assessment
-          </ButtonLink>
+          {home ? (
+            <ButtonLink href={home.href} variant="secondary" className="px-4 sm:px-5">
+              {home.label}
+            </ButtonLink>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="hidden min-h-11 items-center rounded-full px-3 font-display text-small font-medium whitespace-nowrap underline decoration-sky-500 decoration-2 underline-offset-4 hover:bg-sky-100 xl:inline-flex"
+              >
+                Log in
+              </Link>
+              <ButtonLink href="/signup" className="px-4 sm:px-5">
+                Book Assessment
+              </ButtonLink>
+            </>
+          )}
           <button
             ref={buttonRef}
             type="button"
@@ -142,11 +164,11 @@ export function Header({ email = FALLBACK_EMAIL, phone }: HeaderProps) {
             })}
             <li className="mt-2 border-t border-sky-200 pt-2">
               <Link
-                href="/login"
+                href={home?.href ?? "/login"}
                 onClick={() => setOpen(false)}
                 className="flex min-h-12 items-center rounded-field px-3 font-display text-lead font-medium hover:bg-sky-100"
               >
-                Log in
+                {home?.label ?? "Log in"}
               </Link>
             </li>
           </ul>

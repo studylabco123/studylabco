@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LegalPage } from "@/components/site/LegalPage";
 import { publicSettings } from "@/lib/public/data";
+import { BLOCK_HOLD_HOURS, bookingWindowText } from "@/lib/policy";
 import { pageMetadata } from "@/lib/public/meta";
 import { FALLBACK_EMAIL } from "@/lib/site";
 
@@ -13,7 +14,6 @@ export const metadata = pageMetadata(
 export default async function TermsPage() {
   const s = await publicSettings();
   const areas = s.allowedPostcodeDistricts.join(" and ");
-  const days = Math.round(s.bookingWindowDays / 7);
   return (
     <LegalPage
       title="Terms of Service"
@@ -48,7 +48,7 @@ export default async function TermsPage() {
       <h2>Bookings</h2>
       <ul>
         <li>
-          You can book up to {days} weeks ahead and no later than {s.minNoticeHours} hours before a lesson. A booking is made when
+          You can book up to {bookingWindowText(s.bookingWindowDays)} ahead and no later than {s.minNoticeHours} hours before a lesson. A booking is made when
           you confirm it and receive a confirmation email.
         </li>
         <li>Lessons at the tutor&apos;s place are confirmed straight away.</li>
@@ -60,7 +60,7 @@ export default async function TermsPage() {
         ) : null}
         <li>
           Group sessions have a limited number of seats. Block bookings (6 or 10 weeks of the Saturday group or the Sunday
-          bundle) are held for 72 hours while you pay. If payment hasn&apos;t arrived by then, we may release the seats.
+          bundle) are held for {BLOCK_HOLD_HOURS} hours while you pay. If payment hasn&apos;t arrived by then, we may release the seats.
         </li>
         <li>All lessons last 60 minutes.</li>
       </ul>

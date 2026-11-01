@@ -113,7 +113,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               Lessons and prices
             </h2>
             <p className="text-navy-600">
-              All lessons last 60 minutes. Pay by bank transfer, or by cash or transfer before the lesson starts. No VAT,
+              All lessons last 60 minutes. Pay by bank transfer in advance, or by cash before the lesson starts. No VAT,
               no joining fee: the price you see is the price you pay.
             </p>
             <p>

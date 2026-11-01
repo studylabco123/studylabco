@@ -46,7 +46,7 @@ export function SlotStep({
       ) : slots === null ? (
         <p role="status">Loading free times…</p>
       ) : slots.length === 0 ? (
-        <p>There are no free times in the next 4 weeks. Please check back soon or contact us.</p>
+        <p>There are no free times open for booking right now. Please check back soon or contact us.</p>
       ) : (
         <div className="flex flex-col gap-6">
           {[...days.entries()].map(([day, times]) => (
@@ -62,7 +62,7 @@ export function SlotStep({
                       data-slot={t}
                       aria-label={`${londonDay(t)} at ${londonTime(t)}`}
                       onClick={() => onSelect(t)}
-                      className="min-h-12 min-w-20 rounded-full border-2 border-navy-900 bg-white px-4 font-display font-medium hover:bg-sky-100"
+                      className="min-h-12 min-w-20 rounded-full border-2 border-navy-900 bg-white px-4 font-display font-medium tabular-nums transition-[background-color,transform] duration-150 ease-out hover:bg-sky-100 motion-safe:active:scale-[0.97] motion-safe:active:duration-100"
                     >
                       {londonTime(t)}
                     </button>

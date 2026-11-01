@@ -1,12 +1,12 @@
 import { Footer } from "@/components/site/Footer";
-import { Header } from "@/components/site/Header";
+import { Header, type HeaderArea } from "@/components/site/Header";
 import { siteContact } from "@/lib/public/data";
 
 /**
  * Skip link, header, main landmark and footer, shared by every page group.
  * Contact details come from settings (ruling R1): the phone is hidden until set.
  */
-export async function SiteShell({ children }: Readonly<{ children: React.ReactNode }>) {
+export async function SiteShell({ children, area = "public" }: Readonly<{ children: React.ReactNode; area?: HeaderArea }>) {
   const contact = await siteContact();
   return (
     <div className="flex min-h-dvh flex-col">
@@ -16,7 +16,7 @@ export async function SiteShell({ children }: Readonly<{ children: React.ReactNo
       >
         Skip to main content
       </a>
-      <Header email={contact.email} phone={contact.phone ?? undefined} />
+      <Header email={contact.email} phone={contact.phone ?? undefined} area={area} />
       <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
         {children}
       </main>

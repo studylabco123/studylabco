@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { IneligibleMessage } from "@/lib/booking/eligibility";
 import { formatPence } from "@/lib/format";
-import type { ChildOption, WizardSettings, WizardType } from "../types";
+import type { ChildOption, SessionOption, WizardSettings, WizardType } from "../types";
+import { groupPriceText } from "./labels";
 import { Choice, ChoiceList, StepHeading, TYPE_LABEL } from "./shared";
 
-function details(s: WizardSettings): Record<WizardType, string> {
+function details(s: WizardSettings, sessions: SessionOption[]): Record<WizardType, string> {
+  const groupPrice = groupPriceText(sessions);
   const homeVisit = s.lessonLocations.includes("home_visit");
   const fromBlock = Math.min(s.blockPrices.saturday[6], s.blockPrices.sunday_bundle[6]);
   return {
@@ -16,7 +18,7 @@ function details(s: WizardSettings): Record<WizardType, string> {
     one_to_one: `60 minutes, ${formatPence(s.priceOneToOnePence)}${
       homeVisit ? ` (home visit ${formatPence(s.priceOneToOnePence + s.travelFeePence)})` : ""
     }.`,
-    group: `One 60-minute group session, ${formatPence(s.priceGroupPence)}.`,
+    group: groupPrice ? `One 60-minute group session, ${groupPrice}.` : "One 60-minute group session.",
     sunday_bundle: `Both Sunday group sessions on one day, ${formatPence(s.priceSundayBundlePence)}.`,
     block: `6 or 10 weeks of Saturday group or Sunday bundle sessions, from ${formatPence(fromBlock)}.`,
   };
@@ -25,15 +27,18 @@ function details(s: WizardSettings): Record<WizardType, string> {
 export function TypeStep({
   child,
   settings,
+  sessions,
   familyMessage,
   onSelect,
 }: {
   child: ChildOption;
   settings: WizardSettings;
+  /** Open group sessions: each has its own price, so the group card quotes the lowest. */
+  sessions: SessionOption[];
   familyMessage: string | null;
   onSelect: (t: WizardType) => void;
 }) {
-  const d = details(settings);
+  const d = details(settings, sessions);
   let notice: React.ReactNode = null;
   let types: WizardType[] = [];
   if (familyMessage) notice = familyMessage;
