@@ -119,7 +119,7 @@ describe("buildTaxPack", () => {
     expect(p.mileage).toHaveLength(1);
     expect(p.summary.mileagePence).toBe(700);
   });
-  test("unpaid at year end uses owed semantics: late cancel is price only", () => {
+  test("unpaid at year end uses owed semantics: late cancel is 50% of the price", () => {
     const bs = [
       booking({ id: "a", status: "late_cancelled", location: "home_visit", travelFeePence: 500, startsAt: new Date("2027-02-01T10:00:00Z") }),
       booking({ id: "b", status: "attended", travelFeePence: 500, startsAt: new Date("2027-02-02T10:00:00Z") }),
@@ -127,7 +127,7 @@ describe("buildTaxPack", () => {
       booking({ id: "d", status: "attended", startsAt: new Date("2027-04-20T10:00:00Z") }),
     ];
     const p = buildTaxPack(range, [led({ bookingId: "c", occurredOn: "2027-03-02" })], bs, [], []);
-    expect(p.unpaidAtEnd.map((r) => r.amountPence).sort()).toEqual([2500, 3000]);
+    expect(p.unpaidAtEnd.map((r) => r.amountPence).sort()).toEqual([1250, 3000]);
   });
   test("a booking owed on 5 April 2027 and paid on 20 April is unpaid at the end of 2026-27 only", () => {
     const b = booking({ id: "x", paymentStatus: "paid", startsAt: new Date("2027-03-20T10:00:00Z") });

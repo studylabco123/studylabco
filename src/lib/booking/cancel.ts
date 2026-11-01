@@ -4,6 +4,7 @@ import { getSettings } from "@/lib/settings";
 import { createServiceClient } from "@/lib/supabase/service";
 import { londonDateOf } from "@/lib/time";
 import { cancellationOutcome } from "./cancellation";
+import { lateFeePence } from "./fees";
 import { onBookingCancelled } from "./notify";
 
 export type CancelResult =
@@ -18,7 +19,8 @@ export type CancelResult =
  *
  * - Only the parent's own pending/confirmed bookings that start in the future.
  * - Inside the notice window the cancellation is 'late' (status late_cancelled,
- *   fee = lesson price only, Ruling R11) and needs `confirmLate`.
+ *   fee = the late cancellation fee, 50% of the lesson price by default, no
+ *   travel) and needs `confirmLate`.
  * - Within 14 days of making the booking it is free whatever the notice
  *   (cooling-off, Ruling R20): for a block week the block's created_at counts.
  * - A pending home visit is always free, whatever the time: the tutor never
@@ -58,7 +60,7 @@ export async function cancelBookingForParent(
     ? "free"
     : cancellationOutcome(booking.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt);
   if (outcome === "late" && !opts.confirmLate) {
-    return { ok: false, reason: "late_confirmation_needed", feePence: booking.pricePence };
+    return { ok: false, reason: "late_confirmation_needed", feePence: lateFeePence(booking.pricePence, settings.lateFeePercent) };
   }
 
   const patch: Record<string, unknown> = {
@@ -94,5 +96,5 @@ export async function cancelBookingForParent(
   }
 
   await onBookingCancelled(bookingId, outcome);
-  return { ok: true, outcome, feePence: outcome === "late" ? booking.pricePence : 0 };
+  return { ok: true, outcome, feePence: outcome === "late" ? lateFeePence(booking.pricePence, settings.lateFeePercent) : 0 };
 }

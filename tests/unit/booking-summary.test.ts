@@ -4,11 +4,16 @@ import { cancellationTerms, summarise } from "@/app/account/book/steps/summary";
 import type { WizardData } from "@/app/account/book/types";
 
 const data: WizardData = {
-  children: [{ id: "c1", name: "Sam Parent", hasAgreement: true, approved: true, assessmentBooked: true }],
+  children: [{ id: "c1", name: "Sam Parent", level: "GCSE", schoolYear: 10, hasAgreement: true, approved: true, assessmentBooked: true }],
   settings: {
     priceAssessmentPence: 1000,
     priceOneToOnePence: 2500,
     priceGroupPence: 1800,
+    priceKs3AssessmentPence: 750,
+    priceKs3OneToOnePence: 2000,
+    priceKs3GroupPence: 1400,
+    lateFeePercent: 50,
+    passPrices: { KS3: { "6": 7900, "10": 12600 }, GCSE: { "6": 10200, "10": 16200 } },
     priceSundayBundlePence: 3000,
     travelFeePence: 500,
     blockPrices: { saturday: { 6: 10200, 10: 16200 }, sunday_bundle: { 6: 17100, 10: 27000 } },
@@ -23,13 +28,13 @@ const data: WizardData = {
 };
 
 describe("booking summary", () => {
-  test("home-visit late cancellation fee is the lesson price only (R11); total includes travel", () => {
+  test("home-visit late cancellation fee is 50% of the lesson price (no travel); total includes travel", () => {
     const s = summarise(
       { childId: "c1", type: "one_to_one", location: "home_visit", homeAddress: "1 Road", postcode: "BB1 1AA", slot: "2026-11-08T10:30:00.000Z" },
       data,
     );
     expect(s?.totalPence).toBe(3000);
-    expect(s?.feePence).toBe(2500);
+    expect(s?.feePence).toBe(1250);
     expect(s?.lines).toEqual([
       { label: "1-to-1 lesson", pence: 2500 },
       { label: "Travel fee", pence: 500 },
@@ -41,12 +46,12 @@ describe("booking summary", () => {
     const s = summarise({ childId: "c1", type: "group", sessionId: "s1" }, { ...data, sessions: [session] });
     expect(s?.totalPence).toBe(1250);
     expect(s?.lines).toEqual([{ label: "Group session", pence: 1250 }]);
-    expect(s?.feePence).toBe(1250);
+    expect(s?.feePence).toBe(625);
   });
 
-  test("tutor's place fee equals the price", () => {
+  test("tutor's place fee is 50% of the price", () => {
     const s = summarise({ childId: "c1", type: "assessment", location: "tutor_place", slot: "2026-11-02T17:00:00.000Z" }, data);
-    expect(s?.feePence).toBe(1000);
+    expect(s?.feePence).toBe(500);
     expect(s?.totalPence).toBe(1000);
   });
 });

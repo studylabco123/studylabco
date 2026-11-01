@@ -78,7 +78,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
 
   // A released block's lessons are paid one by one with their own reference (Ruling R16).
   const reference = block && block.status !== "released" ? block.payment_reference : booking.paymentReference;
-  const money = bookingPaymentSummary(related, block ? { pricePence: block.price_pence, status: block.status } : null);
+  const money = bookingPaymentSummary(related, block ? { pricePence: block.price_pence, status: block.status } : null, settings.lateFeePercent);
   const status = statusLabel(booking);
   const nowMs = new Date().getTime();
   // Owed for a lesson that has happened or was cancelled late: no "before the lesson".

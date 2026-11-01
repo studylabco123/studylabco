@@ -5,6 +5,7 @@ import { londonDateOf, londonWeekday } from "@/lib/time";
 import type { LocationKind } from "@/lib/types";
 import { db, loadFamily, loadSlotData, mapDbError, recordCoolingOff, type ServiceOptions } from "./data";
 import { checkEligibility } from "./eligibility";
+import { assessmentLevel } from "./level";
 import { onBookingCreated } from "./notify";
 import { normalisePostcode } from "./postcode";
 import { quote } from "./pricing";
@@ -67,6 +68,7 @@ export async function createBooking(input: CreateBookingInput, opts: ServiceOpti
     hasAgreement: family.hasAgreement,
     assessmentBooked: family.assessmentBooked,
     approved: family.approved,
+    childLevel: family.childLevel,
     request: { type: kind, location, londonWeekday: londonWeekday(date), postcode: input.postcode },
     settings,
   });
@@ -93,7 +95,10 @@ export async function createBooking(input: CreateBookingInput, opts: ServiceOpti
   if (!slots.some((s) => s.startsAt.getTime() === startsAt.getTime())) return { ok: false, reason: "slot_taken" };
   await opts.afterSlotCheck?.();
 
-  const price = quote({ type: kind, location }, settings);
+  const price = quote(
+    { type: kind, level: kind === "assessment" ? assessmentLevel(family.childSchoolYear, family.childLevel) : family.childLevel, location },
+    settings,
+  );
   const endsAt = new Date(startsAt.getTime() + LESSON_MS);
   const busyUntil = new Date(endsAt.getTime() + (homeVisit ? settings.homeVisitBufferMinutes * 60_000 : 0));
   const { data, error } = await db()

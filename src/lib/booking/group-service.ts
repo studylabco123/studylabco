@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { mapGroupSession, type GroupSessionRow } from "@/lib/supabase/mappers";
 import { addDays, londonDateOf, londonDateTime, londonWeekday } from "@/lib/time";
-import type { BlockWeeks, GroupProduct, GroupSession, Settings } from "@/lib/types";
+import type { BlockWeeks, GroupProduct, GroupSession, Level, Settings } from "@/lib/types";
 import { BLOCK_HOLD_HOURS } from "@/lib/policy";
 import { planBlock } from "./block";
 import {
@@ -28,7 +28,7 @@ interface GroupInput {
   coolingOff: boolean;
 }
 
-type Checked = { ok: true; settings: Settings } | { ok: false; reason: BookingFailure };
+type Checked = { ok: true; settings: Settings; childLevel: Level } | { ok: false; reason: BookingFailure };
 
 /** Ownership, eligibility (approved child etc.) and the cooling-off tick. */
 async function precheck(
@@ -44,12 +44,13 @@ async function precheck(
     hasAgreement: family.hasAgreement,
     assessmentBooked: family.assessmentBooked,
     approved: family.approved,
+    childLevel: family.childLevel,
     request: { type },
     settings: family.settings,
   });
   if (!eligibility.ok) return eligibility;
   if (!input.coolingOff) return { ok: false, reason: "cooling_off_required" };
-  return { ok: true, settings: family.settings };
+  return { ok: true, settings: family.settings, childLevel: family.childLevel };
 }
 
 type Seat = { ok: true; id: string } | { ok: false; reason: BookingFailure };
@@ -126,13 +127,15 @@ export async function createGroupBooking(
 
   const { data, error } = await db()
     .from("group_sessions")
-    .select("id, series_id, title, starts_at, ends_at, capacity, price_pence, venue, is_online, status")
+    .select("id, series_id, title, starts_at, ends_at, capacity, price_pence, venue, is_online, level, status")
     .eq("id", input.sessionId)
     .maybeSingle();
   if (error) throw new Error(`Could not load session: ${error.message}`);
   if (!data) return { ok: false, reason: "session_unavailable" };
   const session = mapGroupSession(data as GroupSessionRow);
   if (!sessionBookable(session, checked.settings, now)) return { ok: false, reason: "session_unavailable" };
+  // A child books only sessions at their own level.
+  if (session.level !== checked.childLevel) return { ok: false, reason: "level_mismatch" };
 
   // Ruling R17: a single seat is charged the session's own price.
   return reserveAll(input, [{ session, price: session.pricePence, bundleId: null }], opts);
@@ -158,6 +161,7 @@ export async function createSundayBundle(
   if (sessions.length !== 2 || !sessions.every((s) => sessionBookable(s, checked.settings, now))) {
     return { ok: false, reason: "session_unavailable" };
   }
+  if (sessions.some((s) => s.level !== checked.childLevel)) return { ok: false, reason: "level_mismatch" };
   const prices = quote({ type: "sunday_bundle" }, checked.settings).perBookingPence;
   const bundleId = randomUUID();
   return reserveAll(
@@ -205,6 +209,7 @@ export async function createBlockBooking(
   if (londonDateOf(planned[0].startsAt) !== firstDate || !sessionBookable(planned[0], checked.settings, now)) {
     return { ok: false, reason: "session_unavailable" };
   }
+  if (planned.some((s) => s.level !== checked.childLevel)) return { ok: false, reason: "level_mismatch" };
 
   const price = quote({ type: "block", product, weeks }, checked.settings);
   const block = await db()

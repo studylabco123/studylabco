@@ -1,4 +1,4 @@
-import type { BlockPrices, BlockWeeks, GroupProduct, LocationKind } from "@/lib/types";
+import type { BlockPrices, BlockWeeks, GroupProduct, Level, LocationKind, PassPrices } from "@/lib/types";
 
 /** What the parent is booking. */
 export type WizardType = "assessment" | "one_to_one" | "group" | "sunday_bundle" | "block";
@@ -7,6 +7,8 @@ export type LessonType = "assessment" | "one_to_one";
 export interface ChildOption {
   id: string;
   name: string;
+  level: Level;
+  schoolYear: number;
   hasAgreement: boolean;
   approved: boolean;
   assessmentBooked: boolean;
@@ -30,6 +32,11 @@ export interface WizardSettings {
   priceAssessmentPence: number;
   priceOneToOnePence: number;
   priceGroupPence: number;
+  priceKs3AssessmentPence: number;
+  priceKs3OneToOnePence: number;
+  priceKs3GroupPence: number;
+  lateFeePercent: number;
+  passPrices: PassPrices;
   priceSundayBundlePence: number;
   travelFeePence: number;
   blockPrices: BlockPrices;

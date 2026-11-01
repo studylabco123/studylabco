@@ -1,5 +1,6 @@
 import "server-only";
 import { amountOwedPence } from "@/lib/booking/owed";
+import { getSettings } from "@/lib/settings";
 import { buildTaxPack, type PackRange, type TaxPack } from "@/lib/money/tax-pack";
 import { londonPeriods, taxYearFor } from "@/lib/money/tax-year";
 import {
@@ -121,7 +122,8 @@ export async function loadMoney(now: Date = new Date()): Promise<MoneyData> {
     c.from("bookings").select("*").in("payment_status", ["paid", "credited"]).order("starts_at", { ascending: false }).limit(40),
   ]);
 
-  const owed: Booking[] = unpaidRows.map(mapBooking).filter((b) => amountOwedPence([b], [], now) > 0);
+  const { lateFeePercent } = await getSettings();
+  const owed: Booking[] = unpaidRows.map(mapBooking).filter((b) => amountOwedPence([b], [], now, lateFeePercent) > 0);
   const paid = check<BookingRow[]>("paid bookings", paidRows).map(mapBooking);
   const parentIds = [...owed, ...paid].map((b) => b.parentId);
   const childIds = [...owed, ...paid].map((b) => b.childId);
@@ -138,7 +140,7 @@ export async function loadMoney(now: Date = new Date()): Promise<MoneyData> {
     parentName: pName(b.parentId),
     childName: cName(b.childId),
     startsAt: b.startsAt,
-    owedPence: amountOwedPence([b], [], now),
+    owedPence: amountOwedPence([b], [], now, lateFeePercent),
   }));
 
   const expenses = await Promise.all(

@@ -1,6 +1,8 @@
 import "server-only";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
+import { bookingFeePence, DEFAULT_LATE_FEE_PERCENT } from "@/lib/booking/fees";
+import { getSettings } from "@/lib/settings";
 import { blockDuePence } from "@/lib/booking/payment-view";
 import { formatPence } from "@/lib/format";
 import { londonDateOf } from "@/lib/time";
@@ -10,11 +12,14 @@ import { fail, NOT_FOUND, OK, unexpected, type AdminResult, type Failure, type O
 const db = () => createServiceClient();
 
 /**
- * What a booking owes if unpaid (Ruling R11): a late cancellation is the lesson
- * price only; everything else is stored price plus stored travel fee.
+ * What a booking owes if unpaid, from its stored prices: see `bookingFeePence`
+ * (a late cancellation is the late cancellation fee, no travel).
  */
-export function dueFor(b: Pick<Booking, "status" | "pricePence" | "travelFeePence">): number {
-  return b.status === "late_cancelled" ? b.pricePence : b.pricePence + b.travelFeePence;
+export function dueFor(
+  b: Pick<Booking, "status" | "location" | "pricePence" | "travelFeePence" | "feePence">,
+  lateFeePercent: number = DEFAULT_LATE_FEE_PERCENT,
+): number {
+  return bookingFeePence(b, lateFeePercent);
 }
 
 async function loadBooking(id: string): Promise<{ booking: Booking } | { error: Failure }> {
@@ -130,7 +135,8 @@ async function settleBooking(bookingId: string, how: Settlement, opts: OpOptions
     if (rows.length === 0) return fail("This bundle is not waiting for payment.");
   }
   const ids = rows.map((r) => r.id);
-  const total = rows.reduce((n, r) => n + dueFor(r), 0);
+  const { lateFeePercent } = await getSettings();
+  const total = rows.reduce((n, r) => n + dueFor(r, lateFeePercent), 0);
 
   if (how.by === "credit") {
     if (!b.parentId) return fail("This booking has no family account, so credit cannot be used.");
@@ -267,7 +273,7 @@ export async function waiveFee(bookingId: string, opts: OpOptions = {}): Promise
     booking_id: bookingId,
     parent_id: b.parentId,
     kind: "waiver",
-    amount_pence: dueFor(b),
+    amount_pence: dueFor(b, (await getSettings()).lateFeePercent),
     occurred_on: londonDateOf(opts.now ?? new Date()),
   });
   if (entry.error) {

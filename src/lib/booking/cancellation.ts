@@ -7,7 +7,7 @@
  *   the notice (the Consumer Contracts Regulations 2013 cooling-off period,
  *   read conservatively). For a block, "making the booking" is the block's
  *   created_at; for a bundle, its bookings' created_at.
- * - Otherwise the cancellation is late and the late cancellation fee is due.
+ * - Otherwise the cancellation is late and the late cancellation fee (50% by default) is due.
  */
 export const COOLING_OFF_DAYS = 14;
 const DAY = 86_400_000;
@@ -19,6 +19,11 @@ export function inCoolingOff(bookedAt: Date, now: Date): boolean {
   return now.getTime() - bookedAt.getTime() <= COOLING_OFF_DAYS * DAY;
 }
 
+/** True when a parent may cancel on the website: the lesson is at least `noticeHours` away. */
+export function parentCanCancelOnline(startsAt: Date, now: Date, noticeHours: number): boolean {
+  return startsAt.getTime() - now.getTime() >= noticeHours * 3600_000;
+}
+
 export function cancellationDecision(
   startsAt: Date,
   now: Date,
@@ -27,7 +32,7 @@ export function cancellationDecision(
   bookedAt?: Date,
 ): { outcome: "free" | "late"; reason: CancellationReason } {
   if (by === "tutor") return { outcome: "free", reason: "tutor" };
-  if (startsAt.getTime() - now.getTime() >= noticeHours * 3600_000) return { outcome: "free", reason: "notice" };
+  if (parentCanCancelOnline(startsAt, now, noticeHours)) return { outcome: "free", reason: "notice" };
   if (bookedAt && inCoolingOff(bookedAt, now)) return { outcome: "free", reason: "cooling_off" };
   return { outcome: "late", reason: "late" };
 }

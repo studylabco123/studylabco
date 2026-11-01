@@ -22,9 +22,9 @@ test.afterEach(async () => {
   parent = undefined;
 });
 
-async function start(page: Page, opts: { approved?: boolean; firstName?: string } = {}) {
+async function start(page: Page, opts: { approved?: boolean; firstName?: string; ks3?: boolean } = {}) {
   parent = await createParent(page);
-  await seedChild(parent.id, { approved: opts.approved, firstName: opts.firstName ?? "Sam" });
+  await seedChild(parent.id, { approved: opts.approved, firstName: opts.firstName ?? "Sam", ks3: opts.ks3 });
   await page.goto("/account/book");
   await page.getByRole("button", { name: new RegExp(`^${opts.firstName ?? "Sam"} Parent`) }).click();
 }
@@ -187,9 +187,9 @@ test.describe("booking", () => {
       await expect(page.getByText("The lesson starts within your 14-day cooling-off period, so you can cancel it for free at any time before it starts.")).toBeVisible();
       await expect(page.getByText(/Free cancellation until/)).toHaveCount(0);
     } else if (daysAway > 16) {
-      await expect(page.getByText(`Free cancellation until ${deadline}. After that a late cancellation fee of £10 applies.`)).toBeVisible();
+      await expect(page.getByText(`Free cancellation until ${deadline}. After that a late cancellation fee of £5 applies.`)).toBeVisible();
     } else {
-      await expect(page.getByText(/^Free cancellation until .*\. After that a late cancellation fee of £10 applies\.$/)).toBeVisible();
+      await expect(page.getByText(/^Free cancellation until .*\. After that a late cancellation fee of £5 applies\.$/)).toBeVisible();
     }
     await expect(page.getByText(/\b(fine|penalty)\b/i)).toHaveCount(0);
   });
@@ -207,8 +207,9 @@ test.describe("booking", () => {
     expect(count).toBe(0);
   });
 
-  test("approved child books a 6-week Saturday block for £102", async ({ page }) => {
-    await start(page, { approved: true });
+  test("approved KS3 child books a 6-week Saturday block for £102", async ({ page }) => {
+    // The Saturday group is KS3 only.
+    await start(page, { approved: true, ks3: true });
     await page.getByRole("button", { name: /^Group block/ }).click();
     await page.getByLabel("Saturday group").check();
     await page.getByLabel("6 weeks, £102").check();

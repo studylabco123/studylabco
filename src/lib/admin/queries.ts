@@ -93,7 +93,7 @@ export async function loadToday(now: Date = new Date()): Promise<TodayData> {
 
   const today = toBookings(check("today's bookings", todayRows));
   const pending = toBookings(check("pending home visits", pendingRows));
-  const unpaid = toBookings(check("unpaid lessons", unpaidRows)).filter((b) => amountOwedPence([b], [], now) > 0);
+  const unpaid = toBookings(check("unpaid lessons", unpaidRows)).filter((b) => amountOwedPence([b], [], now, settings.lateFeePercent) > 0);
   const holds = check<{ id: string; parent_id: string | null; child_id: string | null; payment_reference: string }[]>("block holds", holdRows);
   const children = check<(ChildLite & { agreements: unknown; student_status: unknown })[]>("children", kids);
   const assessmentBookings = check<{ child_id: string | null; status: string }[]>("assessments", assessments);
@@ -144,7 +144,7 @@ export async function loadToday(now: Date = new Date()): Promise<TodayData> {
     [...unpaidByParent.entries()].map(([pid, bs]) => ({
       key: pid,
       label: parentName(profiles.get(pid)),
-      detail: `${amountOwedPence(bs, [], now)}|${bs.length}`,
+      detail: `${amountOwedPence(bs, [], now, settings.lateFeePercent)}|${bs.length}`,
       href: `/admin/families/${pid}`,
     })),
   );
@@ -283,6 +283,7 @@ export async function loadBookings(
   const rows = toBookings(check("bookings", await query.limit(150)));
   const [profiles, kids] = await Promise.all([profilesById(rows.map((b) => b.parentId)), childrenById(rows.map((b) => b.childId))]);
   const released = await releasedBlockIds(rows);
+  const settings = await getSettings();
 
   const items = rows
     .map<BookingItem>((b) => ({
@@ -291,7 +292,7 @@ export async function loadBookings(
       parentName: parentName(profiles.get(b.parentId ?? "")),
       parentId: b.parentId,
       membership: b.blockBookingId ? "Block" : b.bundleId ? "Sunday bundle" : null,
-      owedPence: amountOwedPence([b], [], now),
+      owedPence: amountOwedPence([b], [], now, settings.lateFeePercent),
       blockReleased: released.has(b.blockBookingId ?? ""),
     }))
     // The unpaid view is about money owed now, which excludes lessons paid for through a block.
@@ -388,7 +389,7 @@ export async function loadFamilies(q: string, now: Date = new Date()): Promise<F
     email: p.email,
     phone: p.phone,
     childNames: kidRows.filter((k) => k.parent_id === p.id).map((k) => k.first_name),
-    owedPence: amountOwedPence(owingRows.filter((b) => b.parentId === p.id), [], now),
+    owedPence: amountOwedPence(owingRows.filter((b) => b.parentId === p.id), [], now, settings.lateFeePercent),
     flagged: isFlagged(badRows.filter((b) => b.parentId === p.id), now, settings.flagThreshold),
     blocked: p.is_blocked,
   }));
@@ -508,10 +509,10 @@ export async function loadFamily(parentId: string, now: Date = new Date()): Prom
       parentName: parentName(p),
       parentId: p.id,
       membership: b.blockBookingId ? "Block" : b.bundleId ? "Sunday bundle" : null,
-      owedPence: amountOwedPence([b], [], now),
+      owedPence: amountOwedPence([b], [], now, settings.lateFeePercent),
       blockReleased: false,
     })),
-    owedPence: amountOwedPence(bookings, [], now),
+    owedPence: amountOwedPence(bookings, [], now, settings.lateFeePercent),
     creditPence: creditBalancePence(
       creditRows.map((r) => ({ kind: r.kind, amountPence: r.amount_pence, parentId: r.parent_id })),
       p.id,

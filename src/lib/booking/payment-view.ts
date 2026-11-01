@@ -1,5 +1,6 @@
 import type { BadgeTone } from "@/components/ui/Badge";
 import type { Booking } from "@/lib/types";
+import { bookingFeePence, DEFAULT_LATE_FEE_PERCENT } from "./fees";
 
 /**
  * What the parent sees about paying for a booking (review I1, I3).
@@ -7,13 +8,17 @@ import type { Booking } from "@/lib/types";
  */
 
 /**
- * What one seat costs if (or when) it is owed, from its stored prices
- * (Ruling R11): a late cancellation is the lesson price only; a cancelled or
- * declined booking costs nothing; anything else is price plus travel.
+ * What one seat costs if (or when) it is owed, from its stored prices: a late
+ * cancellation is the late cancellation fee (no travel); a no-show is the fee
+ * plus travel for a home visit; a cancelled or declined booking costs nothing;
+ * anything else is price plus travel.
  */
-export function seatDuePence(b: Pick<Booking, "status" | "pricePence" | "travelFeePence">): number {
+export function seatDuePence(
+  b: Pick<Booking, "status" | "location" | "pricePence" | "travelFeePence" | "feePence">,
+  lateFeePercent: number = DEFAULT_LATE_FEE_PERCENT,
+): number {
   if (b.status === "cancelled" || b.status === "declined") return 0;
-  return b.status === "late_cancelled" ? b.pricePence : b.pricePence + b.travelFeePence;
+  return bookingFeePence(b, lateFeePercent);
 }
 
 /**
@@ -39,7 +44,7 @@ export function willBeOwed(b: Pick<Booking, "status" | "location" | "paymentStat
 /**
  * The amount due on a held (unpaid) block: its price less the stored prices of
  * the weeks cancelled for free (status 'cancelled'). Late-cancelled weeks are
- * still charged (R11: their price is part of the block price). Never negative.
+ * still charged (their price is part of the block price). Never negative.
  */
 export function blockDuePence(blockPricePence: number, seats: Pick<Booking, "status" | "pricePence">[]): number {
   const freed = seats.filter((s) => s.status === "cancelled").reduce((n, s) => n + s.pricePence, 0);
@@ -84,6 +89,7 @@ export interface PaymentSummary {
 export function bookingPaymentSummary(
   related: Booking[],
   block: { pricePence: number; status: "held" | "paid" | "released" | string } | null,
+  lateFeePercent: number = DEFAULT_LATE_FEE_PERCENT,
 ): PaymentSummary {
   const awaitingApproval = related.some((b) => b.status === "pending" && b.location === "home_visit");
   if (block && block.status === "held") {
@@ -94,7 +100,7 @@ export function bookingPaymentSummary(
     return { totalPence: block.pricePence, toPayPence: 0, showHowToPay: false, awaitingApproval };
   }
   const live = related.filter((b) => b.status !== "cancelled" && b.status !== "declined");
-  const totalPence = live.reduce((n, b) => n + seatDuePence(b), 0);
-  const toPayPence = live.filter(willBeOwed).reduce((n, b) => n + seatDuePence(b), 0);
+  const totalPence = live.reduce((n, b) => n + seatDuePence(b, lateFeePercent), 0);
+  const toPayPence = live.filter(willBeOwed).reduce((n, b) => n + seatDuePence(b, lateFeePercent), 0);
   return { totalPence, toPayPence, showHowToPay: toPayPence > 0, awaitingApproval };
 }

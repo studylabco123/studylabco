@@ -1,4 +1,4 @@
-import type { LocationKind, Settings } from "@/lib/types";
+import type { Level, LocationKind, Settings } from "@/lib/types";
 import { isAllowedPostcode } from "./postcode";
 
 export type IneligibleReason =
@@ -12,6 +12,7 @@ export type IneligibleReason =
   | "location_disabled"
   | "home_visit_sunday_only"
   | "postcode_not_allowed"
+  | "level_mismatch"
   /** Not returned by checkEligibility; the booking service checks it (Ruling R9). */
   | "assessment_already_booked";
 
@@ -21,11 +22,15 @@ export interface EligibilityCtx {
   hasAgreement: boolean;
   assessmentBooked: boolean;
   approved: boolean;
+  /** The child's level (KS3 or GCSE). */
+  childLevel: Level;
   request: {
     type: "assessment" | "one_to_one" | "group" | "sunday_bundle" | "block";
     location?: LocationKind;
     londonWeekday?: number;
     postcode?: string;
+    /** The level of the group session being booked, when known. */
+    sessionLevel?: Level;
   };
   settings: Settings;
 }
@@ -47,6 +52,9 @@ export function checkEligibility(ctx: EligibilityCtx): Eligibility {
   } else if (!approved) {
     return no(assessmentBooked ? "not_approved" : "assessment_required");
   }
+
+  // A group session is only for its own key stage.
+  if (request.sessionLevel && request.sessionLevel !== ctx.childLevel) return no("level_mismatch");
 
   if (location === "online" && !settings.onlineEnabled) return no("online_disabled");
   if (location === "tutor_place" && !settings.tutorPlaceEnabled) return no("location_disabled");
@@ -74,5 +82,6 @@ export const IneligibleMessage: Record<IneligibleReason, string> = {
   location_disabled: "That location isn't available right now.",
   home_visit_sunday_only: "Home visits are only available on Sundays.",
   postcode_not_allowed: "We only visit BB1 and BB2 postcodes.",
+  level_mismatch: "That session is for a different key stage.",
   assessment_already_booked: "This child already has an Assessment Lesson booked.",
 };

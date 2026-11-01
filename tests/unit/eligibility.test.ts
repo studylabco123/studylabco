@@ -8,7 +8,8 @@ const base = (over: Partial<EligibilityCtx> = {}): EligibilityCtx => ({
   hasAgreement: true,
   assessmentBooked: true,
   approved: true,
-  request: { type: "group" },
+  childLevel: "GCSE",
+  request: { type: "group", sessionLevel: "GCSE" },
   settings: SETTINGS,
   ...over,
 });
@@ -61,6 +62,18 @@ describe("checkEligibility", () => {
   it("disabled home visits -> location_disabled", () => {
     expect(checkEligibility(base({ settings: { ...SETTINGS, homeVisitsEnabled: false }, request: { type: "one_to_one", location: "home_visit", londonWeekday: 0, postcode: "BB1 1AA" } }))).toEqual({ ok: false, reason: "location_disabled" });
   });
+  it("KS3 child booking a GCSE group -> level_mismatch", () => {
+    expect(checkEligibility(base({ childLevel: "KS3", request: { type: "group", sessionLevel: "GCSE" } }))).toEqual({ ok: false, reason: "level_mismatch" });
+  });
+  it("GCSE child booking a KS3 group -> level_mismatch", () => {
+    expect(checkEligibility(base({ request: { type: "group", sessionLevel: "KS3" } }))).toEqual({ ok: false, reason: "level_mismatch" });
+  });
+  it("KS3 child booking a KS3 group -> ok", () => {
+    expect(checkEligibility(base({ childLevel: "KS3", request: { type: "group", sessionLevel: "KS3" } }))).toEqual({ ok: true });
+  });
+  it("KS3 child one_to_one -> ok", () => {
+    expect(checkEligibility(base({ childLevel: "KS3", request: { type: "one_to_one", location: "tutor_place" } }))).toEqual({ ok: true });
+  });
   it("approved child, group -> ok", () => {
     expect(checkEligibility(base())).toEqual({ ok: true });
   });
@@ -73,6 +86,7 @@ describe("IneligibleMessage", () => {
     expect(IneligibleMessage.money_owed).toBe("You have an unpaid balance. Please pay it before booking again.");
     expect(IneligibleMessage.account_blocked).toBe("Please contact Study Lab Co.");
     expect(IneligibleMessage.assessment_already_booked).toBe("This child already has an Assessment Lesson booked.");
+    expect(IneligibleMessage.level_mismatch).toBe("That session is for a different key stage.");
     for (const [k, m] of Object.entries(IneligibleMessage)) {
       expect(m).not.toMatch(/\b(fine|penalty)\b/i);
       if (k !== "online_disabled") expect(m).not.toMatch(/online/i);

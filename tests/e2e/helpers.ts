@@ -214,8 +214,15 @@ export async function createAdmin(): Promise<Admin> {
   return { id, email, password, totpSecret };
 }
 
+/** Year 10 GCSE (default) or Year 8 KS3 fields for a seeded child. */
+function childLevelFields(ks3?: boolean) {
+  return ks3
+    ? { school_year: 8, level: "KS3", exam_board: null, tier: null }
+    : { school_year: 10, level: "GCSE", exam_board: "AQA", tier: "Higher" };
+}
+
 /** A Year 10 child for `parentId` whose assessment is done and who is approved for 1:1 / group lessons. */
-export async function seedApprovedChild(parentId: string, firstName = "Alex"): Promise<string> {
+export async function seedApprovedChild(parentId: string, firstName = "Alex", ks3 = false): Promise<string> {
   const service = serviceClient();
   const child = await service
     .from("children")
@@ -223,9 +230,7 @@ export async function seedApprovedChild(parentId: string, firstName = "Alex"): P
       parent_id: parentId,
       first_name: firstName,
       last_name: "Parent",
-      school_year: 10,
-      exam_board: "AQA",
-      tier: "Higher",
+      ...childLevelFields(ks3),
       subjects: ["Combined Science"],
     })
     .select("id")
@@ -255,11 +260,11 @@ export async function consentsFor(profileId: string) {
  */
 export async function seedChild(
   parentId: string,
-  opts: { firstName?: string; approved?: boolean; agreement?: boolean } = {},
+  opts: { firstName?: string; approved?: boolean; agreement?: boolean; ks3?: boolean } = {},
 ): Promise<string> {
   const service = serviceClient();
   const childId = opts.approved
-    ? await seedApprovedChild(parentId, opts.firstName ?? "Sam")
+    ? await seedApprovedChild(parentId, opts.firstName ?? "Sam", opts.ks3)
     : await (async () => {
         const { data, error } = await service
           .from("children")
@@ -267,9 +272,7 @@ export async function seedChild(
             parent_id: parentId,
             first_name: opts.firstName ?? "Sam",
             last_name: "Parent",
-            school_year: 10,
-            exam_board: "AQA",
-            tier: "Higher",
+            ...childLevelFields(opts.ks3),
             subjects: ["Combined Science"],
           })
           .select("id")

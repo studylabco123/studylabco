@@ -14,11 +14,17 @@ const mk = (over: Partial<Booking> = {}): Booking => ({
 });
 
 describe("seatDuePence (R11)", () => {
-  it("late cancellation is the lesson price only", () => {
-    expect(seatDuePence(mk({ status: "late_cancelled", location: "home_visit", travelFeePence: 500 }))).toBe(2500);
+  it("late cancellation is 50% of the lesson price, no travel", () => {
+    expect(seatDuePence(mk({ status: "late_cancelled", location: "home_visit", travelFeePence: 500 }))).toBe(1250);
   });
-  it("confirmed, attended and no-show home visits include travel", () => {
-    for (const status of ["confirmed", "attended", "no_show"] as const) {
+  it("a no-show home visit is the fee plus travel", () => {
+    expect(seatDuePence(mk({ status: "no_show", location: "home_visit", travelFeePence: 500 }))).toBe(1750);
+  });
+  it("a stored feePence overrides the fee", () => {
+    expect(seatDuePence(mk({ status: "late_cancelled", feePence: 0 }))).toBe(0);
+  });
+  it("confirmed and attended home visits include travel", () => {
+    for (const status of ["confirmed", "attended"] as const) {
       expect(seatDuePence(mk({ status, location: "home_visit", travelFeePence: 500 }))).toBe(3000);
     }
   });
@@ -80,9 +86,9 @@ describe("bookingPaymentSummary (I1)", () => {
     const s = bookingPaymentSummary([mk({ location: "home_visit", travelFeePence: 500 })], null);
     expect(s).toMatchObject({ totalPence: 3000, toPayPence: 3000, showHowToPay: true });
   });
-  it("a late-cancelled home visit asks for the price only (R11)", () => {
+  it("a late-cancelled home visit asks for 50% of the price (no travel)", () => {
     const s = bookingPaymentSummary([mk({ status: "late_cancelled", location: "home_visit", travelFeePence: 500 })], null);
-    expect(s).toMatchObject({ totalPence: 2500, toPayPence: 2500, showHowToPay: true });
+    expect(s).toMatchObject({ totalPence: 1250, toPayPence: 1250, showHowToPay: true });
   });
   it("a pending home visit is awaiting approval and does not ask for payment", () => {
     const s = bookingPaymentSummary([mk({ status: "pending", location: "home_visit", travelFeePence: 500 })], null);

@@ -48,7 +48,8 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
 
   const bookings = await c.from("bookings").select("*").eq("parent_id", parentId);
   if (bookings.error) return failed("load bookings", bookings.error);
-  const owedPence = amountOwedPence((bookings.data as BookingRow[]).map(mapBooking), [], now);
+  const settings = await getSettings();
+  const owedPence = amountOwedPence((bookings.data as BookingRow[]).map(mapBooking), [], now, settings.lateFeePercent);
   if (owedPence > 0) {
     return {
       ok: false,
@@ -58,7 +59,6 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
     };
   }
 
-  const settings = await getSettings();
   const soon = now.getTime() + settings.cancellationNoticeHours * 3600_000;
   const mine = (bookings.data as BookingRow[]).map(mapBooking);
   if (

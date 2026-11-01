@@ -72,18 +72,18 @@ describe("cancelBookingForParent", () => {
     expect(await get(id)).toEqual(first);
   });
 
-  test("late cancel needs confirmation, then records late_cancelled with the price-only fee", async () => {
+  test("late cancel needs confirmation, then records late_cancelled with the 50% fee", async () => {
     const id = await insertBooking({ starts: "2026-11-11T10:00:00Z", paymentStatus: "unpaid" });
     expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({
       ok: false,
       reason: "late_confirmation_needed",
-      feePence: 3000,
+      feePence: 1500,
     });
     expect((await get(id)).status).toBe("confirmed");
     expect(await cancelBookingForParent(parentId, id, { now: NOW, confirmLate: true })).toEqual({
       ok: true,
       outcome: "late",
-      feePence: 3000,
+      feePence: 1500,
     });
     expect(await get(id)).toMatchObject({ status: "late_cancelled", payment_status: "unpaid", cancelled_by: "parent" });
   });

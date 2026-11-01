@@ -155,7 +155,8 @@ test("journey: sign up, assessment, approval, Saturday block, late cancel, block
   await admin.getByRole("button", { name: `Approve ${child.first} for lessons` }).click();
   await expect(admin.getByText("Approved", { exact: true })).toBeVisible();
 
-  // 5. Parent books a Saturday 6-week block for £102.
+  // 5. Parent books a Saturday 6-week block for £102. The Saturday group is KS3 only, so the child is a KS3 pupil from here.
+  await service.from("children").update({ school_year: 8, level: "KS3", exam_board: null, tier: null }).eq("parent_id", parent.id);
   await page.goto("/account/book");
   await page.getByRole("button", { name: new RegExp(`^${childName}`) }).click();
   await page.getByRole("button", { name: /^Group block/ }).click();
@@ -190,9 +191,9 @@ test("journey: sign up, assessment, approval, Saturday block, late cancel, block
   const week1 = upcoming.getByRole("listitem").filter({ hasText: "Week 1 of 6" });
   await week1.getByRole("button", { name: "Cancel booking" }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("A late cancellation fee of £17 will be due")).toBeVisible();
+  await expect(dialog.getByText("A late cancellation fee of £8.50 will be due")).toBeVisible();
   await dialog.getByRole("button", { name: "Yes, cancel and pay the fee" }).click();
-  await expect(page.getByText(/Booking cancelled\. A late cancellation fee of £17/)).toBeVisible();
+  await expect(page.getByText(/Booking cancelled\. A late cancellation fee of £8.50/)).toBeVisible();
   const cancelled = (await service.from("bookings").select("status, cancelled_by").eq("id", weeks[0].id).single()).data;
   expect(cancelled).toEqual({ status: "late_cancelled", cancelled_by: "parent" });
 

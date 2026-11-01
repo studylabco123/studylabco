@@ -1,8 +1,9 @@
-import type { BlockWeeks, GroupProduct, LocationKind, Settings } from "@/lib/types";
+import type { BlockWeeks, GroupProduct, Level, LocationKind, Settings } from "@/lib/types";
 
 export type QuoteItem =
-  | { type: "assessment" | "one_to_one"; location: LocationKind }
-  | { type: "group" }
+  | { type: "assessment" | "one_to_one"; level: Level; location: LocationKind }
+  | { type: "group"; level: Level }
+  | { type: "pass"; level: Level; sessions: 6 | 10 }
   | { type: "sunday_bundle" }
   | { type: "block"; product: GroupProduct; weeks: BlockWeeks };
 
@@ -27,6 +28,10 @@ export type PriceSettings = Pick<
   | "priceAssessmentPence"
   | "priceOneToOnePence"
   | "priceGroupPence"
+  | "priceKs3AssessmentPence"
+  | "priceKs3OneToOnePence"
+  | "priceKs3GroupPence"
+  | "passPrices"
   | "priceSundayBundlePence"
   | "travelFeePence"
   | "blockPrices"
@@ -36,13 +41,23 @@ export function quote(item: QuoteItem, s: PriceSettings): Quote {
   switch (item.type) {
     case "assessment":
     case "one_to_one": {
-      const basePence = item.type === "assessment" ? s.priceAssessmentPence : s.priceOneToOnePence;
+      const ks3 = item.level === "KS3";
+      const basePence =
+        item.type === "assessment"
+          ? ks3 ? s.priceKs3AssessmentPence : s.priceAssessmentPence
+          : ks3 ? s.priceKs3OneToOnePence : s.priceOneToOnePence;
       const travelPence = item.location === "home_visit" ? s.travelFeePence : 0;
       const totalPence = basePence + travelPence;
       return { basePence, travelPence, totalPence, perBookingPence: [totalPence] };
     }
-    case "group":
-      return { basePence: s.priceGroupPence, travelPence: 0, totalPence: s.priceGroupPence, perBookingPence: [s.priceGroupPence] };
+    case "group": {
+      const p = item.level === "KS3" ? s.priceKs3GroupPence : s.priceGroupPence;
+      return { basePence: p, travelPence: 0, totalPence: p, perBookingPence: [p] };
+    }
+    case "pass": {
+      const t = s.passPrices[item.level][String(item.sessions) as "6" | "10"];
+      return { basePence: t, travelPence: 0, totalPence: t, perBookingPence: split(t, item.sessions) };
+    }
     case "sunday_bundle": {
       const t = s.priceSundayBundlePence;
       return { basePence: t, travelPence: 0, totalPence: t, perBookingPence: split(t, 2) };

@@ -215,7 +215,7 @@ describe("ensure_group_sessions", () => {
     ]);
     const { rows: one } = await db.query(
       `select capacity, price_pence, status, is_online, ends_at - starts_at = interval '60 minutes' as hour
-         from group_sessions limit 1`,
+         from group_sessions where title like 'Sunday%' limit 1`,
     );
     expect(one[0]).toEqual({ capacity: 15, price_pence: 1800, status: "scheduled", is_online: false, hour: true });
   });

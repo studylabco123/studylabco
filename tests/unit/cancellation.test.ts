@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cancellationDecision, cancellationOutcome, freeCancellationEnds, inCoolingOff } from "@/lib/booking/cancellation";
+import { cancellationDecision, parentCanCancelOnline, cancellationOutcome, freeCancellationEnds, inCoolingOff } from "@/lib/booking/cancellation";
 
 const start = new Date("2026-11-10T17:00:00Z");
 const H = 3600_000;
@@ -12,6 +12,18 @@ describe("cancellationOutcome", () => {
   });
   it("tutor cancels 1h before is free", () => {
     expect(cancellationOutcome(start, new Date(start.getTime() - H), 48, "tutor")).toBe("free");
+  });
+});
+
+describe("parentCanCancelOnline", () => {
+  it("exactly 48h before is allowed", () => {
+    expect(parentCanCancelOnline(start, new Date(start.getTime() - 48 * H), 48)).toBe(true);
+  });
+  it("47h59m before is not", () => {
+    expect(parentCanCancelOnline(start, new Date(start.getTime() - 47 * H - 59 * 60_000), 48)).toBe(false);
+  });
+  it("uses the given notice hours", () => {
+    expect(parentCanCancelOnline(start, new Date(start.getTime() - 25 * H), 24)).toBe(true);
   });
 });
 

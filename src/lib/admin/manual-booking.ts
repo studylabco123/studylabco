@@ -1,11 +1,12 @@
 import "server-only";
 import { onBookingCreated } from "@/lib/booking/notify";
+import { assessmentLevel } from "@/lib/booking/level";
 import { quote } from "@/lib/booking/pricing";
 import { normalisePostcode } from "@/lib/booking/postcode";
 import { getSettings } from "@/lib/settings";
 import { createServiceClient } from "@/lib/supabase/service";
 import { londonDateOf, londonDateTime } from "@/lib/time";
-import type { LocationKind } from "@/lib/types";
+import type { Level, LocationKind } from "@/lib/types";
 import { fail, unexpected, type Failure, type OpOptions } from "./result";
 
 export interface ManualBookingInput {
@@ -50,12 +51,19 @@ export async function addManualBooking(input: ManualBookingInput, opts: OpOption
   if (homeVisit && !address) return fail("Enter the address for the home visit.");
 
   const c = createServiceClient();
-  const child = await c.from("children").select("id").eq("id", input.childId).eq("parent_id", input.parentId).maybeSingle();
+  const child = await c.from("children").select("id, school_year, level").eq("id", input.childId).eq("parent_id", input.parentId).maybeSingle();
   if (child.error) return child.error.code === "22P02" ? fail("We could not find that child.") : unexpected("load child", child.error);
   if (!child.data) return fail("We could not find that child.");
 
   const settings = await getSettings();
-  const price = quote({ type: input.kind, location: input.location }, settings);
+  const price = quote(
+    {
+      type: input.kind,
+      level: input.kind === "assessment" ? assessmentLevel(child.data.school_year as number, child.data.level as Level) : (child.data.level as Level),
+      location: input.location,
+    },
+    settings,
+  );
   const endsAt = new Date(startsAt.getTime() + LESSON_MS);
   const busyUntil = new Date(endsAt.getTime() + (homeVisit ? settings.homeVisitBufferMinutes * 60_000 : 0));
   const { data, error } = await c

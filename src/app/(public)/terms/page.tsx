@@ -93,9 +93,9 @@ export default async function TermsPage() {
         <li>
           If you cancel less than {s.cancellationNoticeHours} hours before the lesson and more than 14 days after making the
           booking, you can still do it from your account, and we will warn you first. It is recorded as a late cancellation and a
-          late cancellation fee is due. The fee is the lesson price only (not any travel fee).
+          late cancellation fee is due. The fee is {s.lateFeePercent}% of the lesson price (not any travel fee).
         </li>
-        <li>If the student doesn&apos;t attend without cancelling, it is recorded as a no-show and the lesson price is due.</li>
+        <li>If the student doesn&apos;t attend without cancelling, it is recorded as a no-show and the same {s.lateFeePercent}% fee is due, plus the travel fee for a home visit.</li>
         <li>In an emergency, please tell us. We can waive the fee.</li>
         <li>
           If late cancellations or no-shows happen repeatedly, we may talk to you about it and may stop taking new bookings from

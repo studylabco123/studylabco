@@ -1,4 +1,6 @@
 import { freeCancellationEnds } from "@/lib/booking/cancellation";
+import { assessmentLevel } from "@/lib/booking/level";
+import { lateFeePence } from "@/lib/booking/fees";
 import { quote } from "@/lib/booking/pricing";
 import { londonDateOf, londonDateTime } from "@/lib/time";
 import type { DraftPayload, Selection, SessionOption, WizardData } from "../types";
@@ -33,7 +35,7 @@ export function summarise(sel: Selection, data: WizardData): Summary | null {
     case "assessment":
     case "one_to_one": {
       if (!sel.location || !sel.slot) return null;
-      const q = quote({ type: sel.type, location: sel.location }, s);
+      const q = quote({ type: sel.type, level: sel.type === "assessment" ? assessmentLevel(child.schoolYear, child.level) : child.level, location: sel.location }, s);
       const home = sel.location === "home_visit";
       const lines = [{ label: TYPE_LABEL[sel.type], pence: q.basePence }];
       if (q.travelPence) lines.push({ label: "Travel fee", pence: q.travelPence });
@@ -44,8 +46,8 @@ export function summarise(sel: Selection, data: WizardData): Summary | null {
         where: home ? `Home visit: ${sel.homeAddress}, ${sel.postcode?.toUpperCase()}` : (LOCATION_LABEL[sel.location] ?? ""),
         lines,
         totalPence: q.totalPence,
-        // Ruling R11: the late cancellation fee is the lesson price only (no travel).
-        feePence: q.basePence,
+        // The late cancellation fee is a share of the lesson price (no travel).
+        feePence: lateFeePence(q.basePence, s.lateFeePercent),
         firstStart: new Date(sel.slot),
         pendingApproval: home,
         payload: {
@@ -70,7 +72,7 @@ export function summarise(sel: Selection, data: WizardData): Summary | null {
         where: venue(session),
         lines: [{ label: TYPE_LABEL.group, pence: q.totalPence }],
         totalPence: q.totalPence,
-        feePence: q.totalPence,
+        feePence: lateFeePence(q.totalPence, s.lateFeePercent),
         firstStart: new Date(session.startsAt),
         payload: { type: "group", childId: child.id, sessionId: session.id },
       };
@@ -86,7 +88,7 @@ export function summarise(sel: Selection, data: WizardData): Summary | null {
         where: venue(pair[0]),
         lines: [{ label: TYPE_LABEL.sunday_bundle, pence: q.totalPence }],
         totalPence: q.totalPence,
-        feePence: q.perBookingPence[0],
+        feePence: lateFeePence(q.perBookingPence[0], s.lateFeePercent),
         firstStart: new Date(pair[0].startsAt),
         payload: { type: "sunday_bundle", childId: child.id, date: sel.bundleDate },
       };
@@ -104,7 +106,7 @@ export function summarise(sel: Selection, data: WizardData): Summary | null {
         where: venue(first),
         lines: [{ label, pence: q.totalPence }],
         totalPence: q.totalPence,
-        feePence: q.perBookingPence[0],
+        feePence: lateFeePence(q.perBookingPence[0], s.lateFeePercent),
         firstStart: first ? new Date(first.startsAt) : londonDateTime(b.firstDate, "08:15"),
         payload: { type: "block", childId: child.id, ...b },
       };

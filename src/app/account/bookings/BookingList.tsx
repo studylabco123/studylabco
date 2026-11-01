@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import type { BookingView } from "@/lib/booking/account-data";
-import { paymentBadge, seatDuePence } from "@/lib/booking/payment-view";
+import { paymentBadge } from "@/lib/booking/payment-view";
 import { formatLondon, formatPence } from "@/lib/format";
 import type { Booking, BookingStatus } from "@/lib/types";
 import { CancelBooking } from "./CancelBooking";
@@ -28,7 +28,7 @@ export function BookingList({ items, empty }: { items: BookingView[]; empty: str
         const b = v.booking;
         const status = statusLabel(b);
         const payment = paymentBadge(b);
-        const amount = seatDuePence(b);
+        const amount = v.duePence;
         return (
           <Card as="li" key={b.id} className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-3">

@@ -13,22 +13,29 @@ const mk = (over: Partial<Booking> = {}): Booking => ({
 });
 
 describe("amountOwedPence", () => {
-  it("late cancellation unpaid counts", () => {
-    expect(amountOwedPence([mk({ status: "late_cancelled", startsAt: new Date(now.getTime() + day) })], [], now)).toBe(2500);
+  it("late cancellation unpaid owes 50% of the price", () => {
+    expect(amountOwedPence([mk({ status: "late_cancelled", startsAt: new Date(now.getTime() + day) })], [], now)).toBe(1250);
   });
-  it("late-cancelled home visit owes the lesson price only, not the travel fee (R11)", () => {
+  it("late-cancelled home visit owes 1250, not 1500 (no travel)", () => {
     const b = mk({ status: "late_cancelled", location: "home_visit", travelFeePence: 500, startsAt: new Date(now.getTime() + day) });
-    expect(amountOwedPence([b], [], now)).toBe(2500);
+    expect(amountOwedPence([b], [], now)).toBe(1250);
   });
-  it("no-show home visit owes price plus travel", () => {
-    expect(amountOwedPence([mk({ status: "no_show", location: "home_visit", travelFeePence: 500 })], [], now)).toBe(3000);
+  it("no-show home visit owes 1250 plus travel 500", () => {
+    expect(amountOwedPence([mk({ status: "no_show", location: "home_visit", travelFeePence: 500 })], [], now)).toBe(1250 + 500);
+  });
+  it("a stored feePence overrides the computed fee", () => {
+    expect(amountOwedPence([mk({ status: "late_cancelled", feePence: 0 })], [], now)).toBe(0);
+    expect(amountOwedPence([mk({ status: "no_show", feePence: 300 })], [], now)).toBe(300);
+  });
+  it("uses the given late fee percentage", () => {
+    expect(amountOwedPence([mk({ status: "late_cancelled" })], [], now, 100)).toBe(2500);
   });
   it("future confirmed unpaid does not count", () => {
     expect(amountOwedPence([mk({ status: "confirmed", startsAt: new Date(now.getTime() + day) })], [], now)).toBe(0);
   });
   it("past confirmed, no_show, attended unpaid count; travel included", () => {
     const bs = [mk({ status: "confirmed" }), mk({ status: "no_show" }), mk({ status: "attended", travelFeePence: 500 })];
-    expect(amountOwedPence(bs, [], now)).toBe(2500 + 2500 + 3000);
+    expect(amountOwedPence(bs, [], now)).toBe(2500 + 1250 + 3000);
   });
   it("starting exactly now counts", () => {
     expect(amountOwedPence([mk({ status: "confirmed", startsAt: now })], [], now)).toBe(2500);

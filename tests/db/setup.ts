@@ -138,14 +138,21 @@ export async function createUser(
 /** Inserts a Year 10 child for `parentId` and returns its id. */
 export async function createChild(
   parentId: string,
-  opts: { firstName?: string; schoolYear?: 10 | 11 } = {},
+  opts: { firstName?: string; schoolYear?: 7 | 8 | 9 | 10 | 11; level?: "KS3" | "GCSE" } = {},
 ): Promise<string> {
   const { rows } = await pool.query<{ id: string }>(
     `insert into public.children
-       (parent_id, first_name, last_name, school_year, exam_board, tier, subjects)
-     values ($1, $2, 'Test', $3, 'AQA', 'Higher', '{Combined Science}')
+       (parent_id, first_name, last_name, school_year, level, exam_board, tier, subjects)
+     values ($1, $2, 'Test', $3, $4, $5, $6, '{Combined Science}')
      returning id`,
-    [parentId, opts.firstName ?? "Sam", opts.schoolYear ?? 10],
+    [
+      parentId,
+      opts.firstName ?? "Sam",
+      opts.schoolYear ?? 10,
+      opts.level ?? "GCSE",
+      opts.level === "KS3" ? null : "AQA",
+      opts.level === "KS3" ? null : "Higher",
+    ],
   );
   return rows[0].id;
 }

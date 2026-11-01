@@ -20,6 +20,7 @@ import {
 import { createServiceClient } from "@/lib/supabase/service";
 import { addDays, londonDateTime } from "@/lib/time";
 import type {
+  Level,
   AvailabilityRule,
   BlockedRule,
   BlockedTime,
@@ -59,12 +60,14 @@ export interface Family {
   hasAgreement: boolean;
   approved: boolean;
   assessmentBooked: boolean;
+  childLevel: Level;
+  childSchoolYear: number;
 }
 
 /** Loads the family for `childId`, or null when the child is not this parent's. */
 export async function loadFamily(parentId: string, childId: string, now: Date): Promise<Family | null> {
   const c = db();
-  const child = await c.from("children").select("id, first_name").eq("id", childId).eq("parent_id", parentId).maybeSingle();
+  const child = await c.from("children").select("id, first_name, school_year, level").eq("id", childId).eq("parent_id", parentId).maybeSingle();
   if (child.error) {
     // An invalid uuid is just "not found".
     if (child.error.code === "22P02") return null;
@@ -88,8 +91,10 @@ export async function loadFamily(parentId: string, childId: string, now: Date): 
   return {
     settings,
     childFirstName: child.data.first_name as string,
+    childLevel: child.data.level as Level,
+    childSchoolYear: child.data.school_year as number,
     isBlocked: profile.data.is_blocked as boolean,
-    owedPence: amountOwedPence(mine, [], now),
+    owedPence: amountOwedPence(mine, [], now, settings.lateFeePercent),
     hasAgreement: agreement.data !== null,
     approved: Boolean(status.data?.approved_at),
     assessmentBooked: mine.some(
@@ -207,7 +212,7 @@ export async function loadGroupSessions(
   const c = db();
   let q = c
     .from("group_sessions")
-    .select("id, series_id, title, starts_at, ends_at, capacity, price_pence, venue, is_online, status")
+    .select("id, series_id, title, starts_at, ends_at, capacity, price_pence, venue, is_online, level, status")
     .gte("starts_at", fromIso)
     .lt("starts_at", toIso)
     .order("starts_at");

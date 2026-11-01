@@ -242,7 +242,7 @@ test.describe("admin operations", () => {
     await expect(page.getByText("Gran Parent")).toBeVisible();
     await expect(page.getByText(/inhaler in bag/)).toBeVisible();
     await expect(page.getByText("Dyslexia")).toBeVisible();
-    await expect(page.getByTestId("owed")).toHaveText("£30");
+    await expect(page.getByTestId("owed")).toHaveText("£12.50");
     await expect(page.getByTestId("flag-count")).toHaveText("1");
 
     await page.getByLabel(`Note about ${name}`).fill("Strong on bonding");

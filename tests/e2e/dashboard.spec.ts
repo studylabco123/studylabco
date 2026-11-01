@@ -89,16 +89,16 @@ test.describe("dashboard", () => {
     await page.goto("/account");
     await page.getByRole("button", { name: "Cancel booking" }).click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog.getByText("A late cancellation fee of £30 will be due")).toBeVisible();
+    await expect(dialog.getByText("A late cancellation fee of £15 will be due")).toBeVisible();
     await dialog.getByRole("button", { name: "Yes, cancel and pay the fee" }).click();
-    await expect(page.getByText(/Booking cancelled\. A late cancellation fee of £30/)).toBeVisible();
+    await expect(page.getByText(/Booking cancelled\. A late cancellation fee of £15/)).toBeVisible();
 
     const after = await row(b.id);
     expect(after.status).toBe("late_cancelled");
     expect(after.payment_status).toBe("unpaid");
     expect(after.cancelled_by).toBe("parent");
     await page.reload();
-    await expect(page.getByTestId("owed")).toHaveText("£30");
+    await expect(page.getByTestId("owed")).toHaveText("£15");
   });
 
   test("inside 48 hours but within 14 days of booking: free, with the cooling-off message", async ({ page }) => {

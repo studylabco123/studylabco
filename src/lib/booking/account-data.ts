@@ -4,7 +4,9 @@ import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { Booking, Settings } from "@/lib/types";
 import { cancellationDecision, cancellationOutcome } from "./cancellation";
+import { lateFeePence } from "./fees";
 import { amountOwedPence, creditBalancePence } from "./owed";
+import { seatDuePence } from "./payment-view";
 
 export interface BookingView {
   booking: Booking;
@@ -14,9 +16,11 @@ export interface BookingView {
   membership: string | null;
   /** The reference to pay with: the block's own reference for a week of a block, else the booking's. */
   reference: string;
+  /** What this booking would owe if unpaid (price plus travel, or the late/no-show fee). */
+  duePence: number;
   /** Whether the parent may cancel it now. */
   cancellable: boolean;
-  /** Fee due if cancelled now (lesson price only, R11); null when it would be free. */
+  /** Fee due if cancelled now (the late cancellation fee, no travel); null when it would be free. */
   lateFeePence: number | null;
   /** Cancelling now is free only because the booking is in its 14-day cooling-off. */
   coolingOff: boolean;
@@ -117,6 +121,7 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
       childName: b.childId ? (names.get(b.childId) ?? null) : null,
       membership,
       reference: referenceOf(b),
+      duePence: seatDuePence(b, settings.lateFeePercent),
       cancellable,
       lateFeePence: cancellable ? lateFee(b, now, settings, bookedAt(b)) : null,
       coolingOff: cancellable && freeBecauseCoolingOff(b, now, settings, bookedAt(b)),
@@ -129,7 +134,7 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
 
   const owedLines: OwedLine[] = [];
   for (const b of all) {
-    const amount = amountOwedPence([b], [], now);
+    const amount = amountOwedPence([b], [], now, settings.lateFeePercent);
     if (amount > 0) {
       owedLines.push({ reference: referenceOf(b), title: view(b).title, startsAt: b.startsAt, amountPence: amount });
     }
@@ -139,7 +144,7 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
     isBlocked: profile.data!.is_blocked as boolean,
     upcoming: upcoming.map(view),
     past: past.map(view),
-    owedPence: amountOwedPence(all, [], now),
+    owedPence: amountOwedPence(all, [], now, settings.lateFeePercent),
     owedLines,
     creditPence: creditBalancePence(
       (credit.data as { kind: "credit" | "credit_applied"; amount_pence: number }[]).map((r) => ({
@@ -161,7 +166,7 @@ function isCancellable(b: Booking, now: Date): boolean {
 function lateFee(b: Booking, now: Date, settings: Settings, bookedAt: Date): number | null {
   if (b.status === "pending" && b.location === "home_visit") return null;
   return cancellationOutcome(b.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt) === "late"
-    ? b.pricePence
+    ? (b.feePence ?? lateFeePence(b.pricePence, settings.lateFeePercent))
     : null;
 }
 

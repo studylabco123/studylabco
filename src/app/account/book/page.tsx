@@ -7,7 +7,7 @@ import { getSettings } from "@/lib/settings";
 import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { addDays, londonDateOf } from "@/lib/time";
-import type { GroupProduct, LocationKind, Settings } from "@/lib/types";
+import type { GroupProduct, Level, LocationKind, Settings } from "@/lib/types";
 import { BookingWizard } from "./BookingWizard";
 import type { ChildOption, SessionOption, WizardData, WizardSettings } from "./types";
 
@@ -22,6 +22,11 @@ function wizardSettings(s: Settings): WizardSettings {
     priceAssessmentPence: s.priceAssessmentPence,
     priceOneToOnePence: s.priceOneToOnePence,
     priceGroupPence: s.priceGroupPence,
+    priceKs3AssessmentPence: s.priceKs3AssessmentPence,
+    priceKs3OneToOnePence: s.priceKs3OneToOnePence,
+    priceKs3GroupPence: s.priceKs3GroupPence,
+    lateFeePercent: s.lateFeePercent,
+    passPrices: s.passPrices,
     priceSundayBundlePence: s.priceSundayBundlePence,
     travelFeePence: s.travelFeePence,
     blockPrices: s.blockPrices,
@@ -64,7 +69,7 @@ export default async function BookPage() {
   const now = new Date();
 
   // RLS: only this parent's children.
-  const { data: rows } = await supabase.from("children").select("id, first_name, last_name").order("created_at");
+  const { data: rows } = await supabase.from("children").select("id, first_name, last_name, school_year, level").order("created_at");
   const settings = await getSettings();
   const families = await Promise.all((rows ?? []).map((c) => loadFamily(parentId, c.id as string, now)));
 
@@ -78,6 +83,8 @@ export default async function BookPage() {
     children.push({
       id: c.id as string,
       name: `${c.first_name} ${c.last_name}`,
+      level: c.level as Level,
+      schoolYear: c.school_year as number,
       hasAgreement: f.hasAgreement,
       approved: f.approved,
       assessmentBooked: f.assessmentBooked,

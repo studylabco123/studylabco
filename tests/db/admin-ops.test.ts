@@ -96,10 +96,10 @@ describe("payments", () => {
     expect(await ledger()).toHaveLength(1);
   });
 
-  test("a late-cancelled lesson is paid at the lesson price only (R11)", async () => {
+  test("a late-cancelled lesson is paid at the 50% late fee (no travel)", async () => {
     const id = await insertBooking(-5, { status: "late_cancelled", price: 3000, travel: 500, location: "home_visit", address: "1 Road" });
     await markPaid(id, "bank_transfer");
-    expect((await ledger())[0].amount_pence).toBe(3000);
+    expect((await ledger())[0].amount_pence).toBe(1500);
   });
 
   test("cancelled and declined bookings owe nothing", async () => {
@@ -201,7 +201,7 @@ describe("payments", () => {
     expect((await bookingRow(id)).payment_status).toBe("waived");
     const l = await ledger();
     expect(l).toHaveLength(1);
-    expect(l[0]).toMatchObject({ kind: "waiver", amount_pence: 2500, booking_id: id });
+    expect(l[0]).toMatchObject({ kind: "waiver", amount_pence: 1250, booking_id: id });
     expect((await waiveFee(id)).ok).toBe(false);
   });
 });
@@ -241,11 +241,11 @@ describe("pay from credit (R23)", () => {
     expect((await payFromCredit(id)).ok).toBe(false);
   });
 
-  test("a late-cancelled lesson is paid from credit at the lesson price only (R11)", async () => {
+  test("a late-cancelled lesson is paid from credit at the 50% late fee (no travel)", async () => {
     await credit(2500);
     const id = await insertBooking(-5, { status: "late_cancelled", price: 2500, travel: 500, location: "home_visit", address: "1 Road" });
     expect(await payFromCredit(id)).toEqual({ ok: true });
-    expect(await familyCreditPence(parentId)).toBe(0);
+    expect(await familyCreditPence(parentId)).toBe(1250);
   });
 
   test("refused when the balance is not enough, and nothing changes", async () => {

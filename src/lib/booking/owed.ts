@@ -1,25 +1,30 @@
 import type { Booking, LedgerEntry } from "@/lib/types";
+import { bookingFeePence, DEFAULT_LATE_FEE_PERCENT } from "./fees";
 
 /**
  * Money a parent currently owes, from bookings still marked 'unpaid'.
  * Uses each booking's stored price and travel fee (never current settings).
- * A late cancellation owes the lesson price only: the late cancellation fee
- * excludes travel (Ruling R11, spec 2.9). No-shows, attended and past
- * confirmed lessons owe price plus travel fee.
+ * A late cancellation owes the late cancellation fee (a percentage of the
+ * price, no travel); a no-show owes the fee plus travel for a home visit;
+ * attended and past confirmed lessons owe price plus travel. See `bookingFeePence`.
  * `ledger` is accepted for call-site symmetry but unused: payment_status on
  * each booking is authoritative (payments/credits/waivers update it).
  */
-export function amountOwedPence(bookings: Booking[], _ledger: LedgerEntry[], now: Date): number {
+export function amountOwedPence(
+  bookings: Booking[],
+  _ledger: LedgerEntry[],
+  now: Date,
+  lateFeePercent: number = DEFAULT_LATE_FEE_PERCENT,
+): number {
   let total = 0;
   for (const b of bookings) {
     if (b.paymentStatus !== "unpaid") continue;
-    if (b.status === "late_cancelled") {
-      total += b.pricePence;
-    } else if (
-      (b.status === "no_show" || b.status === "attended" || b.status === "confirmed") &&
-      b.startsAt.getTime() <= now.getTime()
+    if (
+      b.status === "late_cancelled" ||
+      ((b.status === "no_show" || b.status === "attended" || b.status === "confirmed") &&
+        b.startsAt.getTime() <= now.getTime())
     ) {
-      total += b.pricePence + b.travelFeePence;
+      total += bookingFeePence(b, lateFeePercent);
     }
   }
   return total;
