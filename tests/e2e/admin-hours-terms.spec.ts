@@ -26,39 +26,36 @@ async function adminLogin(page: Page) {
 }
 
 test.describe("teaching hours", () => {
-  let removed: Record<string, unknown>[] = [];
-  test.afterEach(async () => {
-    // Remove what the test added (a holiday Wednesday window), then put back the seeded one(s).
-    const del = await service.from("availability_rules").delete().eq("period", "holiday").eq("weekday", 3);
-    if (del.error) throw del.error;
-    if (removed.length) {
-      const ins = await service.from("availability_rules").insert(removed);
-      if (ins.error) throw ins.error;
-    }
-    removed = [];
-  });
-
   test("admin adds a holiday Wednesday window and sees it in the table; axe clean", async ({ page }) => {
+    // The seeded holiday Wednesday window (07:00-22:00) overlaps the one added below, so set it aside and always put it back.
     const seeded = await service.from("availability_rules").select("*").eq("period", "holiday").eq("weekday", 3);
     if (seeded.error) throw seeded.error;
-    removed = seeded.data;
-    const del = await service.from("availability_rules").delete().eq("period", "holiday").eq("weekday", 3);
-    if (del.error) throw del.error;
+    try {
+      const del = await service.from("availability_rules").delete().eq("period", "holiday").eq("weekday", 3);
+      if (del.error) throw del.error;
 
-    await adminLogin(page);
-    await page.goto("/admin/settings");
-    await page.getByRole("link", { name: "Teaching hours" }).click();
-    await expect(page.getByRole("heading", { name: "Teaching hours", level: 1 })).toBeVisible();
+      await adminLogin(page);
+      await page.goto("/admin/settings");
+      await page.getByRole("link", { name: "Teaching hours" }).click();
+      await expect(page.getByRole("heading", { name: "Teaching hours", level: 1 })).toBeVisible();
 
-    await page.getByLabel("When in the year").selectOption("holiday");
-    await page.getByLabel("Day of the week").selectOption("3");
-    await page.getByLabel("From").selectOption("07:00");
-    await page.getByLabel("Until").selectOption("09:00");
-    await page.getByRole("button", { name: "Add time window" }).click();
+      await page.getByLabel("When in the year").selectOption("holiday");
+      await page.getByLabel("Day of the week").selectOption("3");
+      await page.getByLabel("From").selectOption("07:00");
+      await page.getByLabel("Until").selectOption("09:00");
+      await page.getByRole("button", { name: "Add time window" }).click();
 
-    const holidays = page.getByRole("region", { name: "School holidays" });
-    await expect(holidays.getByText("Wed 07:00–09:00 · Assessment, 1-to-1 · Your place")).toBeVisible();
-    expect((await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze()).violations).toEqual([]);
+      const holidays = page.getByRole("region", { name: "School holidays" });
+      await expect(holidays.getByText("Wed 07:00–09:00 · Assessment, 1-to-1 · Your place")).toBeVisible();
+      expect((await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze()).violations).toEqual([]);
+    } finally {
+      const clean = await service.from("availability_rules").delete().eq("period", "holiday").eq("weekday", 3);
+      if (clean.error) throw clean.error;
+      if (seeded.data.length) {
+        const ins = await service.from("availability_rules").insert(seeded.data);
+        if (ins.error) throw ins.error;
+      }
+    }
   });
 
   test("overlapping window shows the refusal", async ({ page }) => {

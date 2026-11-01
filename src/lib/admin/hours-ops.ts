@@ -31,7 +31,7 @@ const isUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{
 
 /** Minutes after midnight for 'HH:mm' on a :00 or :30; null otherwise. */
 function halfHour(t: unknown): number | null {
-  if (typeof t !== "string" || !/^\d{2}:\d{2}$/.test(t)) return null;
+  if (typeof t !== "string" || !/^([01]\d|2[0-3]):(00|30)$/.test(t)) return null;
   const m = parseTimeMinutes(t);
   return m < 24 * 60 && m % 30 === 0 ? m : null;
 }

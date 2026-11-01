@@ -44,6 +44,10 @@ describe("teaching hours", () => {
   test("times off the hour and half hour refused", async () => {
     expect((await saveAvailabilityRule(rule({ startTime: "09:10" }))).ok).toBe(false);
   });
+  test("impossible times such as 09:60 or 24:00 refused", async () => {
+    expect((await saveAvailabilityRule(rule({ startTime: "09:60" }))).ok).toBe(false);
+    expect((await saveAvailabilityRule(rule({ endTime: "24:00" }))).ok).toBe(false);
+  });
   test("no kinds or no locations refused", async () => {
     expect((await saveAvailabilityRule(rule({ kinds: [] }))).ok).toBe(false);
     expect((await saveAvailabilityRule(rule({ locations: [] }))).ok).toBe(false);
