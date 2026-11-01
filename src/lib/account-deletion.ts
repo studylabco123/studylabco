@@ -42,7 +42,7 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
     };
   };
 
-  const profile = await c.from("profiles").select("role").eq("id", parentId).maybeSingle();
+  const profile = await c.from("profiles").select("role, email").eq("id", parentId).maybeSingle();
   if (profile.error) return failed("load profile", profile.error);
   if (profile.data?.role !== "parent") {
     return { ok: false, reason: "not_a_parent", message: "This account cannot be deleted here. Please contact Study Lab Co." };
@@ -164,6 +164,28 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
     if (paths.length) {
       const rm = await c.storage.from("results").remove(paths);
       if (rm.error) return failed("delete result files", rm.error);
+    }
+  }
+
+  // Emails about results are logged against the result (which the cascade below would orphan, keeping the address).
+  // Delete those rows first, then (R10) any other log row addressed to this parent, matched case-insensitively.
+  if (kids.data.length) {
+    const results = await c.from("test_results").select("id").in("child_id", kids.data.map((k) => k.id as string));
+    if (results.error) return failed("load results", results.error);
+    if (results.data.length) {
+      const r = await c.from("email_log").delete().in("result_id", results.data.map((x) => x.id as string));
+      if (r.error) return failed("delete result email log", r.error);
+    }
+  }
+  const email = (profile.data as { email?: string | null }).email?.toLowerCase();
+  if (email) {
+    // ilike treats % and _ as wildcards, so it only narrows the candidates; equality is checked here.
+    const rows = await c.from("email_log").select("id, to_email").ilike("to_email", email);
+    if (rows.error) return failed("load email log", rows.error);
+    const ids = rows.data.filter((r) => (r.to_email as string).toLowerCase() === email).map((r) => r.id as string);
+    if (ids.length) {
+      const r = await c.from("email_log").delete().in("id", ids);
+      if (r.error) return failed("delete email log by address", r.error);
     }
   }
 

@@ -163,6 +163,13 @@ describe("attachments", () => {
     expect(a).toBeTruthy();
   });
 
+  test("re-saving a result with its own attachment path is allowed", async () => {
+    const path = await upload();
+    const id = await create({ attachmentPath: path });
+    expect(await saveResult(form({ id, attachmentPath: path, title: "Again" }), { now })).toEqual({ ok: true });
+    expect(await objects()).toEqual([path]);
+  });
+
   test("replacing the attachment removes the old object; removing it too", async () => {
     const first = await upload();
     const id = await create({ attachmentPath: first });
@@ -212,7 +219,13 @@ describe("account deletion", () => {
          phone_change_token = '', reauthentication_token = '' where id = $1`,
       [parent.id],
     );
+    const id = (await db.query<{ id: string }>("select id from test_results")).rows[0].id;
+    expect(await publishResult(id, { now })).toEqual({ ok: true });
+    await db.query("insert into email_log (template, to_email) values ('group_message', $1)", [parent.email.toUpperCase()]);
+    expect((await db.query("select count(*)::int n from email_log")).rows[0].n).toBe(2);
     expect(await deleteAccount(parent.id, { now })).toEqual({ ok: true });
+    expect((await db.query("select count(*)::int n from email_log where lower(to_email) = lower($1)", [parent.email])).rows[0].n).toBe(0);
+    expect((await db.query("select count(*)::int n from email_log")).rows[0].n).toBe(0);
     expect(await objects()).toEqual([]);
     expect((await db.query("select count(*)::int n from test_results")).rows[0].n).toBe(0);
   });

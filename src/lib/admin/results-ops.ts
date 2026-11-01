@@ -92,7 +92,9 @@ export async function saveResult(form: ResultForm, opts: OpOptions = {}): Promis
     if (info.error || !info.data) return fail("The file did not upload. Please try again.");
     const checked = checkAttachment({ size: info.data.size ?? 0, type: info.data.contentType ?? "" });
     if (!checked.ok) return refuse(checked.message);
-    const taken = await db().from("test_results").select("id").eq("attachment_path", newPath).limit(1);
+    let takenQ = db().from("test_results").select("id").eq("attachment_path", newPath);
+    if (existing) takenQ = takenQ.neq("id", existing.id);
+    const taken = await takenQ.limit(1);
     if (taken.error) return unexpected("check attachment", taken.error);
     if (taken.data.length) return fail("That file is already attached to a result.");
   }
