@@ -48,7 +48,7 @@ function SeriesForm({ today, defaultCapacity, defaultPrice }: Props) {
                 price: String(f.get("price")),
                 venue: String(f.get("venue")),
                 isOnline: f.get("isOnline") === "on",
-                yearGroup: String(f.get("yearGroup")),
+                level: f.get("level") === "KS3" ? "KS3" : "GCSE",
                 product: "",
                 startsOn,
               }),
@@ -66,7 +66,7 @@ function SeriesForm({ today, defaultCapacity, defaultPrice }: Props) {
           <Field label="Seats" name="capacity" type="number" inputMode="numeric" min={1} max={100} required defaultValue={defaultCapacity} />
           <Field label="Price per session (£)" name="price" inputMode="decimal" required defaultValue={defaultPrice} />
         </div>
-        <Field label="Year groups" name="yearGroup" required defaultValue="Years 10 & 11" maxLength={60} />
+        <LevelField />
         <Field label="Venue (optional)" name="venue" maxLength={300} />
         <Checkbox label="Online group" name="isOnline" />
         <div className="flex flex-wrap items-center gap-3">
@@ -107,6 +107,7 @@ function OneOffForm({ today, defaultCapacity, defaultPrice }: Props) {
                 price: String(f.get("price")),
                 venue: String(f.get("venue")),
                 isOnline: f.get("isOnline") === "on",
+                level: f.get("level") === "KS3" ? "KS3" : "GCSE",
               }),
             () => {
               setDone(true);
@@ -129,6 +130,7 @@ function OneOffForm({ today, defaultCapacity, defaultPrice }: Props) {
           <Field label="Seats" name="capacity" type="number" inputMode="numeric" min={1} max={100} required defaultValue={defaultCapacity} />
           <Field label="Price (£)" name="price" inputMode="decimal" required defaultValue={defaultPrice} />
         </div>
+        <LevelField />
         <Field label="Venue (optional)" name="venue" maxLength={300} />
         <Checkbox label="Online session" name="isOnline" />
         <div className="flex flex-wrap items-center gap-3">
@@ -143,3 +145,16 @@ function OneOffForm({ today, defaultCapacity, defaultPrice }: Props) {
   );
 }
 
+
+/** Required: a group is for KS3 or for GCSE children, never both. */
+function LevelField() {
+  return (
+    <SelectField label="Level" name="level" required defaultValue="" hint="Only children at this level can book it.">
+      <option value="" disabled>
+        Choose a level
+      </option>
+      <option value="KS3">KS3 (Years 7–9)</option>
+      <option value="GCSE">GCSE (Years 10 & 11)</option>
+    </SelectField>
+  );
+}

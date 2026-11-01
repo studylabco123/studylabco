@@ -136,7 +136,7 @@ function series(over: Partial<SeriesInput> = {}): SeriesInput {
     price: "18",
     venue: "",
     isOnline: false,
-    yearGroup: "Year 11",
+    level: "GCSE",
     product: "",
     startsOn: londonDateOf(new Date(Date.now() + 1 * DAY)).replace(/.*/, (d) => {
       // The next Wednesday on or after tomorrow.
@@ -178,7 +178,7 @@ describe("group series", () => {
 
   test("createOneOff makes one session with no series", async () => {
     const date = londonDateOf(new Date(Date.now() + 10 * DAY));
-    expect(await createOneOff({ title: "TEST Workshop", date, startTime: "10:00", durationMinutes: 90, capacity: 8, price: "12.50", venue: "Hall", isOnline: false })).toEqual({ ok: true });
+    expect(await createOneOff({ title: "TEST Workshop", date, startTime: "10:00", durationMinutes: 90, capacity: 8, price: "12.50", venue: "Hall", isOnline: false, level: "GCSE" })).toEqual({ ok: true });
     const r = await rows<{ series_id: string | null; starts_at: Date; ends_at: Date; price_pence: number }>(
       "select series_id, starts_at, ends_at, price_pence from group_sessions where title = 'TEST Workshop'",
     );
@@ -205,33 +205,84 @@ describe("group series", () => {
     return out;
   }
 
+  test("a KS3 series generates KS3 sessions and a KS3 year-group label; a GCSE series generates GCSE", async () => {
+    expect(await createSeries(series({ title: "TEST KS3 Group", level: "KS3" }))).toEqual({ ok: true });
+    expect(await createSeries(series({ title: "TEST GCSE Group", level: "GCSE" }))).toEqual({ ok: true });
+    const ser = await rows<{ title: string; level: string; year_group: string }>("select title, level, year_group from group_series where title like 'TEST%' order by title");
+    expect(ser).toEqual([
+      { title: "TEST GCSE Group", level: "GCSE", year_group: "Years 10 & 11" },
+      { title: "TEST KS3 Group", level: "KS3", year_group: "Years 7–9" },
+    ]);
+    const levels = await rows<{ title: string; level: string }>("select title, level from group_sessions where title like 'TEST%' group by title, level");
+    expect(levels).toEqual(expect.arrayContaining([{ title: "TEST KS3 Group", level: "KS3" }, { title: "TEST GCSE Group", level: "GCSE" }]));
+    expect(levels).toHaveLength(2);
+  });
+
+  test("createSeries and createOneOff require a valid level", async () => {
+    expect(await createSeries(series({ level: "" as never }))).toMatchObject({ ok: false });
+    expect(await createSeries(series({ level: "A-level" as never }))).toMatchObject({ ok: false });
+    const date = londonDateOf(new Date(Date.now() + 10 * DAY));
+    expect(await createOneOff({ title: "TEST NoLevel", date, startTime: "10:00", durationMinutes: 60, capacity: 8, price: "10", venue: "", isOnline: false, level: undefined as never })).toMatchObject({ ok: false });
+    expect(await createOneOff({ title: "TEST KS3 Workshop", date, startTime: "10:00", durationMinutes: 60, capacity: 8, price: "10", venue: "", isOnline: false, level: "KS3" })).toEqual({ ok: true });
+    expect((await rows<{ level: string }>("select level from group_sessions where title = 'TEST KS3 Workshop'"))[0].level).toBe("KS3");
+  });
+
+  test("changing a series level moves future sessions, but is refused while any future session has bookings", async () => {
+    await createSeries(series());
+    const seriesId = (await rows<{ id: string }>("select id from group_series where title = 'TEST Wednesday Group'"))[0].id;
+    const edit = { title: "TEST Wednesday Group", capacity: 15, price: "18", venue: "", isOnline: false };
+    expect(await updateSeries(seriesId, { ...edit, level: "KS3" })).toEqual({ ok: true });
+    const after = await rows<{ level: string }>("select distinct level from group_sessions where series_id = $1 and status = 'scheduled'", [seriesId]);
+    expect(after).toEqual([{ level: "KS3" }]);
+    expect((await rows<{ level: string; year_group: string }>("select level, year_group from group_series where id = $1", [seriesId]))[0]).toEqual({ level: "KS3", year_group: "Years 7–9" });
+
+    const [, second] = await sessionsOf("TEST Wednesday Group");
+    await book(second.id, 1);
+    expect(await updateSeries(seriesId, { ...edit, level: "GCSE" })).toMatchObject({ ok: false, message: expect.stringContaining("bookings") });
+    expect((await rows<{ level: string }>("select level from group_series where id = $1", [seriesId]))[0].level).toBe("KS3");
+    expect((await rows<{ level: string }>("select distinct level from group_sessions where series_id = $1", [seriesId])).map((r) => r.level)).toEqual(["KS3"]);
+    // Same level with bookings still saves other edits.
+    expect(await updateSeries(seriesId, { ...edit, price: "19", level: "KS3" })).toEqual({ ok: true });
+  });
+
+  test("updateSession changes one session's level only when it has no bookings", async () => {
+    await createSeries(series());
+    const [a, b] = await sessionsOf("TEST Wednesday Group");
+    await book(a.id, 1);
+    const edit = { title: "TEST Wednesday Group", capacity: 15, price: "18", venue: "", isOnline: false };
+    expect(await updateSession(a.id, { ...edit, level: "KS3" })).toMatchObject({ ok: false });
+    expect(await updateSession(b.id, { ...edit, level: "KS3" })).toEqual({ ok: true });
+    expect((await rows<{ level: string }>("select level from group_sessions where id = $1", [b.id]))[0].level).toBe("KS3");
+    expect(await updateSession(b.id, { ...edit, level: "x" as never })).toMatchObject({ ok: false });
+  });
+
   test("updateSeries carries changes to future sessions and refuses seats below bookings", async () => {
     await createSeries(series());
     const [first, second] = await sessionsOf("TEST Wednesday Group");
     await book(second.id, 4);
 
     const tooSmall = await updateSeries((await rows<{ id: string }>("select id from group_series where title = 'TEST Wednesday Group'"))[0].id, {
-      title: "TEST Wednesday Group", capacity: 3, price: "18", venue: "", isOnline: false,
+      title: "TEST Wednesday Group", capacity: 3, price: "18", venue: "", isOnline: false, level: "GCSE",
     });
     expect(tooSmall).toMatchObject({ ok: false, message: expect.stringContaining("4 seats") });
     expect((await sessionsOf("TEST Wednesday Group"))[0].capacity).toBe(15);
 
     const seriesId = (await rows<{ id: string }>("select id from group_series where title = 'TEST Wednesday Group'"))[0].id;
-    expect(await updateSeries(seriesId, { title: "TEST Wednesday Group", capacity: 4, price: "20", venue: "Main hall", isOnline: false })).toEqual({ ok: true });
+    expect(await updateSeries(seriesId, { title: "TEST Wednesday Group", capacity: 4, price: "20", venue: "Main hall", isOnline: false, level: "GCSE" })).toEqual({ ok: true });
     const after = await sessionsOf("TEST Wednesday Group");
     expect(after.every((s) => s.capacity === 4 && s.price_pence === 2000 && s.venue === "Main hall")).toBe(true);
     expect(after[0].id).toBe(first.id);
     // Existing bookings keep their price.
     expect((await rows<{ price_pence: number }>("select price_pence from bookings"))[0].price_pence).toBe(1800);
-    expect(await updateSeries("00000000-0000-0000-0000-000000000000", { title: "x", capacity: 4, price: "1", venue: "", isOnline: false })).toMatchObject({ ok: false });
+    expect(await updateSeries("00000000-0000-0000-0000-000000000000", { title: "x", capacity: 4, price: "1", venue: "", isOnline: false, level: "GCSE" })).toMatchObject({ ok: false });
   });
 
   test("updateSession edits one scheduled session only", async () => {
     await createSeries(series());
     const [a, b] = await sessionsOf("TEST Wednesday Group");
     await book(a.id, 2);
-    expect(await updateSession(a.id, { title: "TEST Special", capacity: 1, price: "5", venue: "", isOnline: false })).toMatchObject({ ok: false });
-    expect(await updateSession(a.id, { title: "TEST Special", capacity: 10, price: "5", venue: "Annex", isOnline: false })).toEqual({ ok: true });
+    expect(await updateSession(a.id, { title: "TEST Special", capacity: 1, price: "5", venue: "", isOnline: false, level: "GCSE" })).toMatchObject({ ok: false });
+    expect(await updateSession(a.id, { title: "TEST Special", capacity: 10, price: "5", venue: "Annex", isOnline: false, level: "GCSE" })).toEqual({ ok: true });
     const s = await sessionsOf("TEST");
     expect(s.find((x) => x.id === a.id)).toMatchObject({ title: "TEST Special", capacity: 10, price_pence: 500, venue: "Annex" });
     expect(s.find((x) => x.id === b.id)).toMatchObject({ capacity: 15 });

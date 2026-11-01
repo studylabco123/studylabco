@@ -6,7 +6,7 @@ import { ActionError, useAdminAction } from "@/components/admin/useAdminAction";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
-import { Field, TextareaField } from "@/components/ui/Field";
+import { Field, SelectField, TextareaField } from "@/components/ui/Field";
 
 export interface EditValues {
   title: string;
@@ -14,6 +14,7 @@ export interface EditValues {
   price: string;
   venue: string;
   isOnline: boolean;
+  level: "KS3" | "GCSE";
 }
 
 function EditDialog({
@@ -64,6 +65,7 @@ function EditDialog({
                 price: String(f.get("price")),
                 venue: String(f.get("venue")),
                 isOnline: f.get("isOnline") === "on",
+                level: f.get("level") === "KS3" ? "KS3" : "GCSE",
               }),
             onClose,
           );
@@ -74,6 +76,10 @@ function EditDialog({
           <Field label="Seats" name="capacity" type="number" inputMode="numeric" min={1} max={100} required defaultValue={initial.capacity} />
           <Field label="Price (£)" name="price" inputMode="decimal" required defaultValue={initial.price} />
         </div>
+        <SelectField label="Level" name="level" defaultValue={initial.level} hint="Changing the level only works while no upcoming session has bookings.">
+          <option value="KS3">KS3 (Years 7–9)</option>
+          <option value="GCSE">GCSE (Years 10 & 11)</option>
+        </SelectField>
         <Field label="Venue" name="venue" maxLength={300} defaultValue={initial.venue} />
         <Checkbox label="Online" name="isOnline" defaultChecked={initial.isOnline} />
         <ActionError message={error} />

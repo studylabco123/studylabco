@@ -1,5 +1,6 @@
 import "server-only";
 import { createServiceClient } from "@/lib/supabase/service";
+import type { Level } from "@/lib/types";
 
 /** Read side of the admin Groups page (callers have passed requireAdmin()). */
 
@@ -13,6 +14,7 @@ export interface SeriesView {
   venue: string | null;
   isOnline: boolean;
   yearGroup: string;
+  level: Level;
   active: boolean;
   startsOn: string;
 }
@@ -26,6 +28,7 @@ export interface SessionView {
   pricePence: number;
   venue: string | null;
   isOnline: boolean;
+  level: Level;
   status: "scheduled" | "cancelled";
   booked: number;
   seatsLeft: number;
@@ -44,8 +47,8 @@ export async function loadGroups(now: Date, weeks: number): Promise<{ series: Se
     c.from("group_series").select("*").order("active", { ascending: false }).order("weekday").order("start_time"),
     c.from("group_sessions").select("*").gte("starts_at", from).lt("starts_at", to).order("starts_at"),
   ]);
-  type S = { id: string; title: string; weekday: number; start_time: string; capacity: number; price_pence: number; venue: string | null; is_online: boolean; year_group: string; active: boolean; starts_on: string };
-  type G = { id: string; series_id: string | null; title: string; starts_at: string; capacity: number; price_pence: number; venue: string | null; is_online: boolean; status: "scheduled" | "cancelled" };
+  type S = { id: string; title: string; weekday: number; start_time: string; capacity: number; price_pence: number; venue: string | null; is_online: boolean; year_group: string; level: Level; active: boolean; starts_on: string };
+  type G = { id: string; series_id: string | null; title: string; starts_at: string; capacity: number; price_pence: number; venue: string | null; is_online: boolean; level: Level; status: "scheduled" | "cancelled" };
   const sessionRows = check<G[]>("group sessions", sessions);
   const counts = new Map<string, number>();
   if (sessionRows.length) {
@@ -66,6 +69,7 @@ export async function loadGroups(now: Date, weeks: number): Promise<{ series: Se
       venue: s.venue,
       isOnline: s.is_online,
       yearGroup: s.year_group,
+      level: s.level,
       active: s.active,
       startsOn: s.starts_on,
     })),
@@ -80,6 +84,7 @@ export async function loadGroups(now: Date, weeks: number): Promise<{ series: Se
         pricePence: s.price_pence,
         venue: s.venue,
         isOnline: s.is_online,
+        level: s.level,
         status: s.status,
         booked,
         seatsLeft: Math.max(0, s.capacity - booked),

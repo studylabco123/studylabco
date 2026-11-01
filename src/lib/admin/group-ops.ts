@@ -3,7 +3,7 @@ import { buildLines, loadBookings, loadPeople, safely } from "@/lib/email/notifi
 import { sendEmail } from "@/lib/email/send";
 import { createServiceClient } from "@/lib/supabase/service";
 import { addDays, londonDateOf, londonDateTime, londonWeekday } from "@/lib/time";
-import type { GroupProduct } from "@/lib/types";
+import type { GroupProduct, Level } from "@/lib/types";
 import { isRealDate } from "./calendar-ops";
 import { poundsToPence } from "./settings-validation";
 import { fail, OK, unexpected, type AdminResult, type Failure, type OpOptions } from "./result";
@@ -17,6 +17,11 @@ const LIVE = ["pending", "confirmed"] as const;
 export const GENERATE_AHEAD_DAYS = 84;
 const MAX_TITLE = 120;
 
+/** The year-group label that goes with each level (spec section 4). */
+export const YEAR_GROUP_LABEL: Record<Level, string> = { KS3: "Years 7–9", GCSE: "Years 10 & 11" };
+const isLevel = (v: unknown): v is Level => v === "KS3" || v === "GCSE";
+const LEVEL_MESSAGE = "Choose KS3 or GCSE.";
+
 export interface SeriesInput {
   title: string;
   weekday: number;
@@ -26,7 +31,9 @@ export interface SeriesInput {
   price: string;
   venue: string;
   isOnline: boolean;
-  yearGroup: string;
+  /** Required. The year-group label follows from it. */
+  level: Level;
+  /** Pairing for the Sunday bundle; empty for a normal group. */
   product: GroupProduct | "";
   startsOn: string;
 }
@@ -40,6 +47,7 @@ export interface OneOffInput {
   price: string;
   venue: string;
   isOnline: boolean;
+  level: Level;
 }
 
 export interface EditInput {
@@ -48,6 +56,7 @@ export interface EditInput {
   price: string;
   venue: string;
   isOnline: boolean;
+  level: Level;
 }
 
 type Common = { title: string; capacity: number; pricePence: number; venue: string | null };
@@ -77,10 +86,9 @@ export async function createSeries(input: SeriesInput, opts: OpOptions = {}): Pr
   if (!isTime(input.startTime)) return fail("Choose a start time.");
   if (!isRealDate(input.startsOn)) return fail("Choose the date the group starts from.");
   if (londonWeekday(input.startsOn) !== input.weekday) return fail("The start date is not on that day of the week.");
-  const yearGroup = typeof input.yearGroup === "string" ? input.yearGroup.trim() : "";
-  if (!yearGroup || yearGroup.length > 60) return fail("Say which year groups it is for, like Years 10 & 11.");
+  if (!isLevel(input.level)) return fail(LEVEL_MESSAGE);
   const product = input.product === "" ? null : input.product;
-  if (product !== null && product !== "saturday" && product !== "sunday_bundle") return fail("Choose a valid block product.");
+  if (product !== null && product !== "saturday" && product !== "sunday_bundle") return fail("Choose a valid Sunday bundle pairing.");
 
   const ins = await db().from("group_series").insert({
     title: common.title,
@@ -90,7 +98,8 @@ export async function createSeries(input: SeriesInput, opts: OpOptions = {}): Pr
     price_pence: common.pricePence,
     venue: common.venue,
     is_online: input.isOnline === true,
-    year_group: yearGroup,
+    level: input.level,
+    year_group: YEAR_GROUP_LABEL[input.level],
     product,
     active: true,
     starts_on: input.startsOn,
@@ -106,6 +115,7 @@ export async function createOneOff(input: OneOffInput): Promise<AdminResult> {
   if (isFailure(common)) return common;
   if (!isRealDate(input.date)) return fail("Choose a date.");
   if (!isTime(input.startTime)) return fail("Choose a start time.");
+  if (!isLevel(input.level)) return fail(LEVEL_MESSAGE);
   const minutes = input.durationMinutes;
   if (!Number.isInteger(minutes) || minutes < 15 || minutes > 480) return fail("The length must be from 15 to 480 minutes.");
   const start = londonDateTime(input.date, input.startTime);
@@ -118,6 +128,7 @@ export async function createOneOff(input: OneOffInput): Promise<AdminResult> {
     price_pence: common.pricePence,
     venue: common.venue,
     is_online: input.isOnline === true,
+    level: input.level,
     status: "scheduled",
   });
   return ins.error ? unexpected("create one-off", ins.error) : OK;
@@ -141,8 +152,9 @@ async function maxBooked(sessionIds: string[]): Promise<number | Failure> {
 export async function updateSeries(seriesId: string, input: EditInput, opts: OpOptions = {}): Promise<AdminResult> {
   const common = checkCommon(input);
   if (isFailure(common)) return common;
+  if (!isLevel(input.level)) return fail(LEVEL_MESSAGE);
   const now = (opts.now ?? new Date()).toISOString();
-  const found = await db().from("group_series").select("id").eq("id", seriesId).maybeSingle();
+  const found = await db().from("group_series").select("id, level").eq("id", seriesId).maybeSingle();
   if (found.error) return found.error.code === "22P02" ? fail("We could not find that group.") : unexpected("load series", found.error);
   if (!found.data) return fail("We could not find that group.");
 
@@ -154,10 +166,18 @@ export async function updateSeries(seriesId: string, input: EditInput, opts: OpO
     return fail(`A session already has ${booked} ${booked === 1 ? "seat" : "seats"} booked. Choose at least ${booked} seats.`);
   }
 
+  // A new level only reaches future sessions nobody has booked; refuse if any future session has a seat.
+  const levelChanged = found.data.level !== input.level;
+  if (levelChanged && booked > 0) {
+    return fail("Some upcoming sessions in this group already have bookings, so its level cannot change. Cancel or move those bookings first.");
+  }
+
   const fields = { title: common.title, capacity: common.capacity, price_pence: common.pricePence, venue: common.venue, is_online: input.isOnline === true };
-  const up = await db().from("group_series").update(fields).eq("id", seriesId);
+  const seriesFields = levelChanged ? { ...fields, level: input.level, year_group: YEAR_GROUP_LABEL[input.level] } : fields;
+  const sessionFields = levelChanged ? { ...fields, level: input.level } : fields;
+  const up = await db().from("group_series").update(seriesFields).eq("id", seriesId);
   if (up.error) return unexpected("update series", up.error);
-  const sessions = await db().from("group_sessions").update(fields).eq("series_id", seriesId).eq("status", "scheduled").gt("starts_at", now);
+  const sessions = await db().from("group_sessions").update(sessionFields).eq("series_id", seriesId).eq("status", "scheduled").gt("starts_at", now);
   return sessions.error ? unexpected("update sessions", sessions.error) : OK;
 }
 
@@ -165,7 +185,8 @@ export async function updateSeries(seriesId: string, input: EditInput, opts: OpO
 export async function updateSession(sessionId: string, input: EditInput): Promise<AdminResult> {
   const common = checkCommon(input);
   if (isFailure(common)) return common;
-  const found = await db().from("group_sessions").select("id, status").eq("id", sessionId).maybeSingle();
+  if (!isLevel(input.level)) return fail(LEVEL_MESSAGE);
+  const found = await db().from("group_sessions").select("id, status, level").eq("id", sessionId).maybeSingle();
   if (found.error) return found.error.code === "22P02" ? fail("We could not find that session.") : unexpected("load session", found.error);
   if (!found.data) return fail("We could not find that session.");
   if (found.data.status !== "scheduled") return fail("A cancelled session cannot be edited.");
@@ -174,9 +195,12 @@ export async function updateSession(sessionId: string, input: EditInput): Promis
   if (common.capacity < booked) {
     return fail(`This session already has ${booked} ${booked === 1 ? "seat" : "seats"} booked. Choose at least ${booked} seats.`);
   }
+  if (found.data.level !== input.level && booked > 0) {
+    return fail("This session already has bookings, so its level cannot change. Cancel or move those bookings first.");
+  }
   const up = await db()
     .from("group_sessions")
-    .update({ title: common.title, capacity: common.capacity, price_pence: common.pricePence, venue: common.venue, is_online: input.isOnline === true })
+    .update({ title: common.title, capacity: common.capacity, price_pence: common.pricePence, venue: common.venue, is_online: input.isOnline === true, level: input.level })
     .eq("id", sessionId)
     .eq("status", "scheduled");
   return up.error ? unexpected("update session", up.error) : OK;

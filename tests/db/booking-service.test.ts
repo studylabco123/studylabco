@@ -11,6 +11,7 @@ import {
   createSundayBundle,
   getAvailableSlots,
 } from "@/lib/booking/service";
+import { createOneOff } from "@/lib/admin/group-ops";
 import { closeDb, createChild, createUser, db, resetData } from "./setup";
 
 const NOW = new Date("2026-11-01T09:00:00Z");
@@ -377,6 +378,17 @@ describe("group bookings", () => {
     const ok = await createGroupBooking(group({ sessionId: sat, childId: ks3 }), opts);
     expect(ok.ok).toBe(true);
     if (ok.ok) expect(await booking(ok.bookingId)).toMatchObject({ kind: "group", price_pence: 1400 });
+  });
+
+  test("a KS3 one-off created through admin is bookable by a KS3 child and not by a GCSE child", async () => {
+    expect(await createOneOff({ title: "TEST KS3 Catch-up", date: "2026-11-20", startTime: "10:00", durationMinutes: 60, capacity: 8, price: "9", venue: "", isOnline: false, level: "KS3" })).toEqual({ ok: true });
+    const { rows } = await db.query<{ id: string }>("select id from group_sessions where title = 'TEST KS3 Catch-up'");
+    expect(await createGroupBooking(group({ sessionId: rows[0].id }), opts)).toEqual({ ok: false, reason: "level_mismatch" });
+    const ok = await createGroupBooking(group({ sessionId: rows[0].id, childId: ks3 }), opts);
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(await booking(ok.bookingId)).toMatchObject({ kind: "group", price_pence: 900 });
+    await db.query("delete from bookings where group_session_id = $1", [rows[0].id]);
+    await db.query("delete from group_sessions where id = $1", [rows[0].id]);
   });
 
   test("a KS3 child cannot book the (GCSE) Sunday bundle", async () => {

@@ -42,6 +42,7 @@ export default async function AdminGroupsPage({ searchParams }: { searchParams: 
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                     <span className="font-display text-h3">{formatLondon(s.startsAt, "EEE d MMM, h:mmaaa")}</span>
                     <span className="font-display font-semibold">{s.title}</span>
+                    <Badge tone="neutral">{s.level}</Badge>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {s.status === "cancelled" ? (
@@ -58,7 +59,7 @@ export default async function AdminGroupsPage({ searchParams }: { searchParams: 
                       id={s.id}
                       label={label}
                       booked={s.booked}
-                      initial={{ title: s.title, capacity: s.capacity, price: pounds(s.pricePence), venue: s.venue ?? "", isOnline: s.isOnline }}
+                      initial={{ title: s.title, capacity: s.capacity, price: pounds(s.pricePence), venue: s.venue ?? "", isOnline: s.isOnline, level: s.level }}
                     />
                   ) : null}
                 </Card>
@@ -85,6 +86,7 @@ export default async function AdminGroupsPage({ searchParams }: { searchParams: 
             <Card as="li" key={g.id} className="flex flex-col gap-2 p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-display text-h3">{g.title}</span>
+                <Badge tone="neutral">{g.level}</Badge>
                 {g.active ? <Badge tone="success">Running</Badge> : <Badge tone="neutral">Ended</Badge>}
               </div>
               <p className="text-navy-600">
@@ -94,7 +96,7 @@ export default async function AdminGroupsPage({ searchParams }: { searchParams: 
                 id={g.id}
                 label={g.title}
                 active={g.active}
-                initial={{ title: g.title, capacity: g.capacity, price: pounds(g.pricePence), venue: g.venue ?? "", isOnline: g.isOnline }}
+                initial={{ title: g.title, capacity: g.capacity, price: pounds(g.pricePence), venue: g.venue ?? "", isOnline: g.isOnline, level: g.level }}
               />
             </Card>
           ))}

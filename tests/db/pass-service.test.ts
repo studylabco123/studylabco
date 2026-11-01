@@ -6,7 +6,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { convertPassToCredit, markPassPaid } from "@/lib/admin/pass-ops";
 import { markNoShow, recordLateCancellation, tutorCancel } from "@/lib/admin/lifecycle";
-import { cancelSession } from "@/lib/admin/group-ops";
+import { cancelSession, createOneOff } from "@/lib/admin/group-ops";
 import { cancelBookingForParent } from "@/lib/booking/cancel";
 import { amountOwedPence } from "@/lib/booking/owed";
 import { bookWithPass, buyPass, cancelPassForParent, runPassCron } from "@/lib/booking/pass-service";
@@ -125,6 +125,17 @@ describe("paying for a pass", () => {
     const [sat] = await sessions("2026-11-14");
     expect(await bookWithPass({ parentId, passId: id, sessionId: sat.id }, opts)).toEqual({ ok: false, reason: "pass_not_usable" });
     expect(await liveSeats(id)).toBe(0);
+  });
+
+  test("a KS3 pass books a KS3 one-off created through admin", async () => {
+    const id = await paidPass(ks3);
+    expect(await createOneOff({ title: "TEST KS3 Holiday", date: "2026-11-14", startTime: "10:00", durationMinutes: 60, capacity: 8, price: "9", venue: "", isOnline: false, level: "KS3" })).toEqual({ ok: true });
+    const { rows } = await db.query<{ id: string }>("select id from group_sessions where title = 'TEST KS3 Holiday'");
+    const r = await bookWithPass({ parentId, passId: id, sessionId: rows[0].id }, opts);
+    expect(r).toEqual({ ok: true, bookingId: expect.any(String) });
+    expect(await liveSeats(id)).toBe(1);
+    await db.query("delete from bookings where group_session_id = $1", [rows[0].id]);
+    await db.query("delete from group_sessions where id = $1", [rows[0].id]);
   });
 
   test("markPassPaid sets expires_at +6 months and ledger payment with pass_id", async () => {

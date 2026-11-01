@@ -148,14 +148,16 @@ test.describe("groups", () => {
     await form.getByLabel("Title").fill(title);
     await form.getByLabel("First date").fill(londonDateOf(new Date(Date.now() + 2 * DAY)));
     await form.getByLabel("Start time (UK time)").fill("06:30");
+    await form.getByLabel("Level").selectOption("KS3");
     await form.getByRole("button", { name: "Add weekly group" }).click();
     await expect(form.getByRole("status")).toHaveText("Group added.");
 
     await page.goto("/admin/groups");
     await expect(page.getByRole("listitem").filter({ hasText: title }).filter({ hasText: "15 seats left" }).first()).toBeVisible();
-    const { data } = await service.from("group_sessions").select("capacity").like("title", `${title}%`);
+    const { data } = await service.from("group_sessions").select("capacity, level").like("title", `${title}%`);
     expect((data ?? []).length).toBeGreaterThanOrEqual(11);
-    expect(data?.every((s) => s.capacity === 15)).toBe(true);
+    expect(data?.every((s) => s.capacity === 15 && s.level === "KS3")).toBe(true);
+    await expect(page.getByRole("listitem").filter({ hasText: title }).first()).toContainText("KS3");
     const axe = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
     expect(axe.violations).toEqual([]);
 
