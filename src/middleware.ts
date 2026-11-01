@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-/** Refreshes the Supabase session cookie on every request and guards /account/**. */
+/** Refreshes the Supabase session cookie on every request and guards /account/** and /admin/**. */
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -26,7 +26,8 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname, search } = request.nextUrl;
-  if (!user && (pathname === "/account" || pathname.startsWith("/account/"))) {
+  const guarded = ["/account", "/admin"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (!user && guarded) {
     const login = request.nextUrl.clone();
     login.pathname = "/login";
     login.search = `?next=${encodeURIComponent(pathname + search)}`;
