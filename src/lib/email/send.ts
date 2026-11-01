@@ -13,6 +13,16 @@ export interface SendEmailArgs<T extends TemplateName> {
   bookingId?: string;
   /** For block-level emails (no single booking): idempotent per block and template. */
   blockBookingId?: string;
+  /** Where replies go (the contact form sets the sender's address). */
+  replyTo?: string;
+}
+
+const SUBJECT_MAX = 150;
+
+/** One line (no CR/LF, so no header injection), at most 150 characters. */
+export function cleanSubject(raw: string): string {
+  const one = raw.replace(/[\r\n]+/g, " ").replace(/\s{2,}/g, " ").trim();
+  return one.length > SUBJECT_MAX ? `${one.slice(0, SUBJECT_MAX - 1).trimEnd()}…` : one;
 }
 
 type Transport = "resend" | "log";
@@ -54,15 +64,16 @@ export async function sendEmail<T extends TemplateName>(args: SendEmailArgs<T>):
     };
     const element = createElement(def.component as never, args.props as never);
     const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
-    const subject = def.subject(args.props);
+    const subject = cleanSubject(def.subject(args.props));
+    const replyTo = args.replyTo?.replace(/[\r\n]/g, "") || undefined;
 
     if (transport() === "log") {
-      process.stdout.write(`${JSON.stringify({ email: { to: args.to, subject, template: args.template, text } })}\n`);
+      process.stdout.write(`${JSON.stringify({ email: { to: args.to, subject, template: args.template, replyTo, text } })}\n`);
     } else {
       const key = process.env.RESEND_API_KEY;
       const from = process.env.EMAIL_FROM;
       if (!key || !from) throw new Error("RESEND_API_KEY and EMAIL_FROM must be set for the resend transport");
-      const res = await new Resend(key).emails.send({ from, to: args.to, subject, html, text });
+      const res = await new Resend(key).emails.send({ from, to: args.to, subject, html, text, ...(replyTo ? { replyTo } : {}) });
       if (res.error) throw new Error(`Resend: ${res.error.message}`);
     }
   } catch (err) {

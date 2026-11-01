@@ -146,6 +146,16 @@ const sample: { [K in TemplateName]: Parameters<(typeof TEMPLATES)[K]["component
   admin_block_hold_expired: { title: "Block hold expired", lines: ["x"] },
 };
 
+describe("ContactMessage", () => {
+  it("keeps the sender's line breaks", async () => {
+    const def = TEMPLATES.contact_message;
+    const out = await html(def.component({ name: "Lee", email: "lee@example.test", phone: "07123 456789", message: "Line one\nLine two" }));
+    expect(out).toContain("white-space:pre-wrap");
+    expect(out).toContain("Line one\nLine two");
+    expect(out).toContain("07123 456789");
+  });
+});
+
 describe("all templates", () => {
   const names = Object.keys(TEMPLATES) as TemplateName[];
 

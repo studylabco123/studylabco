@@ -158,6 +158,12 @@ test.describe("groups", () => {
     expect(data?.every((s) => s.capacity === 15)).toBe(true);
     const axe = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
     expect(axe.violations).toEqual([]);
+
+    // And on the public Group Sessions page (Task 14 deferred assertion).
+    await page.goto("/groups");
+    await expect(
+      page.getByRole("list", { name: "Upcoming group sessions" }).getByRole("listitem").filter({ hasText: title }).filter({ hasText: "15 seats left" }).first(),
+    ).toBeVisible();
   });
 
   test("cancel group session emails booked families and frees seats", async ({ page }) => {
@@ -312,6 +318,21 @@ test.describe("settings", () => {
       await deleteBookingsFor(second.parent.id);
       await first.context.close();
       await second.context.close();
+    }
+  });
+
+  test("changing group price in settings changes /lessons", async ({ page }) => {
+    const before = (await service.from("settings").select("price_group_pence").single()).data!.price_group_pence as number;
+    try {
+      await page.goto("/lessons");
+      await expect(page.getByTestId("price-group")).toHaveText("£18");
+      await service.from("settings").update({ price_group_pence: 1950 }).eq("id", 1);
+      await page.goto("/lessons");
+      await expect(page.getByTestId("price-group")).toHaveText("£19.50");
+      await page.goto("/");
+      await expect(page.locator("main").getByText("£19.50").first()).toBeVisible();
+    } finally {
+      await service.from("settings").update({ price_group_pence: before }).eq("id", 1);
     }
   });
 

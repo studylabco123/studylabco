@@ -29,3 +29,8 @@ export function telHref(phone: string): string {
   const digits = phone.replace(/[^\d+]/g, "");
   return `tel:${digits.startsWith("0") ? `+44${digits.slice(1)}` : digits}`;
 }
+
+/** WhatsApp chat link for a UK phone number. */
+export function whatsappHref(phone: string): string {
+  return `https://wa.me/${telHref(phone).replace(/^tel:\+?/, "")}`;
+}

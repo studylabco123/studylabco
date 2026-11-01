@@ -172,3 +172,65 @@
     transform: none;
   }
 }
+
+/* Long-form text (policies, FAQ answers): headings, lists and links in the site's voice. */
+@utility prose-site {
+  max-width: var(--container-prose);
+
+  & > * + * {
+    margin-top: 1rem;
+  }
+  & h2 {
+    margin-top: 2.75rem;
+    font-size: var(--text-h2);
+    line-height: var(--text-h2--line-height);
+  }
+  & h2:first-child {
+    margin-top: 0;
+  }
+  & h3 {
+    margin-top: 2rem;
+    font-size: var(--text-h3);
+    line-height: var(--text-h3--line-height);
+  }
+  & h2 + *,
+  & h3 + * {
+    margin-top: 0.75rem;
+  }
+  & ul,
+  & ol {
+    padding-left: 1.5rem;
+  }
+  & ul {
+    list-style: disc;
+  }
+  & ol {
+    list-style: decimal;
+  }
+  & li + li {
+    margin-top: 0.5rem;
+  }
+  & li::marker {
+    color: var(--color-navy-600);
+  }
+  & a {
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    text-decoration-color: var(--color-sky-500);
+    text-decoration-thickness: 2px;
+  }
+  & a:hover {
+    text-decoration-color: var(--color-navy-900);
+  }
+  & strong {
+    font-weight: 700;
+  }
+  & dt {
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+  & dd + dt {
+    margin-top: 1rem;
+  }
+}

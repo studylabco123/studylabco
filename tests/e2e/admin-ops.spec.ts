@@ -278,7 +278,8 @@ test.describe("admin operations", () => {
     const service = serviceClient();
     const bundle = randomUUID();
     const rows = [];
-    for (const [i, hoursAgo] of [60, 36].entries()) {
+    // Far enough apart that the random minutes below never reorder them (the ledger row goes on the earliest).
+    for (const [i, hoursAgo] of [110, 36].entries()) {
       rows.push(
         await seedBooking(parent.id, childId, {
           daysAhead: 0,

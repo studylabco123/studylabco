@@ -103,6 +103,11 @@ border; `shadow-card` is for things that float.
 
 Site chrome (`src/components/site`): `Logo`, `Header` (sticky, white; "Menu"
 disclosure below `xl`), `Footer` (navy, business details, legal links).
+Public page parts (`src/components/site`): `PageIntro` (graph-paper title band)
+and `Section`, `Hero`, `Steps` (numbered: only for real sequences),
+`HowItWorks`, `PriceTable` (price list that reflows on phones), `GroupList`,
+`LegalPage` (policy frame; body styled by the `prose-site` utility),
+`ContactForm`. Prices always come from settings via `formatPence`.
 
 Focus: 3px `navy-900` outline with 2px offset on light surfaces; `sky-300` on
 navy surfaces. Every interactive element has a visible focus state.

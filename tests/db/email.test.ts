@@ -67,6 +67,20 @@ describe("sendEmail", () => {
     expect(await sendEmail(plain)).toBe("sent");
   });
 
+  test("subjects lose line breaks and are capped at 150 characters; reply-to is passed on", async () => {
+    const props = { name: `Lee\r\nBcc: evil@example.test ${"x".repeat(200)}`, email: "lee@example.test", phone: null, message: "Hi" };
+    expect(await sendEmail({ to: "inbox@example.test", template: "contact_message", props, replyTo: "lee@example.test" })).toBe("sent");
+    // Contact messages have no booking, so the same one twice is sent twice.
+    expect(await sendEmail({ to: "inbox@example.test", template: "contact_message", props, replyTo: "lee@example.test" })).toBe("sent");
+    expect((await logged()).filter((l) => l.template === "contact_message")).toHaveLength(2);
+    const line = out.mock.calls.map((c) => String(c[0])).find((l) => l.includes('"template":"contact_message"'));
+    const email = JSON.parse(line!).email as { subject: string; replyTo: string };
+    expect(email.subject).not.toMatch(/[\r\n]/);
+    expect(email.subject.startsWith("Contact form: Lee Bcc: evil@example.test")).toBe(true);
+    expect(email.subject.length).toBeLessThanOrEqual(150);
+    expect(email.replyTo).toBe("lee@example.test");
+  });
+
   test("a transport failure removes the log row so a retry can send", async () => {
     const id = await insertBooking(100);
     const args = { to: "a@example.test", template: "admin_new_booking", props: AN, bookingId: id } as const;

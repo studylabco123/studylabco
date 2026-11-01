@@ -1,3 +1,4 @@
+import { Text } from "@react-email/components";
 import { H, Layout, P } from "./parts";
 
 export interface ContactMessageProps {
@@ -7,7 +8,7 @@ export interface ContactMessageProps {
   message: string;
 }
 
-/** A contact-form message, sent to the business inbox. */
+/** A contact-form message, sent to the business inbox. Replies go to the sender. */
 export function ContactMessage({ name, email, phone, message }: ContactMessageProps) {
   return (
     <Layout preview={`Message from ${name}`}>
@@ -15,7 +16,10 @@ export function ContactMessage({ name, email, phone, message }: ContactMessagePr
       <P>From: {name}</P>
       <P>Email: {email}</P>
       {phone ? <P>Phone: {phone}</P> : null}
-      <P>{message}</P>
+      <Text style={{ color: "#001A42", fontSize: "16px", lineHeight: "24px", margin: "0 0 14px", whiteSpace: "pre-wrap" }}>
+        {message}
+      </Text>
+      <P muted>Reply to this email to answer {name} directly.</P>
     </Layout>
   );
 }

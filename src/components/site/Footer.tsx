@@ -8,12 +8,14 @@ export type FooterProps = {
   email?: string;
   /** Business phone from settings; hidden when absent. */
   phone?: string;
+  /** Business (virtual office) address from settings; hidden when absent. Never the teaching address. */
+  address?: string;
 };
 
 const linkClass =
   "inline-flex min-h-11 items-center underline-offset-4 decoration-sky-300 hover:underline sm:min-h-9";
 
-export function Footer({ email = FALLBACK_EMAIL, phone }: FooterProps) {
+export function Footer({ email = FALLBACK_EMAIL, phone, address }: FooterProps) {
   const year = new Date().getFullYear();
 
   return (
@@ -85,6 +87,9 @@ export function Footer({ email = FALLBACK_EMAIL, phone }: FooterProps) {
               </li>
             ) : null}
           </ul>
+          {address ? (
+            <address className="mt-3 text-small whitespace-pre-line text-white/85 not-italic">{address}</address>
+          ) : null}
         </div>
       </div>
 
