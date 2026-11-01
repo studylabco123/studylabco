@@ -1,0 +1,174 @@
+import type { PrivateSettings, Settings } from "@/lib/types";
+
+/** What the admin settings form posts: text and ticks exactly as typed. Money is in pounds. */
+export interface SettingsFormInput {
+  priceAssessment: string;
+  priceOneToOne: string;
+  priceGroup: string;
+  priceSundayBundle: string;
+  travelFee: string;
+  blockSaturday6: string;
+  blockSaturday10: string;
+  blockSunday6: string;
+  blockSunday10: string;
+  tutorPlaceEnabled: boolean;
+  homeVisitsEnabled: boolean;
+  onlineEnabled: boolean;
+  cancellationNoticeHours: string;
+  bookingWindowDays: string;
+  minNoticeHours: string;
+  defaultGroupCapacity: string;
+  homeVisitBufferMinutes: string;
+  flagThreshold: string;
+  allowedPostcodeDistricts: string;
+  groupVenue: string;
+  businessPhone: string;
+  businessAddress: string;
+  bankAccountName: string;
+  bankSortCode: string;
+  bankAccountNumber: string;
+  teachingAddress: string;
+  meetingLink: string;
+}
+
+export type SettingsErrors = Partial<Record<keyof SettingsFormInput, string>>;
+
+export type ParsedSettings =
+  | { ok: true; settings: Settings; priv: Omit<PrivateSettings, "calendarFeedToken"> }
+  | { ok: false; errors: SettingsErrors };
+
+const SORT_CODE = /^\d{2}-?\d{2}-?\d{2}$/;
+const ACCOUNT_NUMBER = /^\d{8}$/;
+const DISTRICT = /^[A-Z]{1,2}\d[A-Z\d]?$/;
+const MAX_TEXT = 300;
+
+/** "25", "25.5" or "25.50" -> pence, or null. No floating point. */
+export function poundsToPence(text: string): number | null {
+  const m = /^(\d{1,6})(?:\.(\d{1,2}))?$/.exec(text.trim());
+  if (!m) return null;
+  return Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0") || 0);
+}
+
+export function parseSettingsInput(input: SettingsFormInput): ParsedSettings {
+  const errors: SettingsErrors = {};
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+
+  const money = (key: keyof SettingsFormInput, label: string): number => {
+    const p = poundsToPence(str(input[key]));
+    if (p === null) {
+      errors[key] = `${label} must be an amount in pounds, like 25 or 25.50.`;
+      return 0;
+    }
+    return p;
+  };
+  const whole = (key: keyof SettingsFormInput, label: string, min: number, max: number): number => {
+    const t = str(input[key]);
+    const n = Number(t);
+    if (!/^\d{1,5}$/.test(t) || n < min || n > max) {
+      errors[key] = `${label} must be a whole number from ${min} to ${max}.`;
+      return min;
+    }
+    return n;
+  };
+  const optional = (key: keyof SettingsFormInput, label: string): string | null => {
+    const t = str(input[key]);
+    if (t.length > MAX_TEXT) errors[key] = `${label} is too long (${MAX_TEXT} characters at most).`;
+    return t === "" ? null : t;
+  };
+
+  const districts = str(input.allowedPostcodeDistricts)
+    .split(/[\s,]+/)
+    .map((d) => d.toUpperCase())
+    .filter(Boolean);
+  if (districts.some((d) => !DISTRICT.test(d))) {
+    errors.allowedPostcodeDistricts = "Use postcode districts like BB1 or BB2, separated by commas.";
+  }
+
+  const sortRaw = str(input.bankSortCode);
+  let sortCode: string | null = null;
+  if (sortRaw) {
+    if (SORT_CODE.test(sortRaw)) sortCode = sortRaw.replace(/-/g, "").replace(/(\d{2})(\d{2})(\d{2})/, "$1-$2-$3");
+    else errors.bankSortCode = "A sort code is six digits, like 12-34-56.";
+  }
+  const accountRaw = str(input.bankAccountNumber);
+  if (accountRaw && !ACCOUNT_NUMBER.test(accountRaw)) errors.bankAccountNumber = "An account number is eight digits.";
+
+  const link = str(input.meetingLink);
+  if (link) {
+    let ok = false;
+    try {
+      ok = ["http:", "https:"].includes(new URL(link).protocol);
+    } catch {
+      ok = false;
+    }
+    if (!ok) errors.meetingLink = "Enter a full link starting with https://.";
+  }
+
+  const settings: Settings = {
+    priceAssessmentPence: money("priceAssessment", "The assessment price"),
+    priceOneToOnePence: money("priceOneToOne", "The 1-to-1 price"),
+    priceGroupPence: money("priceGroup", "The group price"),
+    priceSundayBundlePence: money("priceSundayBundle", "The Sunday bundle price"),
+    travelFeePence: money("travelFee", "The travel fee"),
+    blockPrices: {
+      saturday: { 6: money("blockSaturday6", "The 6-week Saturday price"), 10: money("blockSaturday10", "The 10-week Saturday price") },
+      sunday_bundle: { 6: money("blockSunday6", "The 6-week Sunday price"), 10: money("blockSunday10", "The 10-week Sunday price") },
+    },
+    onlineEnabled: input.onlineEnabled === true,
+    homeVisitsEnabled: input.homeVisitsEnabled === true,
+    tutorPlaceEnabled: input.tutorPlaceEnabled === true,
+    cancellationNoticeHours: whole("cancellationNoticeHours", "Cancellation notice", 0, 720),
+    bookingWindowDays: whole("bookingWindowDays", "The booking window", 1, 365),
+    minNoticeHours: whole("minNoticeHours", "Minimum notice", 0, 720),
+    defaultGroupCapacity: whole("defaultGroupCapacity", "The default group size", 1, 100),
+    homeVisitBufferMinutes: whole("homeVisitBufferMinutes", "The home visit buffer", 0, 240),
+    allowedPostcodeDistricts: districts,
+    flagThreshold: whole("flagThreshold", "The flag threshold", 1, 100),
+    groupVenue: optional("groupVenue", "The group venue"),
+    businessPhone: optional("businessPhone", "The business phone"),
+    businessAddress: optional("businessAddress", "The business address"),
+  };
+  const priv = {
+    bankAccountName: optional("bankAccountName", "The account name"),
+    bankSortCode: sortCode,
+    bankAccountNumber: accountRaw || null,
+    teachingAddress: optional("teachingAddress", "The teaching address"),
+    meetingLink: link || null,
+  };
+
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return { ok: true, settings, priv };
+}
+
+export function settingsToFormInput(s: Settings, p: PrivateSettings): SettingsFormInput {
+  const pounds = (pence: number) => (pence % 100 === 0 ? String(pence / 100) : (pence / 100).toFixed(2));
+  return {
+    priceAssessment: pounds(s.priceAssessmentPence),
+    priceOneToOne: pounds(s.priceOneToOnePence),
+    priceGroup: pounds(s.priceGroupPence),
+    priceSundayBundle: pounds(s.priceSundayBundlePence),
+    travelFee: pounds(s.travelFeePence),
+    blockSaturday6: pounds(s.blockPrices.saturday[6]),
+    blockSaturday10: pounds(s.blockPrices.saturday[10]),
+    blockSunday6: pounds(s.blockPrices.sunday_bundle[6]),
+    blockSunday10: pounds(s.blockPrices.sunday_bundle[10]),
+    tutorPlaceEnabled: s.tutorPlaceEnabled,
+    homeVisitsEnabled: s.homeVisitsEnabled,
+    onlineEnabled: s.onlineEnabled,
+    cancellationNoticeHours: String(s.cancellationNoticeHours),
+    bookingWindowDays: String(s.bookingWindowDays),
+    minNoticeHours: String(s.minNoticeHours),
+    defaultGroupCapacity: String(s.defaultGroupCapacity),
+    homeVisitBufferMinutes: String(s.homeVisitBufferMinutes),
+    flagThreshold: String(s.flagThreshold),
+    allowedPostcodeDistricts: s.allowedPostcodeDistricts.join(", "),
+    groupVenue: s.groupVenue ?? "",
+    businessPhone: s.businessPhone ?? "",
+    businessAddress: s.businessAddress ?? "",
+    bankAccountName: p.bankAccountName ?? "",
+    bankSortCode: p.bankSortCode ?? "",
+    bankAccountNumber: p.bankAccountNumber ?? "",
+    teachingAddress: p.teachingAddress ?? "",
+    meetingLink: p.meetingLink ?? "",
+  };
+}

@@ -129,6 +129,7 @@ const sample: { [K in TemplateName]: Parameters<(typeof TEMPLATES)[K]["component
   lesson_reminder: { parentName: "Pat", session: line(), teachingAddress: "1 Teaching Road", meetingLink: null },
   cancellation_receipt: { parentName: "Pat", session: line(), outcome: "late", wasPaid: false },
   group_cancelled: { parentName: "Pat", session: line({ title: "Saturday group", location: "group_venue" }), credited: true },
+  group_message: { parentName: "Pat", subject: "Venue change", message: "We are in the main hall.\nSee you there." },
   block_payment_reminder: {
     parentName: "Pat",
     reference: "SLC-1002",

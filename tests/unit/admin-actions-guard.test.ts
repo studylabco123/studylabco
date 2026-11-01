@@ -5,6 +5,9 @@ import { describe, expect, test } from "vitest";
 const FILES = [
   "src/app/admin/(secure)/bookings/actions.ts",
   "src/app/admin/(secure)/families/actions.ts",
+  "src/app/admin/(secure)/calendar/actions.ts",
+  "src/app/admin/(secure)/groups/actions.ts",
+  "src/app/admin/(secure)/settings/actions.ts",
 ];
 
 describe.each(FILES)("%s", (file) => {
@@ -12,7 +15,7 @@ describe.each(FILES)("%s", (file) => {
   const fns = [...src.matchAll(/export async function (\w+)\([^)]*\)[^{]*\{\n([^\n]*)/g)];
   test("is a server-actions file with actions", () => {
     expect(src.startsWith('"use server"')).toBe(true);
-    expect(fns.length).toBeGreaterThan(3);
+    expect(fns.length).toBeGreaterThan(1);
   });
   test.each(fns.map((m) => [m[1], m[2]]))("%s calls requireAdmin() first", (_name, firstLine) => {
     expect(firstLine.trim()).toBe("await requireAdmin();");
@@ -20,5 +23,21 @@ describe.each(FILES)("%s", (file) => {
   test("exports only async functions", () => {
     const exports = [...src.matchAll(/^export (?!async function)/gm)];
     expect(exports).toEqual([]);
+  });
+});
+
+/** Pages and the backup route are reachable directly too: each starts with requireAdmin(). */
+const ENTRY_POINTS = [
+  "src/app/admin/(secure)/calendar/page.tsx",
+  "src/app/admin/(secure)/groups/page.tsx",
+  "src/app/admin/(secure)/settings/page.tsx",
+  "src/app/api/admin/backup/route.ts",
+];
+
+describe.each(ENTRY_POINTS)("%s", (file) => {
+  test("calls requireAdmin() before anything else", () => {
+    const src = readFileSync(file, "utf8");
+    const m = /export default async function \w+\([^)]*\)[^{]*\{\n([^\n]*)|export async function GET\(\)\s*\{\n([^\n]*)/.exec(src);
+    expect((m?.[1] ?? m?.[2] ?? "").trim()).toBe("await requireAdmin();");
   });
 });

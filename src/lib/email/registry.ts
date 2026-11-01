@@ -6,6 +6,7 @@ import { CancellationReceipt } from "./templates/CancellationReceipt";
 import { ContactMessage } from "./templates/ContactMessage";
 import { FreeCancelReminder } from "./templates/FreeCancelReminder";
 import { GroupCancelled } from "./templates/GroupCancelled";
+import { GroupMessage } from "./templates/GroupMessage";
 import { HomeVisitDecision } from "./templates/HomeVisitDecision";
 import { LessonReminder } from "./templates/LessonReminder";
 import { formatLondon } from "@/lib/format";
@@ -38,6 +39,7 @@ export const TEMPLATES = {
   lesson_reminder: def(LessonReminder, (p) => `Reminder: your lesson on ${formatLondon(p.session.startsAt, "EEEE d MMMM")}`),
   cancellation_receipt: def(CancellationReceipt, () => "Your booking is cancelled"),
   group_cancelled: def(GroupCancelled, () => "Your group session has been cancelled"),
+  group_message: def(GroupMessage, (p) => p.subject),
   block_payment_reminder: def(BlockPaymentReminder, (p) => `Reminder: payment for your block booking (${p.reference})`),
   contact_message: def(ContactMessage, (p) => `Contact form: ${p.name}`),
   admin_new_booking: admin,
