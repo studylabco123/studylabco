@@ -1,7 +1,7 @@
 # Study Lab Co — Version 2 Changes (design addendum)
 
 **Date:** 1 November 2026
-**Status:** Approved in chat by the owner (Abdullah Chopdat); written up for record
+**Status:** Approved by the owner (Abdullah Chopdat) on 1 November 2026, with: KS3 1-to-1 £20; pass refunds as credit
 **Base spec:** `2026-10-31-studylabco-website-design.md`. This addendum **overrides** it where they differ.
 
 ---
@@ -45,7 +45,7 @@
   - **≥ 48 h notice** (parent cancels on the website): the session goes back on the pass.
   - **< 48 h / no-show**: the session still goes back on the pass ("moved"), but the parent owes **50% of one session's pass value** (pass price ÷ sessions), waivable by the tutor.
   - Tutor cancels a session: goes back on the pass automatically.
-- **Refunds:** unused pass sessions are **not refundable**, except (a) the legal 14-day cooling-off right from the date the pass was bought (refund of sessions not yet taken), or (b) at the tutor's discretion (admin "Refund pass" action, any amount up to what was paid minus sessions used).
+- **Refunds:** unused pass sessions are **not refunded as money by default**. If a parent cancels a pass within the legal 14-day cooling-off period (from the date it was bought), the value of the sessions not yet taken is turned into **account credit**; as with all credit, the parent may email to ask for it back to their card, and the tutor refunds it (this keeps us within the law). Outside the 14 days, unused sessions are not refundable unless the tutor decides otherwise (admin "Convert pass to credit" / "Refund credit" actions).
 - The old fixed-week block booking flow is removed (no live data exists yet).
 
 ## 4. KS3 (Years 7–9)
@@ -57,7 +57,7 @@
 | | KS3 | GCSE |
 |---|---|---|
 | Assessment Lesson | **£7.50** (home visit +£5) — **Year 7–8 only**; **Year 9 always books the GCSE assessment (£10)** | £10 (home visit +£5) |
-| 1-to-1 | **Yes** — KS3 1-to-1 price setting, default **£25** (home visit +£5) | £25 (home visit £30) |
+| 1-to-1 | **Yes** — KS3 1-to-1 price setting, default **£20** (home visit +£5 = £25) | £25 (home visit £30) |
 | Groups | KS3 groups only — £14 | GCSE groups — £18 (per-session price as before) |
 | Group passes | KS3 pass | GCSE pass |
 
