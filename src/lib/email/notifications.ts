@@ -70,6 +70,7 @@ export async function buildLines(c: Client, bookings: Booking[]): Promise<Map<st
       status: b.status,
       pricePence: b.pricePence,
       lateFeePence: lateFeeFor(b, settings.lateFeePercent),
+      lateFeePercent: settings.lateFeePercent,
       travelPence: b.travelFeePence,
       homeAddress: b.homeAddress,
       bookedAt: b.createdAt,
@@ -169,7 +170,11 @@ export async function notifyBookingCreated(bookingIds: string[]): Promise<void> 
 }
 
 /** Receipt to the parent after they cancel; a late cancellation also tells the business. */
-export async function notifyBookingCancelled(bookingId: string, outcome: "free" | "late"): Promise<void> {
+export async function notifyBookingCancelled(
+  bookingId: string,
+  outcome: "free" | "late",
+  opts: { byAdmin?: boolean } = {},
+): Promise<void> {
   const c = createServiceClient();
   const [booking] = await loadBookings(c, [bookingId]);
   if (!booking) return;
@@ -183,11 +188,21 @@ export async function notifyBookingCancelled(bookingId: string, outcome: "free" 
         to: parent.email,
         template: "cancellation_receipt",
         bookingId,
-        props: { parentName: parent.name, session, outcome, wasPaid: booking.paymentStatus === "credited" },
+        props: {
+          parentName: parent.name,
+          session,
+          outcome,
+          // A free cancel credits a paid booking; a late one keeps it 'paid' and credits what is left after the fee.
+          wasPaid: outcome === "late" ? booking.paymentStatus === "paid" : booking.paymentStatus === "credited",
+          creditPence:
+            outcome === "late" && booking.paymentStatus === "paid"
+              ? Math.max(0, booking.pricePence + booking.travelFeePence - session.lateFeePence)
+              : undefined,
+        },
       }),
     );
   }
-  if (outcome === "late") {
+  if (outcome === "late" && !opts.byAdmin) {
     await safely("late cancellation notice", () =>
       sendEmail({
         to: businessInbox(),

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { payFromCredit } from "@/app/admin/(secure)/bookings/actions";
+import { payFromCredit, recordLateCancellation } from "@/app/admin/(secure)/bookings/actions";
 import { addManualBooking, addNote, approveStudent, setBlocked } from "@/app/admin/(secure)/families/actions";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { Field, SelectField, TextareaField } from "@/components/ui/Field";
 import { ActionError, useAdminAction } from "./useAdminAction";
 
@@ -28,6 +29,42 @@ export function PayFromCreditButton({ bookingId, label }: { bookingId: string; l
         {label.startsWith("Pay block") ? "Pay block from credit" : "Pay from credit"}
       </Button>
       <ActionError message={error} />
+    </>
+  );
+}
+
+/**
+ * Records a cancellation the parent made by phone or email. The server decides
+ * free (14-day cooling-off or 48 hours or more ahead) or late (the late
+ * cancellation fee); a paid booking keeps its credit for the rest.
+ */
+export function RecordLateCancellationButton({ bookingId, label }: { bookingId: string; label: string }) {
+  const { run, pending, error } = useAdminAction();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="secondary" disabled={pending} aria-label={label} onClick={() => setOpen(true)}>
+        Record late cancellation
+      </Button>
+      <ActionError message={open ? undefined : error} />
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Record this cancellation?"
+        description="Use this when the parent has cancelled by phone or email. Inside the notice period the late cancellation fee applies, unless the booking is within its 14-day cooling-off, when it is free. The family is emailed."
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setOpen(false)}>
+              Keep booking
+            </Button>
+            <Button disabled={pending} onClick={() => run(() => recordLateCancellation(bookingId), () => setOpen(false))}>
+              Yes, record it
+            </Button>
+          </>
+        }
+      >
+        <ActionError message={error} />
+      </Dialog>
     </>
   );
 }

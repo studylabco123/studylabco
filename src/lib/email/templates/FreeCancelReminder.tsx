@@ -30,7 +30,7 @@ export function FreeCancelReminder({
         noticeHours={noticeHours}
         showCancellation={false}
       />
-      <P muted>{cancellationLine(session.startsAt, session.lateFeePence, noticeHours, session.bookedAt)}</P>
+      <P muted>{cancellationLine(session.startsAt, session.lateFeePence, noticeHours, session.bookedAt, session.lateFeePercent)}</P>
       <AccountLink label="Manage your booking" />
     </Layout>
   );

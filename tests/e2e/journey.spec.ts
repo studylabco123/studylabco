@@ -179,7 +179,7 @@ test("journey: sign up, assessment, approval, Saturday block, late cancel, block
   }
   await expect(upcoming.getByText(`Reference ${reference}`)).toHaveCount(6);
 
-  // 7. Near week 1, outside the cooling-off, the parent cancels it late: the dialog shows the fee.
+  // 7. Near week 1, outside the cooling-off, the parent sees the call/email message instead of a cancel button.
   const block = (await service.from("block_bookings").select("id, price_pence").eq("payment_reference", reference).single()).data!;
   expect(block.price_pence).toBe(10200);
   const weeks = (await service.from("bookings").select("id").eq("block_booking_id", block.id).order("starts_at")).data!;
@@ -189,13 +189,10 @@ test("journey: sign up, assessment, approval, Saturday block, late cancel, block
 
   await page.reload();
   const week1 = upcoming.getByRole("listitem").filter({ hasText: "Week 1 of 6" });
-  await week1.getByRole("button", { name: "Cancel booking" }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("A late cancellation fee of £8.50 will be due")).toBeVisible();
-  await dialog.getByRole("button", { name: "Yes, cancel and pay the fee" }).click();
-  await expect(page.getByText(/Booking cancelled\. A late cancellation fee of £8.50/)).toBeVisible();
-  const cancelled = (await service.from("bookings").select("status, cancelled_by").eq("id", weeks[0].id).single()).data;
-  expect(cancelled).toEqual({ status: "late_cancelled", cancelled_by: "parent" });
+  // Inside 48 hours the parent cannot cancel online: they are told to call or email.
+  await expect(week1.getByText(/Less than 48 hours to go — please call or email Study Lab Co to cancel\. A 50% late cancellation fee applies\./)).toBeVisible();
+  await expect(week1.getByRole("button", { name: "Cancel booking" })).toHaveCount(0);
+  expect((await service.from("bookings").select("status").eq("id", weeks[0].id).single()).data?.status).toBe("confirmed");
 
   // 8. Admin marks the block paid (one £102 payment covers every week, the cancelled one included).
   await admin.goto(`/admin/bookings?filter=all&q=${tag}`);

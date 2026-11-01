@@ -247,7 +247,7 @@ async function settleBlock(blockId: string, how: Settlement, opts: OpOptions): P
   return OK;
 }
 
-/** Waives an unpaid fee: payment_status 'waived' plus a ledger waiver for what was owed. */
+/** Waives an unpaid fee: payment_status 'waived', fee_pence 0, plus a ledger waiver for what was owed. */
 export async function waiveFee(bookingId: string, opts: OpOptions = {}): Promise<AdminResult> {
   const found = await loadBooking(bookingId);
   if ("error" in found) return found.error;
@@ -262,7 +262,7 @@ export async function waiveFee(bookingId: string, opts: OpOptions = {}): Promise
 
   const flipped = await db()
     .from("bookings")
-    .update({ payment_status: "waived" })
+    .update({ payment_status: "waived", fee_pence: 0 })
     .eq("id", bookingId)
     .eq("payment_status", "unpaid")
     .select("id");
@@ -277,7 +277,7 @@ export async function waiveFee(bookingId: string, opts: OpOptions = {}): Promise
     occurred_on: londonDateOf(opts.now ?? new Date()),
   });
   if (entry.error) {
-    await db().from("bookings").update({ payment_status: "unpaid" }).eq("id", bookingId);
+    await db().from("bookings").update({ payment_status: "unpaid", fee_pence: b.feePence }).eq("id", bookingId);
     return unexpected("write waiver", entry.error);
   }
   return OK;

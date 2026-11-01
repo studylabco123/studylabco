@@ -1,5 +1,9 @@
 import "server-only";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
+import { cancellationDecision } from "@/lib/booking/cancellation";
+import { bookingFeePence, lateFeePence } from "@/lib/booking/fees";
+import { onBookingCancelled } from "@/lib/booking/notify";
+import { getSettings } from "@/lib/settings";
 import { createServiceClient } from "@/lib/supabase/service";
 import { londonDateOf } from "@/lib/time";
 import type { Booking } from "@/lib/types";
@@ -16,20 +20,120 @@ async function loadBooking(id: string): Promise<{ booking: Booking } | { error: 
   return { booking: mapBooking(data as BookingRow) };
 }
 
-/** confirmed -> attended / no_show, once the lesson has started. */
+/**
+ * confirmed -> attended / no_show, once the lesson has started.
+ *
+ * A no-show records the late cancellation fee (Settings percentage of the
+ * price) in fee_pence; a home visit also owes its travel (see `bookingFeePence`).
+ * If the booking was already paid, payment_status stays 'paid' and what was
+ * paid beyond the fee is written as a ledger 'credit'. A pass seat records the
+ * status only: its fee is handled with passes (Task V5).
+ */
 async function conclude(bookingId: string, to: "attended" | "no_show", now: Date): Promise<AdminResult> {
   const found = await loadBooking(bookingId);
   if ("error" in found) return found.error;
   const b = found.booking;
   if (b.status !== "confirmed") return fail("Only a confirmed lesson can be marked like this.");
   if (b.startsAt.getTime() > now.getTime()) return fail("This lesson has not started yet.");
-  const res = await db().from("bookings").update({ status: to }).eq("id", bookingId).eq("status", "confirmed").select("id");
+
+  const patch: Record<string, unknown> = { status: to };
+  let credit = 0;
+  if (to === "no_show" && !b.passId) {
+    const { lateFeePercent } = await getSettings();
+    const fee = lateFeePence(b.pricePence, lateFeePercent);
+    patch.fee_pence = fee;
+    if (b.paymentStatus === "paid") {
+      credit = Math.max(0, b.pricePence + b.travelFeePence - bookingFeePence({ ...b, status: "no_show", feePence: fee }, lateFeePercent));
+    }
+  }
+  const res = await db().from("bookings").update(patch).eq("id", bookingId).eq("status", "confirmed").select("id");
   if (res.error) return unexpected(`mark ${to}`, res.error);
-  return res.data?.length ? OK : fail("This booking was just updated. Please refresh and check.");
+  if (!res.data?.length) return fail("This booking was just updated. Please refresh and check.");
+
+  if (credit > 0) {
+    const entry = await db().from("ledger").insert({
+      booking_id: bookingId,
+      parent_id: b.parentId,
+      kind: "credit",
+      amount_pence: credit,
+      occurred_on: londonDateOf(now),
+      note: "No-show: paid amount beyond the fee",
+    });
+    if (entry.error) {
+      console.error("admin: no-show credit ledger failed", entry.error.message);
+      return fail("The no-show is recorded but the credit could not be saved. Please add it in Money.");
+    }
+  }
+  return OK;
 }
 
 export const markAttended = (bookingId: string, opts: OpOptions = {}) => conclude(bookingId, "attended", opts.now ?? new Date());
 export const markNoShow = (bookingId: string, opts: OpOptions = {}) => conclude(bookingId, "no_show", opts.now ?? new Date());
+
+/**
+ * The tutor records a cancellation the parent made by phone or email (parents
+ * cannot cancel inside the notice window on the website). Applies to a pending
+ * or confirmed booking, future or already started.
+ *
+ * - Free (status 'cancelled'): at least `cancellationNoticeHours` ahead, within
+ *   the 14-day cooling-off (a block counts from the block's created_at), or a
+ *   pending home visit the tutor never confirmed. A paid booking becomes
+ *   'credited' with a ledger credit for what was paid.
+ * - Otherwise 'late_cancelled' with fee_pence = the Settings percentage of the
+ *   price (never travel). Unpaid: the fee is owed. Paid: it stays 'paid' and a
+ *   ledger credit of price + travel - fee is written.
+ * - cancelled_by is 'parent'. A pass seat is refused (handled with passes, Task V5).
+ * - The parent gets a CancellationReceipt; a failed email never undoes it.
+ */
+export async function recordLateCancellation(bookingId: string, opts: OpOptions = {}): Promise<AdminResult> {
+  const now = opts.now ?? new Date();
+  const found = await loadBooking(bookingId);
+  if ("error" in found) return found.error;
+  const b = found.booking;
+  if (b.status !== "pending" && b.status !== "confirmed") return fail("Only a pending or confirmed booking can be cancelled.");
+  if (b.passId) return fail("This lesson is a pass session. Cancel it from the pass instead.");
+
+  const settings = await getSettings();
+  let bookedAt = b.createdAt;
+  if (b.blockBookingId) {
+    const blk = await db().from("block_bookings").select("created_at").eq("id", b.blockBookingId).maybeSingle();
+    if (blk.error) return unexpected("load block", blk.error);
+    if (blk.data) bookedAt = new Date(blk.data.created_at as string);
+  }
+  const neverConfirmed = b.status === "pending" && b.location === "home_visit";
+  const free = neverConfirmed || cancellationDecision(b.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt).outcome === "free";
+
+  const fee = free ? null : lateFeePence(b.pricePence, settings.lateFeePercent);
+  const wasPaid = b.paymentStatus === "paid";
+  const patch: Record<string, unknown> = {
+    status: free ? "cancelled" : "late_cancelled",
+    cancelled_by: "parent",
+    cancelled_at: now.toISOString(),
+  };
+  if (fee !== null) patch.fee_pence = fee;
+  if (free && wasPaid) patch.payment_status = "credited";
+  const res = await db().from("bookings").update(patch).eq("id", bookingId).in("status", ["pending", "confirmed"]).select("id");
+  if (res.error) return unexpected("record late cancellation", res.error);
+  if (!res.data?.length) return fail("This booking was just updated. Please refresh and check.");
+
+  const credit = wasPaid ? b.pricePence + b.travelFeePence - (fee ?? 0) : 0;
+  if (credit > 0) {
+    const entry = await db().from("ledger").insert({
+      booking_id: bookingId,
+      parent_id: b.parentId,
+      kind: "credit",
+      amount_pence: credit,
+      occurred_on: londonDateOf(now),
+      note: free ? "Cancelled by parent" : "Late cancellation: paid amount beyond the fee",
+    });
+    if (entry.error) {
+      console.error("admin: late cancellation ledger failed", entry.error.message);
+      return fail("The booking is cancelled but the credit could not be saved. Please add it in Money.");
+    }
+  }
+  await onBookingCancelled(bookingId, free ? "free" : "late", { byAdmin: true });
+  return OK;
+}
 
 /**
  * The tutor cancels a pending or confirmed booking: no fee ever. A paid

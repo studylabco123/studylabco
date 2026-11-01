@@ -13,6 +13,8 @@ export interface SessionLine {
   pricePence: number;
   /** The late cancellation fee for this lesson (a share of the price, never travel). */
   lateFeePence: number;
+  /** The late fee percentage (Settings), shown next to the amount. Defaults to 50. */
+  lateFeePercent?: number;
   travelPence: number;
   /** Family address for a home visit. */
   homeAddress?: string | null;

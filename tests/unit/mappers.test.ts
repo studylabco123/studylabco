@@ -251,3 +251,18 @@ describe("calendar mappers", () => {
     ).toEqual({ id: "y", weekday: 3, startTime: "17:00:00", endTime: "18:00:00", validFrom: "2026-11-01", validTo: null, reason: "Club" });
   });
 });
+
+describe("settings rows missing price keys (Ruling R4)", () => {
+  test("pass and block prices fall back to the seed defaults", () => {
+    const s = mapSettings({ ...row, pass_prices: {}, block_prices: {} } as never);
+    expect(s.passPrices).toEqual({ KS3: { 6: 7900, 10: 12600 }, GCSE: { 6: 10200, 10: 16200 } });
+    expect(s.blockPrices.saturday[6]).toBe(10200);
+    expect(s.blockPrices.sunday_bundle[10]).toBe(27000);
+  });
+  test("a partial row keeps what it has and defaults the rest", () => {
+    const s = mapSettings({ ...row, pass_prices: { KS3: { "6": 8000 } } } as never);
+    expect(s.passPrices.KS3[6]).toBe(8000);
+    expect(s.passPrices.KS3[10]).toBe(12600);
+    expect(s.passPrices.GCSE[6]).toBe(10200);
+  });
+});

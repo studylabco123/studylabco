@@ -4,8 +4,7 @@ import { getSettings } from "@/lib/settings";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { Booking, Level, Settings } from "@/lib/types";
-import { cancellationDecision, cancellationOutcome } from "./cancellation";
-import { lateFeeFor } from "./fees";
+import { cancellationDecision, parentCanCancelOnline } from "./cancellation";
 import { amountOwedPence, creditBalancePence } from "./owed";
 import { seatDuePence } from "./payment-view";
 
@@ -19,12 +18,12 @@ export interface BookingView {
   reference: string;
   /** What this booking would owe if unpaid (price plus travel, or the late/no-show fee). */
   duePence: number;
-  /** Whether the parent may cancel it now. */
+  /** The parent may cancel it on the website now (the lesson is at least the notice period away). */
   cancellable: boolean;
-  /** Fee due if cancelled now (the late cancellation fee, no travel); null when it would be free. */
-  lateFeePence: number | null;
-  /** Cancelling now is free only because the booking is in its 14-day cooling-off. */
-  coolingOff: boolean;
+  /** Inside the notice period: the parent must call or email; no cancel button. */
+  callRequired: boolean;
+  /** When `callRequired`: cancelling would be free (14-day cooling-off, or a pending home visit the tutor never confirmed). */
+  callFree: boolean;
 }
 
 export interface ChildOverview {
@@ -54,6 +53,10 @@ export interface AccountOverview {
   children: ChildOverview[];
   /** The late cancellation fee as a percentage of the lesson price (Settings). */
   lateFeePercent: number;
+  /** The notice period in hours (Settings). */
+  noticeHours: number;
+  /** The business phone (Settings), shown when set. */
+  businessPhone: string | null;
 }
 
 const KIND_TITLE = { assessment: "Assessment Lesson", one_to_one: "1-to-1 lesson", group: "Group session" } as const;
@@ -124,7 +127,8 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
     } else if (b.bundleId) {
       membership = "Sunday bundle";
     }
-    const cancellable = isCancellable(b, now);
+    const live = isCancellable(b, now) && !b.passId; // pass seats are handled with passes (Task V5)
+    const cancellable = live && parentCanCancelOnline(b.startsAt, now, settings.cancellationNoticeHours);
     return {
       booking: b,
       title: (b.groupSessionId && titles.get(b.groupSessionId)) || KIND_TITLE[b.kind],
@@ -133,8 +137,8 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
       reference: referenceOf(b),
       duePence: seatDuePence(b, settings.lateFeePercent),
       cancellable,
-      lateFeePence: cancellable ? lateFee(b, now, settings, bookedAt(b)) : null,
-      coolingOff: cancellable && freeBecauseCoolingOff(b, now, settings, bookedAt(b)),
+      callRequired: live && !cancellable,
+      callFree: live && !cancellable && freeInsideNotice(b, now, settings, bookedAt(b)),
     };
   };
 
@@ -166,6 +170,8 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
     ),
     children: childList,
     lateFeePercent: settings.lateFeePercent,
+    noticeHours: settings.cancellationNoticeHours,
+    businessPhone: settings.businessPhone?.trim() || null,
   };
 }
 
@@ -173,16 +179,8 @@ function isCancellable(b: Booking, now: Date): boolean {
   return (b.status === "pending" || b.status === "confirmed") && b.startsAt > now;
 }
 
-/** The fee a parent would owe cancelling now, or null if free. A pending home visit is always free. */
-function lateFee(b: Booking, now: Date, settings: Settings, bookedAt: Date): number | null {
-  if (b.status === "pending" && b.location === "home_visit") return null;
-  return cancellationOutcome(b.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt) === "late"
-    ? lateFeeFor(b, settings.lateFeePercent)
-    : null;
-}
-
-/** Free only because of the 14-day cooling-off (it would be late otherwise). */
-function freeBecauseCoolingOff(b: Booking, now: Date, settings: Settings, bookedAt: Date): boolean {
-  if (b.status === "pending" && b.location === "home_visit") return false;
+/** Inside the notice period, cancelling by phone or email is still free for a pending home visit or within the 14-day cooling-off. */
+function freeInsideNotice(b: Booking, now: Date, settings: Settings, bookedAt: Date): boolean {
+  if (b.status === "pending" && b.location === "home_visit") return true;
   return cancellationDecision(b.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt).reason === "cooling_off";
 }

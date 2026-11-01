@@ -11,6 +11,6 @@ export async function onBookingCreated(bookingIds: string[]): Promise<void> {
 }
 
 /** Called once after a parent cancels a booking (receipt, plus a notice when late). */
-export async function onBookingCancelled(bookingId: string, outcome: "free" | "late"): Promise<void> {
-  await safely("booking cancelled", () => notifyBookingCancelled(bookingId, outcome));
+export async function onBookingCancelled(bookingId: string, outcome: "free" | "late", opts: { byAdmin?: boolean } = {}): Promise<void> {
+  await safely("booking cancelled", () => notifyBookingCancelled(bookingId, outcome, opts));
 }

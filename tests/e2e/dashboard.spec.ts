@@ -84,42 +84,22 @@ test.describe("dashboard", () => {
     await expect(page.getByText("Credited", { exact: true })).toBeVisible();
   });
 
-  test("late cancellation shows fee dialog and records late_cancelled", async ({ page }) => {
+  test("dashboard shows call/email message inside 48h and no cancel button", async ({ page }) => {
     parent = await createParent(page);
     const child = await seedChild(parent.id, { approved: true });
     const b = await seedBooking(child, { minutesAhead: 6 * 60, price: 3000, bookedDaysAgo: 20 });
-
-    await page.goto("/account");
-    await page.getByRole("button", { name: "Cancel booking" }).click();
-    const dialog = page.getByRole("dialog");
-    await expect(dialog.getByText("A late cancellation fee of £15 will be due")).toBeVisible();
-    await dialog.getByRole("button", { name: "Yes, cancel and pay the fee" }).click();
-    await expect(page.getByText(/Booking cancelled\. A late cancellation fee of £15/)).toBeVisible();
-
-    const after = await row(b.id);
-    expect(after.status).toBe("late_cancelled");
-    expect(after.payment_status).toBe("unpaid");
-    expect(after.cancelled_by).toBe("parent");
-    await page.reload();
-    await expect(page.getByTestId("owed")).toHaveText("£15");
-  });
-
-  test("inside 48 hours but within 14 days of booking: free, with the cooling-off message", async ({ page }) => {
-    parent = await createParent(page);
-    const child = await seedChild(parent.id, { approved: true });
-    const b = await seedBooking(child, { minutesAhead: 6 * 60, price: 3000, paymentStatus: "paid", bookedDaysAgo: 3 });
+    const early = await seedBooking(child, { minutesAhead: 5 * 24 * 60, price: 3000 });
 
     await page.goto("/account/bookings");
-    await page.getByRole("button", { name: "Cancel booking" }).click();
-    const dialog = page.getByRole("dialog");
-    await expect(dialog.getByText("You're within your 14-day cooling-off period, so there's no charge.")).toBeVisible();
-    await expect(dialog.getByText(/late cancellation fee/i)).toHaveCount(0);
-    await dialog.getByRole("button", { name: "Yes, cancel booking" }).click();
-    await expect(page.getByText("Booking cancelled.")).toBeVisible();
-
-    const after = await row(b.id);
-    expect(after.status).toBe("cancelled");
-    expect(after.payment_status).toBe("credited");
+    const inside = page.getByRole("listitem").filter({ hasText: b.payment_reference });
+    await expect(inside.getByText(/Less than 48 hours to go — please call or email Study Lab Co to cancel\. A 50% late cancellation fee applies\./)).toBeVisible();
+    await expect(inside.getByRole("link", { name: "studylabco123@gmail.com" })).toBeVisible();
+    await expect(inside.getByRole("button", { name: "Cancel booking" })).toHaveCount(0);
+    // The booking 5 days away still has its cancel button.
+    const outside = page.getByRole("listitem").filter({ hasText: early.payment_reference });
+    await expect(outside.getByRole("button", { name: "Cancel booking" })).toBeVisible();
+    await expect(outside.getByText(/Less than 48 hours/)).toHaveCount(0);
+    expect((await row(b.id)).status).toBe("confirmed");
   });
 
   test("owed balance blocks new booking with money_owed message", async ({ page }) => {

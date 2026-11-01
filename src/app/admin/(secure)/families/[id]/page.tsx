@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ApproveStudentButton, BlockToggle, ManualBookingForm, NoteForm, PayFromCreditButton } from "@/components/admin/FamilyControls";
+import { ApproveStudentButton, BlockToggle, ManualBookingForm, NoteForm, PayFromCreditButton, RecordLateCancellationButton } from "@/components/admin/FamilyControls";
 import { Badge } from "@/components/ui/Badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -215,6 +215,9 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
                         bookingId={b.id}
                         label={`${b.blockBookingId ? "Pay block from credit" : "Pay from credit"} for ${b.paymentReference}`}
                       />
+                    ) : null}
+                    {b.status === "pending" || b.status === "confirmed" ? (
+                      <RecordLateCancellationButton bookingId={b.id} label={`Record late cancellation for ${b.paymentReference}`} />
                     ) : null}
                     <Link
                       href={`/admin/bookings?filter=all&q=${b.paymentReference}`}

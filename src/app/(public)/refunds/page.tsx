@@ -25,7 +25,7 @@ export default async function RefundsPage() {
     ],
     [
       `You cancel less than ${h} hours before the lesson, more than 14 days after booking`,
-      "You can still cancel from your account, after a clear warning. It is recorded as a late cancellation and the late cancellation fee is due.",
+      "Please call or email Study Lab Co to cancel; the website only cancels lessons that are far enough away. It is recorded as a late cancellation and the late cancellation fee is due.",
     ],
     ["The student doesn't attend (no-show)", "Recorded as a no-show. The lesson price is due."],
     ["You owe money for a lesson", "New bookings are paused until it is paid or waived."],

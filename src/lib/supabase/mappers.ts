@@ -87,15 +87,24 @@ export interface SettingsRow {
   pass_min_notice_days: number;
 }
 
-function mapPassPrices(raw: SettingsRow["pass_prices"]): PassPrices {
-  const level = (l: Level) => ({ "6": raw[l]["6"], "10": raw[l]["10"] });
+/** Seed defaults (pence), used when a settings row predates a key (Ruling R4). */
+const DEFAULT_PASS_PRICES: PassPrices = { KS3: { 6: 7900, 10: 12600 }, GCSE: { 6: 10200, 10: 16200 } };
+const DEFAULT_BLOCK_PRICES: BlockPrices = { saturday: { 6: 10200, 10: 16200 }, sunday_bundle: { 6: 17100, 10: 27000 } };
+
+const priceOr = (v: unknown, fallback: number): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
+
+function mapPassPrices(raw: SettingsRow["pass_prices"] | null | undefined): PassPrices {
+  const level = (l: Level) => ({
+    6: priceOr(raw?.[l]?.["6"], DEFAULT_PASS_PRICES[l][6]),
+    10: priceOr(raw?.[l]?.["10"], DEFAULT_PASS_PRICES[l][10]),
+  });
   return { KS3: level("KS3"), GCSE: level("GCSE") };
 }
 
-function mapBlockPrices(raw: SettingsRow["block_prices"]): BlockPrices {
+function mapBlockPrices(raw: SettingsRow["block_prices"] | null | undefined): BlockPrices {
   const product = (p: GroupProduct): Record<BlockWeeks, number> => ({
-    6: raw[p]["6"],
-    10: raw[p]["10"],
+    6: priceOr(raw?.[p]?.["6"], DEFAULT_BLOCK_PRICES[p][6]),
+    10: priceOr(raw?.[p]?.["10"], DEFAULT_BLOCK_PRICES[p][10]),
   });
   return { saturday: product("saturday"), sunday_bundle: product("sunday_bundle") };
 }

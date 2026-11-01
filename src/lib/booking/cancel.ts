@@ -3,29 +3,29 @@ import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { getSettings } from "@/lib/settings";
 import { createServiceClient } from "@/lib/supabase/service";
 import { londonDateOf } from "@/lib/time";
-import { cancellationOutcome } from "./cancellation";
-import { lateFeeFor } from "./fees";
+import { parentCanCancelOnline } from "./cancellation";
 import { onBookingCancelled } from "./notify";
 
 export type CancelResult =
-  | { ok: true; outcome: "free" | "late"; feePence: number }
+  | { ok: true; outcome: "free"; feePence: 0 }
   | { ok: false; reason: "not_found" | "not_cancellable" | "error" }
-  /** The booking is inside the notice window and the parent has not yet agreed to the fee. */
-  | { ok: false; reason: "late_confirmation_needed"; feePence: number };
+  /** Inside the notice window: the parent must call or email; the tutor records any late cancellation. */
+  | { ok: false; reason: "call_required" }
+  /** A pass seat: cancelled through the pass flow (Task V5), not here. */
+  | { ok: false; reason: "pass_seat" };
 
 /**
  * A parent cancels one booking row (one Sunday session, or one week of a
- * block): the notice rule applies per row.
+ * block) on the website.
  *
  * - Only the parent's own pending/confirmed bookings that start in the future.
- * - Inside the notice window the cancellation is 'late' (status late_cancelled,
- *   fee = the late cancellation fee, 50% of the lesson price by default, no
- *   travel) and needs `confirmLate`.
- * - Within 14 days of making the booking it is free whatever the notice
- *   (cooling-off, Ruling R20): for a block week the block's created_at counts.
- * - A pending home visit is always free, whatever the time: the tutor never
- *   confirmed it, so no fee can be due.
- * - Free cancel of a paid booking sets payment_status 'credited' and writes a
+ * - Only while the lesson is at least `cancellationNoticeHours` away
+ *   (`parentCanCancelOnline`). Inside that window the answer is 'call_required':
+ *   the parent phones or emails and the tutor records it with
+ *   `recordLateCancellation` (which applies the 14-day cooling-off and the
+ *   late cancellation fee). There is no late path here.
+ * - Pass seats are refused with 'pass_seat' (handled by the pass flow).
+ * - A free cancel of a paid booking sets payment_status 'credited' and writes a
  *   ledger 'credit' for what was paid for that row (price plus travel; a block
  *   week's stored price), dated today in London, like the tutor path (Ruling
  *   R23). The tutor can spend it with "Pay from credit" or refund it.
@@ -35,7 +35,7 @@ export type CancelResult =
 export async function cancelBookingForParent(
   parentId: string,
   bookingId: string,
-  opts: { confirmLate?: boolean; now?: Date } = {},
+  opts: { now?: Date } = {},
 ): Promise<CancelResult> {
   const now = opts.now ?? new Date();
   const c = createServiceClient();
@@ -47,28 +47,19 @@ export async function cancelBookingForParent(
   if ((booking.status !== "pending" && booking.status !== "confirmed") || booking.startsAt.getTime() <= now.getTime()) {
     return { ok: false, reason: "not_cancellable" };
   }
+  if (booking.passId) return { ok: false, reason: "pass_seat" };
 
   const settings = await getSettings();
-  let bookedAt = booking.createdAt;
-  if (booking.blockBookingId) {
-    const block = await c.from("block_bookings").select("created_at").eq("id", booking.blockBookingId).maybeSingle();
-    if (block.error) return { ok: false, reason: "error" };
-    if (block.data) bookedAt = new Date(block.data.created_at as string);
-  }
-  const neverConfirmed = booking.status === "pending" && booking.location === "home_visit";
-  const outcome = neverConfirmed
-    ? "free"
-    : cancellationOutcome(booking.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt);
-  if (outcome === "late" && !opts.confirmLate) {
-    return { ok: false, reason: "late_confirmation_needed", feePence: lateFeeFor(booking, settings.lateFeePercent) };
+  if (!parentCanCancelOnline(booking.startsAt, now, settings.cancellationNoticeHours)) {
+    return { ok: false, reason: "call_required" };
   }
 
   const patch: Record<string, unknown> = {
-    status: outcome === "free" ? "cancelled" : "late_cancelled",
+    status: "cancelled",
     cancelled_at: now.toISOString(),
     cancelled_by: "parent",
   };
-  if (outcome === "free" && booking.paymentStatus === "paid") patch.payment_status = "credited";
+  if (booking.paymentStatus === "paid") patch.payment_status = "credited";
   const updated = await c
     .from("bookings")
     .update(patch)
@@ -95,6 +86,6 @@ export async function cancelBookingForParent(
     if (entry.error) console.error("cancelBooking: credit ledger row failed", entry.error.message);
   }
 
-  await onBookingCancelled(bookingId, outcome);
-  return { ok: true, outcome, feePence: outcome === "late" ? lateFeeFor(booking, settings.lateFeePercent) : 0 };
+  await onBookingCancelled(bookingId, "free");
+  return { ok: true, outcome: "free", feePence: 0 };
 }

@@ -11,9 +11,11 @@ export interface CancellationReceiptProps {
   wasPaid: boolean;
   /** Tutor cancellation only: the payment is being refunded rather than credited. */
   refunded?: boolean;
+  /** Late cancellation only: the booking was already paid, so this much (price + travel - fee) is kept as credit. */
+  creditPence?: number;
 }
 
-export function CancellationReceipt({ parentName, session, outcome, wasPaid, refunded }: CancellationReceiptProps) {
+export function CancellationReceipt({ parentName, session, outcome, wasPaid, refunded, creditPence }: CancellationReceiptProps) {
   if (outcome === "tutor") {
     return (
       <Layout preview="We have had to cancel your booking">
@@ -51,9 +53,12 @@ export function CancellationReceipt({ parentName, session, outcome, wasPaid, ref
         </P>
       ) : (
         <P>
-          As this was inside the notice period, a late cancellation fee of {formatPence(session.lateFeePence)} applies.
-          Please pay it using reference {session.reference}. Bank details are in your original booking email and on
-          your account.
+          {`As this was inside the notice period, a late cancellation fee of ${formatPence(session.lateFeePence)} (${session.lateFeePercent ?? 50}%) applies.`}
+          {wasPaid
+            ? creditPence && creditPence > 0
+              ? ` You had already paid, so the rest, ${formatPence(creditPence)}, is kept as credit on your account. If you would rather have a refund, please get in touch.`
+              : " You had already paid, so nothing more is due."
+            : ` Please pay it using reference ${session.reference}. Bank details are in your original booking email and on your account.`}
         </P>
       )}
       <AccountLink />

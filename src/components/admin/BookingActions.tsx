@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { decideHomeVisit, markAttended, markNoShow, markPaid, tutorCancel, waiveFee } from "@/app/admin/(secure)/bookings/actions";
+import { RecordLateCancellationButton } from "./FamilyControls";
 import { ActionError, useAdminAction } from "./useAdminAction";
 
 export interface BookingActionsProps {
@@ -58,6 +59,9 @@ export function BookingActions(p: BookingActionsProps) {
     btn("waive", "Waive fee", () => run(() => waiveFee(p.bookingId)));
   }
   if (live) btn("cancel", "Cancel booking", () => setCancelOpen(true));
+  if (live) {
+    buttons.push(<RecordLateCancellationButton key="late" bookingId={p.bookingId} label={label("Record late cancellation")} />);
+  }
 
   if (!buttons.length && !error) return null;
   return (

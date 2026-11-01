@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { addManualBooking } from "@/lib/admin/manual-booking";
 import { approveStudent, addNote, setBlocked } from "@/lib/admin/family-ops";
-import { decideHomeVisit, markAttended, markNoShow, releaseBlock, tutorCancel } from "@/lib/admin/lifecycle";
+import { decideHomeVisit, markAttended, markNoShow, recordLateCancellation, releaseBlock, tutorCancel } from "@/lib/admin/lifecycle";
 import { familyCreditPence, markBlockPaid, markPaid, payFromCredit, waiveFee } from "@/lib/admin/payments";
 import { testOutbox } from "@/lib/email/send";
 import { londonDateOf } from "@/lib/time";
@@ -203,6 +203,105 @@ describe("payments", () => {
     expect(l).toHaveLength(1);
     expect(l[0]).toMatchObject({ kind: "waiver", amount_pence: 1250, booking_id: id });
     expect((await waiveFee(id)).ok).toBe(false);
+  });
+
+  test("waive sets owed 0", async () => {
+    const id = await insertBooking(-5, { status: "no_show", price: 2500, travel: 500, location: "home_visit", address: "1 Road" });
+    expect(await waiveFee(id)).toEqual({ ok: true });
+    expect(await one<{ fee_pence: number }>("select fee_pence from bookings where id = $1", [id])).toEqual({ fee_pence: 0 });
+  });
+});
+
+/** Make a booking look like it was made `days` ago (the default insert is "now", i.e. inside the cooling-off). */
+const madeDaysAgo = (id: string, days: number) =>
+  db.query("update bookings set created_at = now() - make_interval(days => $2) where id = $1", [id, days]);
+const feeOf = async (id: string) => (await one<{ fee_pence: number | null }>("select fee_pence from bookings where id = $1", [id])).fee_pence;
+
+describe("recordLateCancellation", () => {
+  test("admin late cancel unpaid 1-to-1 -> late_cancelled, fee 1250 owed", async () => {
+    const id = await insertBooking(10, { price: 2500 });
+    await madeDaysAgo(id, 30);
+    expect(await recordLateCancellation(id)).toEqual({ ok: true });
+    expect(await bookingRow(id)).toMatchObject({ status: "late_cancelled", payment_status: "unpaid", cancelled_by: "parent" });
+    expect(await feeOf(id)).toBe(1250);
+    expect(await ledger()).toEqual([]);
+    expect(await emails()).toContain("cancellation_receipt");
+    expect(JSON.stringify(testOutbox)).not.toMatch(/penalty|fine\b|waiver/i);
+  });
+
+  test("admin late cancel paid 1-to-1 -> fee 1250, credit 1250, stays paid", async () => {
+    const id = await insertBooking(10, { price: 2500, payment: "paid" });
+    await madeDaysAgo(id, 30);
+    expect(await recordLateCancellation(id)).toEqual({ ok: true });
+    expect(await bookingRow(id)).toMatchObject({ status: "late_cancelled", payment_status: "paid" });
+    expect(await feeOf(id)).toBe(1250);
+    const l = await ledger();
+    expect(l).toHaveLength(1);
+    expect(l[0]).toMatchObject({ kind: "credit", amount_pence: 1250, booking_id: id });
+  });
+
+  test("paid home visit: credit is price + travel - fee", async () => {
+    const id = await insertBooking(10, { price: 2500, travel: 500, location: "home_visit", address: "1 Road", payment: "paid" });
+    await madeDaysAgo(id, 30);
+    expect(await recordLateCancellation(id)).toEqual({ ok: true });
+    expect((await ledger())[0]).toMatchObject({ kind: "credit", amount_pence: 1750 });
+  });
+
+  test("admin late cancel within cooling-off -> cancelled free, paid becomes credit", async () => {
+    const free = await insertBooking(10, { payment: "paid" });
+    expect(await recordLateCancellation(free)).toEqual({ ok: true });
+    expect(await bookingRow(free)).toMatchObject({ status: "cancelled", payment_status: "credited", cancelled_by: "parent" });
+    expect(await feeOf(free)).toBeNull();
+    expect((await ledger())[0]).toMatchObject({ kind: "credit", amount_pence: 2500 });
+  });
+
+  test("uses the Settings late fee percent", async () => {
+    await db.query("update settings set late_fee_percent = 40");
+    const id = await insertBooking(10, { price: 2500 });
+    await madeDaysAgo(id, 30);
+    await recordLateCancellation(id);
+    expect(await feeOf(id)).toBe(1000);
+    await db.query("update settings set late_fee_percent = 50");
+  });
+
+  test("refuses finished, already cancelled and pass-seat bookings", async () => {
+    const done = await insertBooking(-5, { status: "attended" });
+    const gone = await insertBooking(10, { status: "cancelled" });
+    expect((await recordLateCancellation(done)).ok).toBe(false);
+    expect((await recordLateCancellation(gone)).ok).toBe(false);
+    const seat = await insertBooking(10);
+    const pass = await db.query<{ id: string }>(
+      "insert into passes (parent_id, child_id, level, sessions_total, price_pence) values ($1, $2, 'GCSE', 6, 10200) returning id",
+      [parentId, childId],
+    );
+    await db.query("update bookings set pass_id = $1 where id = $2", [pass.rows[0].id, seat]);
+    const r = await recordLateCancellation(seat);
+    expect(r.ok).toBe(false);
+    expect((await bookingRow(seat)).status).toBe("confirmed");
+  });
+});
+
+describe("markNoShow fees", () => {
+  test("no_show home visit owes 1250+500", async () => {
+    const id = await insertBooking(-3, { price: 2500, travel: 500, location: "home_visit", address: "1 Road" });
+    expect(await markNoShow(id)).toEqual({ ok: true });
+    expect(await feeOf(id)).toBe(1250);
+    const { dueFor } = await import("@/lib/admin/payments");
+    const row = await one<{ fee_pence: number }>("select fee_pence from bookings where id = $1", [id]);
+    expect(dueFor({ status: "no_show", location: "home_visit", pricePence: 2500, travelFeePence: 500, feePence: row.fee_pence })).toBe(1750);
+  });
+
+  test("a paid no-show credits the difference", async () => {
+    const id = await insertBooking(-3, { price: 2500, travel: 0, payment: "paid" });
+    expect(await markNoShow(id)).toEqual({ ok: true });
+    expect((await ledger())[0]).toMatchObject({ kind: "credit", amount_pence: 1250, booking_id: id });
+    expect((await bookingRow(id)).payment_status).toBe("paid");
+  });
+
+  test("a paid home-visit no-show credits price minus fee (travel is still owed)", async () => {
+    const id = await insertBooking(-3, { price: 2500, travel: 500, location: "home_visit", address: "1 Road", payment: "paid" });
+    await markNoShow(id);
+    expect((await ledger())[0]).toMatchObject({ kind: "credit", amount_pence: 1250 });
   });
 });
 

@@ -43,7 +43,7 @@ describe("BookingConfirmed", () => {
     expect(out).toContain("1 Teaching Road, Blackburn");
     expect(out).toContain("use reference SLC-1001");
     // 10 Nov 2026 16:00 UTC is 4pm GMT; cancellation deadline is 48h earlier.
-    expect(out).toContain("Free cancellation until Sunday 8 November at 4:00pm. After that a late cancellation fee of £12.50 applies.");
+    expect(out).toContain("Free cancellation until Sunday 8 November at 4:00pm (or any time in the first 14 days after booking). After that, cancel by phone or email; a late cancellation fee of £12.50 (50%) applies.");
     expect(out).not.toMatch(/online/i);
   });
 
@@ -172,6 +172,33 @@ describe("cancellation line and the 14-day cooling-off (R20)", () => {
       meetingLink: null,
     });
     expect(subject).toBe("Free cancellation ends Mon 9 Nov at 4:00pm");
+  });
+});
+
+describe("email copy shows the 50% fee amount", () => {
+  it("the late cancellation receipt shows the fee, the percentage and any credit kept", async () => {
+    const def = TEMPLATES.cancellation_receipt;
+    const unpaid = await html(def.component({ parentName: "Pat", session: line({ lateFeePercent: 50 }), outcome: "late", wasPaid: false }));
+    expect(unpaid).toContain("a late cancellation fee of £12.50");
+    expect(unpaid).toContain("50%");
+    expect(unpaid).toContain("SLC-1001");
+    const paid = await html(def.component({ parentName: "Pat", session: line(), outcome: "late", wasPaid: true, creditPence: 1250 }));
+    expect(paid).toContain("£12.50, is kept as credit");
+    expect(paid).not.toMatch(/\bfine\b|penalt|waiver/i);
+  });
+  it("the session cancellation line uses the Settings percentage", async () => {
+    const out = await html(
+      createElement(BookingConfirmed, {
+        parentName: "Pat",
+        sessions: [line({ lateFeePence: 1000, lateFeePercent: 40 })],
+        totalPence: 2500,
+        bank: BANK,
+        teachingAddress: null,
+        meetingLink: null,
+        blockReference: null,
+      }),
+    );
+    expect(out).toContain("a late cancellation fee of £10 (40%) applies");
   });
 });
 

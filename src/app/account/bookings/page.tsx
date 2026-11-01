@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { loadAccountOverview } from "@/lib/booking/account-data";
 import { createServerClient } from "@/lib/supabase/server";
-import { BookingList } from "./BookingList";
+import { BookingList, contactFrom } from "./BookingList";
 import { CancelNotice } from "./CancelNotice";
 
 export const metadata: Metadata = { title: "Your bookings" };
@@ -18,6 +18,7 @@ export default async function BookingsPage({
   if (!auth.user) redirect("/login?next=%2Faccount%2Fbookings");
   const { cancelled, fee } = await searchParams;
   const overview = await loadAccountOverview(auth.user.id);
+  const contact = contactFrom(overview);
 
   return (
     <div className="mx-auto flex max-w-content flex-col gap-8 px-5 py-12 sm:px-8">
@@ -32,13 +33,13 @@ export default async function BookingsPage({
         <h2 id="upcoming" className="text-h2">
           Upcoming
         </h2>
-        <BookingList items={overview.upcoming} empty="You have no upcoming bookings." />
+        <BookingList items={overview.upcoming} empty="You have no upcoming bookings." contact={contact} />
       </section>
       <section aria-labelledby="past" className="flex flex-col gap-4">
         <h2 id="past" className="text-h2">
           Past and cancelled
         </h2>
-        <BookingList items={overview.past} empty="Nothing here yet." />
+        <BookingList items={overview.past} empty="Nothing here yet." contact={contact} />
       </section>
     </div>
   );

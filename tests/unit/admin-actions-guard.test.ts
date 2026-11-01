@@ -58,3 +58,10 @@ describe("pay from credit (Ruling R23)", () => {
     expect(src).toMatch(/export async function payFromCredit\(bookingId: string\): Promise<AdminResult> \{\n  await requireAdmin\(\);/);
   });
 });
+
+describe("late cancellation (V4)", () => {
+  test("recordLateCancellation is a guarded booking action", () => {
+    const src = readFileSync("src/app/admin/(secure)/bookings/actions.ts", "utf8");
+    expect(src).toMatch(/export async function recordLateCancellation\(bookingId: string\): Promise<AdminResult> \{\n  await requireAdmin\(\);/);
+  });
+});

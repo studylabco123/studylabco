@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-guard";
-import { decideHomeVisit as decide, markAttended as attended, markNoShow as noShow, releaseBlock as release, tutorCancel as cancel } from "@/lib/admin/lifecycle";
+import { decideHomeVisit as decide, markAttended as attended, markNoShow as noShow, recordLateCancellation as lateCancel, releaseBlock as release, tutorCancel as cancel } from "@/lib/admin/lifecycle";
 import { markBlockPaid as blockPaid, markPaid as paid, payFromCredit as fromCredit, waiveFee as waive } from "@/lib/admin/payments";
 import { fail, type AdminResult } from "@/lib/admin/result";
 import type { PaymentMethod } from "@/lib/types";
@@ -73,4 +73,11 @@ export async function releaseBlock(blockId: string): Promise<AdminResult> {
   await requireAdmin();
   if (!isId(blockId)) return fail("Something was missing. Please refresh and try again.");
   return done(await release(blockId));
+}
+
+/** Records a cancellation the parent made by phone or email: free in the cooling-off, otherwise the late cancellation fee. */
+export async function recordLateCancellation(bookingId: string): Promise<AdminResult> {
+  await requireAdmin();
+  if (!isId(bookingId)) return fail("Something was missing. Please refresh and try again.");
+  return done(await lateCancel(bookingId));
 }

@@ -92,7 +92,7 @@ export default async function TermsPage() {
         <li>When a cancellation is free, any money you have paid is refunded or kept as credit.</li>
         <li>
           If you cancel less than {s.cancellationNoticeHours} hours before the lesson and more than 14 days after making the
-          booking, you can still do it from your account, and we will warn you first. It is recorded as a late cancellation and a
+          booking, please call or email us to cancel (the website cancels lessons at least {s.cancellationNoticeHours} hours away). It is recorded as a late cancellation and a
           late cancellation fee is due. The fee is {s.lateFeePercent}% of the lesson price (not any travel fee).
         </li>
         <li>If the student doesn&apos;t attend without cancelling, it is recorded as a no-show and the same {s.lateFeePercent}% fee is due, plus the travel fee for a home visit.</li>

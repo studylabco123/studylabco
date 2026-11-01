@@ -86,8 +86,9 @@ export function ReviewStep({ summary, settings }: { summary: Summary; settings: 
         <div className="flex flex-wrap items-start gap-1">
           {terms.deadline ? (
             <p className="flex-1 pt-2">
-              Free cancellation until {londonWhen(terms.deadline)}. After that a late cancellation fee of{" "}
-              {formatPence(summary.feePence)} applies.
+              Free cancellation until {londonWhen(terms.deadline)} (or any time in the first 14 days after booking). After
+              that, cancel by phone or email; a late cancellation fee of {formatPence(summary.feePence)} (
+              {settings.lateFeePercent}%) applies.
             </p>
           ) : (
             <p className="flex-1 pt-2">{terms.coolingOffCovers}</p>

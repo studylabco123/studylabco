@@ -1,6 +1,7 @@
 import { Body, Container, Head, Hr, Html, Link, Preview, Section, Text } from "@react-email/components";
 import type { ReactNode } from "react";
 import { freeCancellationEnds } from "@/lib/booking/cancellation";
+import { DEFAULT_LATE_FEE_PERCENT } from "@/lib/booking/fees";
 import { formatLondon, formatPence } from "@/lib/format";
 import type { LocationKind } from "@/lib/types";
 import { businessInbox, siteUrl, SITE_NAME } from "../config";
@@ -66,18 +67,22 @@ export function freeCancelUntil(startsAt: Date, noticeHours = DEFAULT_NOTICE_HOU
   return bookedAt ? freeCancellationEnds(startsAt, noticeHours, bookedAt) : new Date(startsAt.getTime() - noticeHours * 3600_000);
 }
 
-/** "Free cancellation until <London time>. After that a late cancellation fee of £X applies." */
+/**
+ * "Free cancellation until <48 h before> (or any time in the first 14 days after booking). After that, cancel by
+ * phone or email; a late cancellation fee of £X (50%) applies."
+ */
 export function cancellationLine(
   startsAt: Date,
   lateFeePence: number,
   noticeHours = DEFAULT_NOTICE_HOURS,
   bookedAt?: Date,
+  lateFeePercent = DEFAULT_LATE_FEE_PERCENT,
 ): string {
   const until = freeCancelUntil(startsAt, noticeHours, bookedAt);
   if (until.getTime() >= startsAt.getTime()) {
-    return "You're within your 14-day cooling-off period, so you can cancel free of charge at any time before this lesson starts.";
+    return "You're within your 14-day cooling-off period, so you can cancel free of charge at any time before this lesson starts. Inside the last 48 hours, please call or email Study Lab Co to cancel.";
   }
-  return `Free cancellation until ${formatLondon(until, "EEEE d MMMM 'at' h:mmaaa")}. After that a late cancellation fee of ${formatPence(lateFeePence)} applies.`;
+  return `Free cancellation until ${formatLondon(until, "EEEE d MMMM 'at' h:mmaaa")} (or any time in the first 14 days after booking). After that, cancel by phone or email; a late cancellation fee of ${formatPence(lateFeePence)} (${lateFeePercent}%) applies.`;
 }
 
 export function SessionList({
@@ -109,7 +114,7 @@ export function SessionList({
             <Text style={{ ...text, color: MUTED, fontSize: "14px", margin: 0 }}>
               {s.status === "pending" && s.location === "home_visit"
                 ? "You can cancel this request free of charge until we confirm it."
-                : cancellationLine(s.startsAt, s.lateFeePence, noticeHours, s.bookedAt)}
+                : cancellationLine(s.startsAt, s.lateFeePence, noticeHours, s.bookedAt, s.lateFeePercent)}
             </Text>
           )}
         </Section>

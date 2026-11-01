@@ -51,7 +51,7 @@ describe("cancelBookingForParent", () => {
     const past = await insertBooking({ starts: "2026-11-05T10:00:00Z" });
     const attended = await insertBooking({ starts: "2026-11-25T10:00:00Z", status: "attended" });
     for (const id of [cancelled, past, attended]) {
-      expect(await cancelBookingForParent(parentId, id, { now: NOW, confirmLate: true })).toEqual({
+      expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({
         ok: false,
         reason: "not_cancellable",
       });
@@ -72,49 +72,36 @@ describe("cancelBookingForParent", () => {
     expect(await get(id)).toEqual(first);
   });
 
-  test("late cancel needs confirmation, then records late_cancelled with the 50% fee", async () => {
+  test("parent online cancel inside 48h -> call_required, nothing changes", async () => {
     const id = await insertBooking({ starts: "2026-11-11T10:00:00Z", paymentStatus: "unpaid" });
-    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({
-      ok: false,
-      reason: "late_confirmation_needed",
-      feePence: 1500,
-    });
+    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: false, reason: "call_required" });
+    expect(await cancelBookingForParent(parentId, id, { now: NOW, confirmLate: true } as never)).toEqual({ ok: false, reason: "call_required" });
     expect((await get(id)).status).toBe("confirmed");
-    expect(await cancelBookingForParent(parentId, id, { now: NOW, confirmLate: true })).toEqual({
-      ok: true,
-      outcome: "late",
-      feePence: 1500,
-    });
-    expect(await get(id)).toMatchObject({ status: "late_cancelled", payment_status: "unpaid", cancelled_by: "parent" });
   });
 
-  test("pending home visit inside 48h cancels free", async () => {
-    const id = await insertBooking({ starts: "2026-11-11T10:00:00Z", status: "pending", location: "home_visit", paymentStatus: "unpaid" });
-    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: true, outcome: "free", feePence: 0 });
-    expect((await get(id)).status).toBe("cancelled");
-  });
-
-  test("inside 48h but within 14 days of booking: free (cooling-off), paid becomes credited", async () => {
-    const id = await insertBooking({ starts: "2026-11-11T08:00:00Z", createdAt: "2026-11-07T12:00:00Z" });
-    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: true, outcome: "free", feePence: 0 });
-    expect(await get(id)).toMatchObject({ status: "cancelled", payment_status: "credited", cancelled_by: "parent" });
-  });
-
-  test("exactly 14 days after booking is still free; booked 20 days ago is late", async () => {
-    const edge = await insertBooking({ starts: "2026-11-11T08:00:00Z", createdAt: "2026-10-27T12:00:00Z" });
-    expect(await cancelBookingForParent(parentId, edge, { now: NOW })).toMatchObject({ ok: true, outcome: "free" });
-    const old = await insertBooking({ starts: "2026-11-11T09:00:00Z", createdAt: "2026-10-21T12:00:00Z" });
-    expect(await cancelBookingForParent(parentId, old, { now: NOW })).toMatchObject({ reason: "late_confirmation_needed" });
-  });
-
-  test("a block week counts from when the block was made", async () => {
-    const { rows } = await db.query<{ id: string }>(
-      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, created_at)
-       values ($1, $2, 'saturday', 6, 10200, '2026-11-07T12:00:00Z') returning id`,
+  test("a pass seat is refused with pass_seat (handled by the pass flow)", async () => {
+    const id = await insertBooking({ starts: "2026-11-20T10:00:00Z" });
+    const pass = await db.query<{ id: string }>(
+      `insert into passes (parent_id, child_id, level, sessions_total, price_pence) values ($1, $2, 'GCSE', 6, 10200) returning id`,
       [parentId, childId],
     );
-    const id = await insertBooking({ starts: "2026-11-11T08:00:00Z", createdAt: "2026-10-01T12:00:00Z", block: rows[0].id });
-    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toMatchObject({ ok: true, outcome: "free" });
+    await db.query("update bookings set pass_id = $1 where id = $2", [pass.rows[0].id, id]);
+    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: false, reason: "pass_seat" });
+    expect((await get(id)).status).toBe("confirmed");
+  });
+
+  test("inside 48h the parent is told to call, even within the 14-day cooling-off or for a pending home visit", async () => {
+    const home = await insertBooking({ starts: "2026-11-11T10:00:00Z", status: "pending", location: "home_visit", paymentStatus: "unpaid" });
+    const cooling = await insertBooking({ starts: "2026-11-11T08:00:00Z", createdAt: "2026-11-07T12:00:00Z" });
+    for (const id of [home, cooling]) {
+      expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: false, reason: "call_required" });
+    }
+    expect((await get(cooling)).status).toBe("confirmed");
+  });
+
+  test("exactly 48 hours away can still be cancelled online, free", async () => {
+    const id = await insertBooking({ starts: "2026-11-12T12:00:00Z", paymentStatus: "unpaid" });
+    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: true, outcome: "free", feePence: 0 });
   });
 
   test("free cancel of a paid booking writes a ledger credit for what was paid (R23)", async () => {
@@ -126,13 +113,10 @@ describe("cancelBookingForParent", () => {
     expect(rows).toEqual([{ kind: "credit", amount_pence: 3500, booking_id: id, parent_id: parentId, occurred_on: "2026-11-10" }]);
   });
 
-  test("free cancel of an unpaid booking and a late cancel write no ledger row", async () => {
+  test("free cancel of an unpaid booking writes no ledger row", async () => {
     const unpaid = await insertBooking({ starts: "2026-11-20T10:00:00Z", paymentStatus: "unpaid" });
     expect(await cancelBookingForParent(parentId, unpaid, { now: NOW })).toMatchObject({ ok: true, outcome: "free" });
-    const late = await insertBooking({ starts: "2026-11-11T10:00:00Z" });
-    expect(await cancelBookingForParent(parentId, late, { now: NOW, confirmLate: true })).toMatchObject({ ok: true, outcome: "late" });
     expect((await db.query("select 1 from ledger")).rows).toEqual([]);
-    expect((await get(late)).payment_status).toBe("paid");
   });
 
   test("a free-cancelled week of a paid block is credited at that week's stored price", async () => {

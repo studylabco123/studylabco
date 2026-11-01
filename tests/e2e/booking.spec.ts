@@ -187,9 +187,9 @@ test.describe("booking", () => {
       await expect(page.getByText("The lesson starts within your 14-day cooling-off period, so you can cancel it for free at any time before it starts.")).toBeVisible();
       await expect(page.getByText(/Free cancellation until/)).toHaveCount(0);
     } else if (daysAway > 16) {
-      await expect(page.getByText(`Free cancellation until ${deadline}. After that a late cancellation fee of £5 applies.`)).toBeVisible();
+      await expect(page.getByText(`Free cancellation until ${deadline} (or any time in the first 14 days after booking). After that, cancel by phone or email; a late cancellation fee of £5 (50%) applies.`)).toBeVisible();
     } else {
-      await expect(page.getByText(/^Free cancellation until .*\. After that a late cancellation fee of £5 applies\.$/)).toBeVisible();
+      await expect(page.getByText(/^Free cancellation until .* \(or any time in the first 14 days after booking\)\. After that, cancel by phone or email; a late cancellation fee of £5 \(50%\) applies\.$/)).toBeVisible();
     }
     await expect(page.getByText(/\b(fine|penalty)\b/i)).toHaveCount(0);
   });

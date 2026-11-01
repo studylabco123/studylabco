@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
-import type { BookingView } from "@/lib/booking/account-data";
+import type { AccountOverview, BookingView } from "@/lib/booking/account-data";
+import { FALLBACK_EMAIL } from "@/lib/site";
 import { paymentBadge } from "@/lib/booking/payment-view";
 import { formatLondon, formatPence } from "@/lib/format";
 import type { Booking, BookingStatus } from "@/lib/types";
@@ -20,7 +21,49 @@ function statusLabel(b: Booking): { text: string; tone: BadgeTone } {
   return labels[b.status];
 }
 
-export function BookingList({ items, empty }: { items: BookingView[]; empty: string }) {
+/** Inside the notice period: no cancel button, ask the parent to call or email. */
+function CallToCancel({ view, contact }: { view: BookingView; contact: Contact }) {
+  const { noticeHours, lateFeePercent, businessPhone, email } = contact;
+  return (
+    <div className="flex flex-col gap-1 text-small" data-testid="call-to-cancel">
+      <p>
+        {view.callFree
+          ? `Less than ${noticeHours} hours to go — please call or email Study Lab Co to cancel. There is no fee for this one.`
+          : `Less than ${noticeHours} hours to go — please call or email Study Lab Co to cancel. A ${lateFeePercent}% late cancellation fee applies.`}
+      </p>
+      <p>
+        {businessPhone ? (
+          <>
+            Call{" "}
+            <a href={`tel:${businessPhone.replace(/[^+\d]/g, "")}`} className="underline underline-offset-4">
+              {businessPhone}
+            </a>{" "}
+            or email{" "}
+          </>
+        ) : (
+          "Email "
+        )}
+        <a href={`mailto:${email}`} className="underline underline-offset-4">
+          {email}
+        </a>
+        .
+      </p>
+    </div>
+  );
+}
+
+export function contactFrom(o: AccountOverview): Contact {
+  return { noticeHours: o.noticeHours, lateFeePercent: o.lateFeePercent, businessPhone: o.businessPhone, email: FALLBACK_EMAIL };
+}
+
+export interface Contact {
+  noticeHours: number;
+  lateFeePercent: number;
+  businessPhone: string | null;
+  email: string;
+}
+
+export function BookingList({ items, empty, contact }: { items: BookingView[]; empty: string; contact: Contact }) {
   if (!items.length) return <p>{empty}</p>;
   return (
     <ul className="flex flex-col gap-4">
@@ -48,8 +91,9 @@ export function BookingList({ items, empty }: { items: BookingView[]; empty: str
               <Link href={`/account/bookings/${b.id}`} className="underline underline-offset-4">
                 View details
               </Link>
-              {v.cancellable ? <CancelBooking bookingId={b.id} lateFeePence={v.lateFeePence} coolingOff={v.coolingOff} /> : null}
+              {v.cancellable ? <CancelBooking bookingId={b.id} /> : null}
             </div>
+            {v.callRequired ? <CallToCancel view={v} contact={contact} /> : null}
           </Card>
         );
       })}

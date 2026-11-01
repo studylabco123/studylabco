@@ -9,7 +9,7 @@ import { loadAccountOverview } from "@/lib/booking/account-data";
 import { CREDIT_INFO } from "@/lib/booking/info";
 import { formatLondon, formatPence } from "@/lib/format";
 import { createServerClient } from "@/lib/supabase/server";
-import { BookingList } from "./bookings/BookingList";
+import { BookingList, contactFrom } from "./bookings/BookingList";
 import { CancelNotice } from "./bookings/CancelNotice";
 import { signOut } from "./actions";
 
@@ -104,7 +104,7 @@ export default async function AccountPage({
         <h2 id="upcoming" className="text-h2">
           Upcoming bookings
         </h2>
-        <BookingList items={o.upcoming} empty="You have no upcoming bookings." />
+        <BookingList items={o.upcoming} empty="You have no upcoming bookings." contact={contactFrom(o)} />
         <Link href="/account/bookings" className="underline underline-offset-4">
           All bookings, including past and cancelled
         </Link>
