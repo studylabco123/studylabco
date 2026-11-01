@@ -20,13 +20,13 @@ export function ApproveStudentButton({ childId, name }: { childId: string; name:
   );
 }
 
-/** Pays one unpaid booking (or its held block) from the family's credit; the server checks the balance. */
+/** Pays one unpaid booking from the family's credit; the server checks the balance. */
 export function PayFromCreditButton({ bookingId, label }: { bookingId: string; label: string }) {
   const { run, pending, error } = useAdminAction();
   return (
     <>
       <Button variant="secondary" disabled={pending} aria-label={label} onClick={() => run(() => payFromCredit(bookingId))}>
-        {label.startsWith("Pay block") ? "Pay block from credit" : "Pay from credit"}
+        Pay from credit
       </Button>
       <ActionError message={error} />
     </>

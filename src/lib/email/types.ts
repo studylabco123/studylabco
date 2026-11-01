@@ -22,6 +22,8 @@ export interface SessionLine {
   bookedAt?: Date;
   /** Venue for a group session. */
   venue?: string | null;
+  /** Booked with a group pass: nothing to pay, and a cancelled session goes back on the pass. */
+  fromPass?: boolean;
 }
 
 export interface BankDetails {

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BlockActions } from "@/components/admin/BlockActions";
 import { BookingActions } from "@/components/admin/BookingActions";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
@@ -30,7 +29,7 @@ export default async function AdminBookingsPage({
   const filter = (BOOKING_FILTERS as readonly string[]).includes(sp.filter ?? "") ? (sp.filter as BookingFilter) : "upcoming";
   const q = (sp.q ?? "").slice(0, 80);
   const now = new Date();
-  const { items, blocks } = await loadBookings(filter, q, now);
+  const { items } = await loadBookings(filter, q, now);
 
   return (
     <div className="flex flex-col gap-8">
@@ -73,32 +72,6 @@ export default async function AdminBookingsPage({
         </ul>
       </nav>
 
-      {blocks.length ? (
-        <section id="blocks" aria-labelledby="blocks-h" className="flex flex-col gap-4">
-          <h2 id="blocks-h" className="text-h2">
-            Block bookings awaiting payment
-          </h2>
-          <ul className="flex flex-col gap-3">
-            {blocks.map((b) => (
-              <Card as="li" key={b.id} tone="sky" className="flex flex-col gap-3 p-4 sm:p-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-display text-h3">
-                    {b.childName} ({b.parentName})
-                  </h3>
-                  <Badge tone={b.expired ? "danger" : "warning"}>{b.expired ? "Hold expired" : "On hold"}</Badge>
-                </div>
-                <p className="text-navy-600">
-                  {b.product === "sunday_bundle" ? "Sunday bundle" : "Saturday"} block, {b.weeks} weeks · {formatPence(b.pricePence)} · Reference{" "}
-                  {b.reference}
-                  {b.holdExpiresAt ? ` · hold ${b.expired ? "ended" : "ends"} ${formatLondon(b.holdExpiresAt, "EEE d MMM, h:mmaaa")}` : ""}
-                </p>
-                <BlockActions blockId={b.id} label={`${b.childName} ${b.reference}`} />
-              </Card>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
       <section aria-labelledby="list-h" className="flex flex-col gap-4">
         <h2 id="list-h" className="text-h2">
           {FILTER_LABEL[filter]} bookings
@@ -126,7 +99,7 @@ export default async function AdminBookingsPage({
                   </p>
                   {b.homeAddress ? <p className="text-navy-600">{b.homeAddress}</p> : null}
                   <p className="text-small text-navy-600">
-                    {formatPence(b.pricePence + b.travelFeePence)} · Reference {b.paymentReference}
+                    {b.passId ? "Group pass" : formatPence(b.pricePence + b.travelFeePence)} · Reference {b.paymentReference}
                     {i.owedPence > 0 ? ` · owes ${formatPence(i.owedPence)}` : ""}
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -142,8 +115,8 @@ export default async function AdminBookingsPage({
                     paymentStatus={b.paymentStatus}
                     started={b.startsAt.getTime() <= now.getTime()}
                     owedPence={i.owedPence}
-                    bundle={Boolean(b.bundleId) && !b.blockBookingId}
-                    inBlock={Boolean(b.blockBookingId) && !i.blockReleased}
+                    bundle={Boolean(b.bundleId)}
+                    fromPass={b.passId !== null}
                   />
                 </Card>
               );

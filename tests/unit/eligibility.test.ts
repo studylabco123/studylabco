@@ -31,7 +31,7 @@ describe("checkEligibility", () => {
     expect(checkEligibility(base({ approved: false }))).toEqual({ ok: false, reason: "not_approved" });
   });
   it("no assessment booked and not approved -> assessment_required", () => {
-    for (const type of ["one_to_one", "group", "sunday_bundle", "block"] as const) {
+    for (const type of ["one_to_one", "group", "sunday_bundle", "pass"] as const) {
       expect(checkEligibility(base({ approved: false, assessmentBooked: false, request: { type, location: "tutor_place" } }))).toEqual({ ok: false, reason: "assessment_required" });
     }
   });

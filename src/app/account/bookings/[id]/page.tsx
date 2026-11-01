@@ -45,23 +45,9 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
   if (!row) notFound();
   const booking = mapBooking(row as BookingRow);
 
-  // The other seats that belong with this one (Sunday bundle or block).
+  // The other seat that belongs with this one (Sunday bundle).
   let related: Booking[] = [booking];
-  let block: {
-    payment_reference: string;
-    price_pence: number;
-    weeks: number;
-    hold_expires_at: string | null;
-    status: "held" | "paid" | "released";
-  } | null = null;
-  if (booking.blockBookingId) {
-    const [b, seats] = await Promise.all([
-      c.from("block_bookings").select("payment_reference, price_pence, weeks, hold_expires_at, status").eq("id", booking.blockBookingId).single(),
-      c.from("bookings").select("*").eq("block_booking_id", booking.blockBookingId).order("starts_at"),
-    ]);
-    block = b.data;
-    related = ((seats.data ?? []) as BookingRow[]).map(mapBooking);
-  } else if (booking.bundleId) {
+  if (booking.bundleId) {
     const { data } = await c.from("bookings").select("*").eq("bundle_id", booking.bundleId).order("starts_at");
     related = ((data ?? []) as BookingRow[]).map(mapBooking);
   }
@@ -76,20 +62,14 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
   ]);
   const group = session?.data ? mapGroupSession(session.data as GroupSessionRow) : null;
 
-  // A released block's lessons are paid one by one with their own reference (Ruling R16).
-  const reference = block && block.status !== "released" ? block.payment_reference : booking.paymentReference;
-  const money = bookingPaymentSummary(related, block ? { pricePence: block.price_pence, status: block.status } : null, settings.lateFeePercent);
+  const reference = booking.paymentReference;
+  const money = bookingPaymentSummary(related, settings.lateFeePercent);
+  const fromPass = booking.passId !== null;
   const status = statusLabel(booking);
   const nowMs = new Date().getTime();
   // Owed for a lesson that has happened or was cancelled late: no "before the lesson".
   const afterTheLesson = related.some((b) => b.status === "late_cancelled" || b.startsAt.getTime() <= nowMs);
-  // A held block is paid as a whole, so an unpaid week's badge follows the block's amount due.
-  const payment =
-    block?.status === "held" && booking.paymentStatus === "unpaid"
-      ? money.showHowToPay
-        ? ({ text: "Unpaid", tone: "warning" } as const)
-        : null
-      : paymentBadge(booking);
+  const payment = paymentBadge(booking);
   const confirmed = booking.status === "confirmed" || booking.status === "attended";
   const bank = priv.bankAccountName && priv.bankSortCode && priv.bankAccountNumber;
 
@@ -99,9 +79,8 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
   else if (booking.location === "online") where = "Online";
   else where = "At the tutor's place";
 
-  const title = block
-    ? `Group block (${block.weeks} weeks)`
-    : related.length === 2 && booking.bundleId
+  const title =
+    related.length === 2 && booking.bundleId
       ? "Sunday bundle"
       : group?.title ?? KIND_LABEL[booking.kind];
 
@@ -163,8 +142,17 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
               </dd>
             </>
           ) : null}
-          <dt className="font-display font-medium">Total</dt>
-          <dd data-testid="booking-total">{formatPence(money.totalPence)}</dd>
+          {fromPass ? (
+            <>
+              <dt className="font-display font-medium">Paid with</dt>
+              <dd data-testid="booking-total">Group pass</dd>
+            </>
+          ) : (
+            <>
+              <dt className="font-display font-medium">Total</dt>
+              <dd data-testid="booking-total">{formatPence(money.totalPence)}</dd>
+            </>
+          )}
         </dl>
         {money.awaitingApproval ? (
           <p>
@@ -181,9 +169,6 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             Pay <span data-testid="to-pay">{formatPence(money.toPayPence)}</span>
             {afterTheLesson ? " by bank transfer" : " by bank transfer before the lesson"}
             , using your reference so we can match it.
-            {block?.status === "held" && block.hold_expires_at
-              ? ` Seats are held until ${when(new Date(block.hold_expires_at))} while you pay.`
-              : ""}
           </p>
           {bank ? (
             <div role="group" aria-label="Bank details">

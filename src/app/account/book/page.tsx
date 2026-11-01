@@ -3,13 +3,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ensureGroupSessions, loadFamily, loadGroupSessions, sessionBookable } from "@/lib/booking/data";
 import { IneligibleMessage } from "@/lib/booking/eligibility";
+import { passCardText, passRemaining, passUsable } from "@/lib/booking/pass";
+import { passSeats } from "@/lib/booking/pass-service";
 import { getSettings } from "@/lib/settings";
+import { mapPass, type PassRow } from "@/lib/supabase/mappers";
 import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { addDays, londonDateOf } from "@/lib/time";
 import type { GroupProduct, Level, LocationKind, Settings } from "@/lib/types";
 import { BookingWizard } from "./BookingWizard";
-import type { ChildOption, SessionOption, WizardData, WizardSettings } from "./types";
+import type { ChildOption, SessionOption, WizardData, WizardPass, WizardSettings } from "./types";
 
 export const metadata: Metadata = { title: "Book a lesson" };
 
@@ -29,8 +32,9 @@ function wizardSettings(s: Settings): WizardSettings {
     passPrices: s.passPrices,
     priceSundayBundlePence: s.priceSundayBundlePence,
     travelFeePence: s.travelFeePence,
-    blockPrices: s.blockPrices,
     cancellationNoticeHours: s.cancellationNoticeHours,
+    passValidityMonths: s.passValidityMonths,
+    passMinNoticeDays: s.passMinNoticeDays,
     homeVisitBufferMinutes: s.homeVisitBufferMinutes,
     allowedPostcodeDistricts: s.allowedPostcodeDistricts,
     groupVenue: s.groupVenue,
@@ -59,15 +63,45 @@ async function groupSessions(settings: Settings, now: Date): Promise<SessionOpti
       venue: s.venue,
       product: s.seriesId ? (productOf.get(s.seriesId) ?? null) : null,
       level: s.level,
+      passBookable: s.startsAt.getTime() - now.getTime() >= settings.passMinNoticeDays * 86400_000,
     }));
 }
 
-export default async function BookPage() {
+/** The parent's passes that are awaiting payment or still usable, newest first. */
+async function familyPasses(parentId: string, now: Date): Promise<WizardPass[]> {
+  const { data, error } = await createServiceClient()
+    .from("passes")
+    .select("*")
+    .eq("parent_id", parentId)
+    .in("status", ["awaiting_payment", "active"])
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`Could not load passes: ${error.message}`);
+  const passes = (data as PassRow[]).map(mapPass).filter((p) => p.childId && (p.status === "awaiting_payment" || passUsable(p, now)));
+  const seats = await passSeats(passes.map((p) => p.id));
+  return passes.map((p) => {
+    const remaining = passRemaining(p, seats);
+    return {
+      id: p.id,
+      childId: p.childId!,
+      level: p.level,
+      sessionsTotal: p.sessionsTotal,
+      pricePence: p.pricePence,
+      status: p.status,
+      remaining,
+      reference: p.paymentReference,
+      text: passCardText(p, remaining),
+      bookable: passUsable(p, now) && remaining > 0,
+    };
+  });
+}
+
+export default async function BookPage({ searchParams }: { searchParams: Promise<{ pass?: string }> }) {
   const supabase = await createServerClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect("/login?next=%2Faccount%2Fbook");
   const parentId = auth.user.id;
   const now = new Date();
+  const { pass: initialPassId } = await searchParams;
 
   // RLS: only this parent's children.
   const { data: rows } = await supabase.from("children").select("id, first_name, last_name, school_year, level").order("created_at");
@@ -97,6 +131,7 @@ export default async function BookPage() {
     settings: wizardSettings(settings),
     familyMessage,
     sessions: children.some((c) => c.approved) ? await groupSessions(settings, now) : [],
+    passes: await familyPasses(parentId, now),
   };
 
   return (
@@ -116,7 +151,7 @@ export default async function BookPage() {
           before booking.
         </p>
       ) : (
-        <BookingWizard data={data} />
+        <BookingWizard data={data} initialPassId={typeof initialPassId === "string" ? initialPassId : undefined} />
       )}
     </div>
   );

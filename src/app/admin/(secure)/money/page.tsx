@@ -3,11 +3,13 @@ import Link from "next/link";
 import { ExpenseForm } from "@/components/admin/money/ExpenseForm";
 import { MilesEntry } from "@/components/admin/money/MilesEntry";
 import { RefundForm } from "@/components/admin/money/RefundForm";
+import { PassList } from "@/components/admin/passes/PassList";
 import { ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { requireAdmin } from "@/lib/admin-guard";
 import { loadMoney } from "@/lib/admin/money-queries";
+import { loadAdminPasses } from "@/lib/admin/pass-queries";
 import { formatLondon, formatPence } from "@/lib/format";
 import { categoryLabel } from "@/lib/money/categories";
 
@@ -16,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminMoneyPage() {
   await requireAdmin();
-  const m = await loadMoney();
+  const [m, passes] = await Promise.all([loadMoney(), loadAdminPasses()]);
   const missing = m.trips.filter((t) => t.miles === null).length;
 
   return (
@@ -82,6 +84,17 @@ export default async function AdminMoneyPage() {
             Mark these paid in Bookings
           </Link>
         </p>
+      </section>
+
+      <section id="passes" aria-labelledby="passes-h" className="flex flex-col gap-3">
+        <h2 id="passes-h" className="text-h2">
+          Group passes
+        </h2>
+        <p className="text-fine text-navy-600">
+          A pass can be used once it is marked paid; the payment counts as income on that day. Converting a pass to credit
+          turns its unused sessions into account credit (never income).
+        </p>
+        <PassList items={passes} empty="No group passes awaiting payment or in use." />
       </section>
 
       <Card as="section" aria-labelledby="exp-h" className="flex flex-col gap-4 p-4 sm:p-6">

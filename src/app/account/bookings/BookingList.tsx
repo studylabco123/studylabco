@@ -90,7 +90,7 @@ export function BookingList({ items, empty, contact }: { items: BookingView[]; e
               <Link href={`/account/bookings/${b.id}`} className="underline underline-offset-4">
                 View details
               </Link>
-              {v.cancellable ? <CancelBooking bookingId={b.id} /> : null}
+              {v.cancellable ? <CancelBooking bookingId={b.id} fromPass={b.passId !== null} /> : null}
             </div>
             {v.callRequired ? <CallToCancel view={v} contact={contact} /> : null}
           </Card>

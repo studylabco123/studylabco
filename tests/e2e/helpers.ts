@@ -15,7 +15,8 @@
  * - seedChild(parentId, { approved?, agreement? })  a child with a signed
  *   agreement (default), optionally approved.
  * - setBankDetails() / deleteBookingsFor(parentId)  booking test setup and
- *   cleanup (bookings use up real slots and seats, so tests remove theirs).
+ *   cleanup (bookings use up real slots and seats, so tests remove theirs,
+ *   together with any group passes).
  *
  * Every helper uses unique emails so parallel projects never collide.
  */
@@ -315,11 +316,11 @@ export async function setBankDetails(): Promise<void> {
   if (error) throw error;
 }
 
-/** Removes a parent's bookings and blocks so tests don't use up real slots and seats. */
+/** Removes a parent's bookings and group passes so tests don't use up real slots and seats. */
 export async function deleteBookingsFor(parentId: string): Promise<void> {
   const service = serviceClient();
   const b = await service.from("bookings").delete().eq("parent_id", parentId);
   if (b.error) throw b.error;
-  const blocks = await service.from("block_bookings").delete().eq("parent_id", parentId);
-  if (blocks.error) throw blocks.error;
+  const passes = await service.from("passes").delete().eq("parent_id", parentId);
+  if (passes.error) throw passes.error;
 }

@@ -79,15 +79,16 @@ describe("cancelBookingForParent", () => {
     expect((await get(id)).status).toBe("confirmed");
   });
 
-  test("a pass seat is refused with pass_seat (handled by the pass flow)", async () => {
+  test("a pass seat cancelled 48h+ ahead goes back on the pass: cancelled, no credit", async () => {
     const id = await insertBooking({ starts: "2026-11-20T10:00:00Z" });
     const pass = await db.query<{ id: string }>(
-      `insert into passes (parent_id, child_id, level, sessions_total, price_pence) values ($1, $2, 'GCSE', 6, 10200) returning id`,
+      `insert into passes (parent_id, child_id, level, sessions_total, price_pence, status) values ($1, $2, 'GCSE', 6, 10200, 'active') returning id`,
       [parentId, childId],
     );
     await db.query("update bookings set pass_id = $1 where id = $2", [pass.rows[0].id, id]);
-    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: false, reason: "pass_seat" });
-    expect((await get(id)).status).toBe("confirmed");
+    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toMatchObject({ ok: true, outcome: "free" });
+    expect(await get(id)).toMatchObject({ status: "cancelled", payment_status: "unpaid", cancelled_by: "parent" });
+    expect((await db.query("select 1 from ledger")).rows).toEqual([]);
   });
 
   test("inside 48h the parent is told to call, even within the 14-day cooling-off (and the message says it is free)", async () => {
@@ -120,18 +121,6 @@ describe("cancelBookingForParent", () => {
     const unpaid = await insertBooking({ starts: "2026-11-20T10:00:00Z", paymentStatus: "unpaid" });
     expect(await cancelBookingForParent(parentId, unpaid, { now: NOW })).toMatchObject({ ok: true, outcome: "free" });
     expect((await db.query("select 1 from ledger")).rows).toEqual([]);
-  });
-
-  test("a free-cancelled week of a paid block is credited at that week's stored price", async () => {
-    const { rows } = await db.query<{ id: string }>(
-      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, status, created_at)
-       values ($1, $2, 'saturday', 6, 10200, 'paid', '2026-10-01T12:00:00Z') returning id`,
-      [parentId, childId],
-    );
-    const id = await insertBooking({ starts: "2026-11-20T10:00:00Z", block: rows[0].id });
-    await db.query("update bookings set price_pence = 1700, travel_fee_pence = 0 where id = $1", [id]);
-    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toMatchObject({ ok: true, outcome: "free" });
-    expect((await db.query("select kind::text, amount_pence from ledger")).rows).toEqual([{ kind: "credit", amount_pence: 1700 }]);
   });
 
   test("the London date is used for the credit (just after midnight in summer time)", async () => {

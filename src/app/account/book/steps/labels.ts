@@ -10,7 +10,8 @@ export const TYPE_LABEL: Record<WizardType, string> = {
   one_to_one: "1-to-1 lesson",
   group: "Group session",
   sunday_bundle: "Sunday bundle",
-  block: "Group block",
+  pass: "Group pass",
+  pass_session: "Session with your group pass",
 };
 
 /** Only locations a parent can be offered; "online" is only ever shown when enabled. */
@@ -19,8 +20,6 @@ export const LOCATION_LABEL: Partial<Record<LocationKind, string>> = {
   home_visit: "Home visit",
   online: "Online",
 };
-
-export const PRODUCT_LABEL = { saturday: "Saturday group", sunday_bundle: "Sunday bundle" } as const;
 
 /** "Monday 2 November 2026, 17:00" in London time. */
 export function londonWhen(iso: string | Date): string {

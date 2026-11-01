@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { LegalPage } from "@/components/site/LegalPage";
 import { publicSettings } from "@/lib/public/data";
-import { BLOCK_HOLD_HOURS, bookingWindowText } from "@/lib/policy";
+import { bookingWindowText } from "@/lib/policy";
 import { pageMetadata } from "@/lib/public/meta";
 import { FALLBACK_EMAIL } from "@/lib/site";
 
@@ -59,8 +59,10 @@ export default async function TermsPage() {
           </li>
         ) : null}
         <li>
-          Group sessions have a limited number of seats. Block bookings (6 or 10 weeks of the Saturday group or the Sunday
-          bundle) are held for {BLOCK_HOLD_HOURS} hours while you pay. If payment hasn&apos;t arrived by then, we may release the seats.
+          Group sessions have a limited number of seats. A group pass is 6 or 10 group sessions at your child&apos;s level
+          (KS3 or GCSE), paid by bank transfer. You can book sessions with it once we&apos;ve received the payment; it then
+          lasts {s.passValidityMonths} months, and each session must be booked at least {s.passMinNoticeDays} days ahead. A
+          Sunday bundle uses 2 sessions of a GCSE pass. Sessions not used by the end of the pass expire.
         </li>
         <li>All lessons last 60 minutes.</li>
       </ul>
@@ -86,8 +88,9 @@ export default async function TermsPage() {
         </li>
         <li>
           You can also cancel free of charge at any time in the first 14 days after making a booking, however close the
-          lesson is. This is your cooling-off period (see below). For a block booking, the 14 days count from when you booked
-          the block.
+          lesson is. This is your cooling-off period (see below). For a group pass, the 14 days count from when you bought
+          the pass: cancel it in that time and the value of the sessions you have not used goes back as account credit.
+          After that, unused sessions can&apos;t be refunded.
         </li>
         <li>When a cancellation is free, any money you have paid is refunded or kept as credit.</li>
         <li>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueReminders, expiredBlockHolds, blocksNeedingPaymentReminder } from "@/lib/email/reminders";
+import { dueReminders } from "@/lib/email/reminders";
 import type { Booking } from "@/lib/types";
 
 const NOW = new Date("2026-11-02T07:00:00Z");
@@ -78,27 +78,5 @@ describe("dueReminders", () => {
 
   it("ignores pending bookings", () => {
     expect(dueReminders([booking(30, { status: "pending" })], NOW)).toEqual([]);
-  });
-});
-
-describe("blocks", () => {
-  const block = (over: Record<string, unknown> = {}) => ({
-    id: "k",
-    status: "held",
-    createdAt: new Date(NOW.getTime() - 49 * H),
-    holdExpiresAt: new Date(NOW.getTime() + 23 * H),
-    ...over,
-  });
-
-  it("expiredBlockHolds returns unpaid held blocks past their hold", () => {
-    const expired = block({ holdExpiresAt: new Date(NOW.getTime() - H) });
-    expect(expiredBlockHolds([expired, block(), block({ status: "paid", holdExpiresAt: new Date(NOW.getTime() - H) })], NOW)).toEqual([expired]);
-  });
-
-  it("blocksNeedingPaymentReminder wants held blocks 48h old or more that have not expired", () => {
-    expect(blocksNeedingPaymentReminder([block()], NOW)).toHaveLength(1);
-    expect(blocksNeedingPaymentReminder([block({ createdAt: new Date(NOW.getTime() - 47 * H) })], NOW)).toHaveLength(0);
-    expect(blocksNeedingPaymentReminder([block({ status: "paid" })], NOW)).toHaveLength(0);
-    expect(blocksNeedingPaymentReminder([block({ holdExpiresAt: new Date(NOW.getTime() - H) })], NOW)).toHaveLength(0);
   });
 });

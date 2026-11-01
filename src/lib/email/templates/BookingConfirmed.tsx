@@ -11,8 +11,8 @@ export interface BookingConfirmedProps {
   teachingAddress: string | null;
   /** Shown only for online sessions. */
   meetingLink: string | null;
-  /** The block's SLC reference when the sessions belong to one block. */
-  blockReference: string | null;
+  /** Booked with a group pass: nothing to pay; shows what is left on the pass. */
+  pass?: { name: string; remaining: number; total: number } | null;
   noticeHours?: number;
 }
 
@@ -23,7 +23,7 @@ export function BookingConfirmed({
   bank,
   teachingAddress,
   meetingLink,
-  blockReference,
+  pass = null,
   noticeHours = DEFAULT_NOTICE_HOURS,
 }: BookingConfirmedProps) {
   const live = sessions.filter((s) => s.status !== "declined" && s.status !== "cancelled" && s.status !== "late_cancelled");
@@ -51,9 +51,15 @@ export function BookingConfirmed({
         meetingLink={meetingLink}
         noticeHours={noticeHours}
       />
-      <P>{`Total: ${formatPence(totalPence)}`}</P>
-      {live.length > 0 && !pendingHomeVisit && (
-        <BankBlock bank={bank} references={paymentReferences(live, blockReference)} totalPence={totalPence} />
+      {pass ? (
+        <P>{`Booked with your ${pass.name}: nothing more to pay. ${pass.remaining} of ${pass.total} sessions left on the pass.`}</P>
+      ) : (
+        <>
+          <P>{`Total: ${formatPence(totalPence)}`}</P>
+          {live.length > 0 && !pendingHomeVisit && (
+            <BankBlock bank={bank} references={paymentReferences(live)} totalPence={totalPence} />
+          )}
+        </>
       )}
       <AccountLink />
     </Layout>

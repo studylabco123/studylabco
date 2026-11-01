@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { addManualBooking } from "@/lib/admin/manual-booking";
 import { approveStudent, addNote, setBlocked } from "@/lib/admin/family-ops";
-import { decideHomeVisit, markAttended, markNoShow, recordLateCancellation, releaseBlock, tutorCancel } from "@/lib/admin/lifecycle";
-import { familyCreditPence, markBlockPaid, markPaid, payFromCredit, waiveFee } from "@/lib/admin/payments";
+import { decideHomeVisit, markAttended, markNoShow, recordLateCancellation, tutorCancel } from "@/lib/admin/lifecycle";
+import { familyCreditPence, markPaid, payFromCredit, waiveFee } from "@/lib/admin/payments";
 import { testOutbox } from "@/lib/email/send";
 import { londonDateOf } from "@/lib/time";
 import { closeDb, createChild, createUser, db, resetData } from "./setup";
@@ -124,58 +124,6 @@ describe("payments", () => {
     expect(l[0].booking_id).toBe(a);
   });
 
-  async function heldBlock(price = 10200, weeks = 6) {
-    const { rows } = await db.query<{ id: string }>(
-      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, hold_expires_at, status)
-       values ($1, $2, 'saturday', $3, $4, now() + interval '2 days', 'held') returning id`,
-      [parentId, childId, weeks, price],
-    );
-    return rows[0].id;
-  }
-
-  test("markBlockPaid marks the block and every row paid with one ledger payment of the block price", async () => {
-    const block = await heldBlock();
-    const rows = [await insertBooking(48, { block, price: 1700 }), await insertBooking(48 + 168, { block, price: 1700 })];
-    expect(await markBlockPaid(block, "bank_transfer")).toEqual({ ok: true });
-    expect((await one<{ status: string }>("select status from block_bookings where id = $1", [block])).status).toBe("paid");
-    for (const r of rows) expect((await bookingRow(r)).payment_status).toBe("paid");
-    expect(await ledger()).toEqual([
-      { kind: "payment", amount_pence: 10200, method: "bank_transfer", occurred_on: londonDateOf(new Date()), booking_id: null, block_booking_id: block },
-    ]);
-    expect((await markBlockPaid(block, "cash")).ok).toBe(false);
-    expect(await ledger()).toHaveLength(1);
-  });
-
-  test("markBlockPaid records the block price less weeks cancelled for free (I3)", async () => {
-    const block = await heldBlock(5100, 6);
-    await insertBooking(48, { block, price: 1700 });
-    const freed = await insertBooking(48 + 168, { block, price: 1700, status: "cancelled" });
-    await insertBooking(48 + 336, { block, price: 1700, status: "late_cancelled" });
-    expect(await markBlockPaid(block, "cash")).toEqual({ ok: true });
-    expect((await ledger()).map((l) => l.amount_pence)).toEqual([3400]);
-    // The week cancelled for free stays unpaid and cancelled: nothing was paid for it.
-    expect(await bookingRow(freed)).toMatchObject({ status: "cancelled", payment_status: "unpaid" });
-  });
-
-  test("a row of a block cannot be paid on its own", async () => {
-    const block = await heldBlock();
-    const id = await insertBooking(48, { block, price: 1700 });
-    expect((await markPaid(id, "cash")).ok).toBe(false);
-    expect(await ledger()).toEqual([]);
-  });
-
-  test("a taught session of a released block can be paid on its own, once", async () => {
-    const block = await heldBlock();
-    const taught = await insertBooking(-48, { block, status: "attended", price: 1700, travel: 0 });
-    await insertBooking(48, { block, price: 1700 });
-    expect(await releaseBlock(block)).toEqual({ ok: true });
-    expect(await markPaid(taught, "cash")).toEqual({ ok: true });
-    expect((await bookingRow(taught)).payment_status).toBe("paid");
-    expect(await ledger()).toMatchObject([{ kind: "payment", amount_pence: 1700, booking_id: taught, block_booking_id: null }]);
-    expect((await markPaid(taught, "cash")).ok).toBe(false);
-    expect(await ledger()).toHaveLength(1);
-  });
-
   test("a pending home visit cannot be marked paid", async () => {
     const id = await insertBooking(48, { status: "pending", location: "home_visit", address: "1 Road" });
     expect((await markPaid(id, "cash")).ok).toBe(false);
@@ -272,20 +220,11 @@ describe("recordLateCancellation", () => {
     await db.query("update settings set late_fee_percent = 50");
   });
 
-  test("refuses finished, already cancelled and pass-seat bookings", async () => {
+  test("refuses finished and already cancelled bookings", async () => {
     const done = await insertBooking(-5, { status: "attended" });
     const gone = await insertBooking(10, { status: "cancelled" });
     expect((await recordLateCancellation(done)).ok).toBe(false);
     expect((await recordLateCancellation(gone)).ok).toBe(false);
-    const seat = await insertBooking(10);
-    const pass = await db.query<{ id: string }>(
-      "insert into passes (parent_id, child_id, level, sessions_total, price_pence) values ($1, $2, 'GCSE', 6, 10200) returning id",
-      [parentId, childId],
-    );
-    await db.query("update bookings set pass_id = $1 where id = $2", [pass.rows[0].id, seat]);
-    const r = await recordLateCancellation(seat);
-    expect(r.ok).toBe(false);
-    expect((await bookingRow(seat)).status).toBe("confirmed");
   });
 });
 
@@ -320,15 +259,6 @@ describe("pay from credit (R23)", () => {
       [parent, amount],
     );
   }
-  async function heldBlock(price: number) {
-    const { rows } = await db.query<{ id: string }>(
-      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, hold_expires_at, status)
-       values ($1, $2, 'saturday', 6, $3, now() + interval '2 days', 'held') returning id`,
-      [parentId, childId, price],
-    );
-    return rows[0].id;
-  }
-
   test("the family credit is credit issued minus credit applied", async () => {
     await credit(2500);
     await credit(1000);
@@ -382,18 +312,6 @@ describe("pay from credit (R23)", () => {
     ];
     for (const id of rows) expect((await payFromCredit(id)).ok).toBe(false);
     expect(await familyCreditPence(parentId)).toBe(10000);
-  });
-
-  test("a week of a held block pays the whole block from credit, at its amount due (I3)", async () => {
-    await credit(5000);
-    const block = await heldBlock(5100);
-    const a = await insertBooking(48, { block, price: 1700 });
-    await insertBooking(48 + 168, { block, price: 1700 });
-    await insertBooking(48 + 336, { block, price: 1700, status: "cancelled" });
-    expect(await payFromCredit(a)).toEqual({ ok: true });
-    expect((await one<{ status: string }>("select status from block_bookings where id = $1", [block])).status).toBe("paid");
-    expect((await ledger()).find((l) => l.kind === "credit_applied")).toMatchObject({ amount_pence: 3400, block_booking_id: block });
-    expect(await familyCreditPence(parentId)).toBe(1600);
   });
 
   test("two applications at once cannot overspend the balance", async () => {
@@ -573,31 +491,6 @@ describe("family ops", () => {
     expect(await addNote(childId, "  Struggles with moles  ")).toEqual({ ok: true });
     expect((await db.query("select body from tutor_notes")).rows).toEqual([{ body: "Struggles with moles" }]);
     expect((await addNote(childId, "   ")).ok).toBe(false);
-  });
-});
-
-describe("releaseBlock", () => {
-  test("releases a held block and cancels its future bookings by the tutor", async () => {
-    const { rows } = await db.query<{ id: string }>(
-      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, hold_expires_at, status)
-       values ($1, $2, 'saturday', 6, 10200, now() - interval '1 day', 'held') returning id`,
-      [parentId, childId],
-    );
-    const block = rows[0].id;
-    const future = await insertBooking(48, { block });
-    const past = await insertBooking(-48, { block, status: "attended" });
-    expect(await releaseBlock(block)).toEqual({ ok: true });
-    expect((await one<{ status: string }>("select status from block_bookings where id = $1", [block])).status).toBe("released");
-    expect(await bookingRow(future)).toMatchObject({ status: "cancelled", cancelled_by: "tutor" });
-    expect((await bookingRow(past)).status).toBe("attended");
-  });
-  test("a paid block is refused", async () => {
-    const { rows } = await db.query<{ id: string }>(
-      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, status)
-       values ($1, $2, 'saturday', 6, 10200, 'paid') returning id`,
-      [parentId, childId],
-    );
-    expect((await releaseBlock(rows[0].id)).ok).toBe(false);
   });
 });
 

@@ -352,12 +352,12 @@ describe("settings", () => {
   test("saveSettings writes every field, incl. the location toggles, and restores", async () => {
     const [s0, p0] = [await getSettings(), await getPrivateSettings()];
     try {
-      const input = { ...settingsToFormInput(s0, p0), onlineEnabled: true, priceOneToOne: "30", blockSaturday10: "170.50", bankSortCode: "123456", bankAccountNumber: "87654321", groupVenue: "Hall" };
+      const input = { ...settingsToFormInput(s0, p0), onlineEnabled: true, priceOneToOne: "30", passGcse10: "170.50", bankSortCode: "123456", bankAccountNumber: "87654321", groupVenue: "Hall" };
       expect(await saveSettings(input)).toEqual({ ok: true });
       const [s1, p1] = [await getSettings(), await getPrivateSettings()];
       expect(s1.onlineEnabled).toBe(true);
       expect(s1.priceOneToOnePence).toBe(3000);
-      expect(s1.blockPrices.saturday[10]).toBe(17050);
+      expect(s1.passPrices.GCSE["10"]).toBe(17050);
       expect(s1.groupVenue).toBe("Hall");
       expect(p1.bankSortCode).toBe("12-34-56");
       expect(p1.bankAccountNumber).toBe("87654321");

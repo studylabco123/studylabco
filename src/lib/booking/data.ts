@@ -37,7 +37,7 @@ export interface ServiceOptions {
   now?: Date;
   /** Runs after the slot check and before the insert (tests simulate races here). */
   afterSlotCheck?: () => Promise<void>;
-  /** Group bookings: runs after planning (and the block row insert), before any seat is taken. */
+  /** Group bookings: runs after the checks, before any seat is taken. */
   beforeSeats?: () => Promise<void>;
 }
 
@@ -172,17 +172,11 @@ export async function recordCoolingOff(parentId: string, bookingId: string): Pro
   if (error) fail("Could not record cooling-off consent", error);
 }
 
-/** Removes bookings (and a block row) created by a multi-seat request that failed part-way. */
-export async function rollback(bookingIds: string[], blockId?: string): Promise<void> {
-  const c = db();
-  if (bookingIds.length) {
-    const { error } = await c.from("bookings").delete().in("id", bookingIds);
-    if (error) fail("Could not roll back bookings", error);
-  }
-  if (blockId) {
-    const { error } = await c.from("block_bookings").delete().eq("id", blockId);
-    if (error) fail("Could not roll back block", error);
-  }
+/** Removes bookings created by a multi-seat request that failed part-way. */
+export async function rollback(bookingIds: string[]): Promise<void> {
+  if (!bookingIds.length) return;
+  const { error } = await db().from("bookings").delete().in("id", bookingIds);
+  if (error) fail("Could not roll back bookings", error);
 }
 
 /** Maps Postgres errors from inserts and reserve_group_seat to booking failures. */
@@ -193,6 +187,10 @@ export function mapDbError(error: { code?: string; message?: string }): BookingF
     if (error.message === "session_full") return "session_full";
     if (error.message === "session_cancelled") return "session_cancelled";
     if (error.message === "session_not_found") return "session_unavailable";
+    if (error.message === "pass_not_found") return "pass_not_found";
+    if (error.message === "pass_not_usable") return "pass_not_usable";
+    if (error.message === "pass_used_up") return "pass_used_up";
+    if (error.message === "level_mismatch") return "level_mismatch";
   }
   return null;
 }

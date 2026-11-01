@@ -10,11 +10,13 @@ export type BookingFailure =
   | "already_booked"
   | "session_full"
   | "session_cancelled"
-  | "session_unavailable";
+  | "session_unavailable"
+  | "pass_not_found"
+  | "pass_not_usable"
+  | "pass_too_soon"
+  | "pass_used_up";
 
-export type BookingResult =
-  | { ok: true; bookingId: string }
-  | { ok: false; reason: BookingFailure; fullDate?: string };
+export type BookingResult = { ok: true; bookingId: string } | { ok: false; reason: BookingFailure };
 
 export const COOLING_OFF_TEXT =
   "I want lessons to start within 14 days and understand I lose the right to cancel once a lesson has taken place.";
@@ -29,12 +31,14 @@ export const BookingFailureMessage: Record<BookingFailure, string> = {
   session_full: "Sorry, that session is full.",
   session_cancelled: "Sorry, that session has been cancelled.",
   session_unavailable: "That session can no longer be booked. Please choose another.",
+  pass_not_found: "We could not find that group pass.",
+  pass_not_usable:
+    "This group pass can't be used right now. Sessions unlock once we've received your payment, and a pass can't be used after it expires.",
+  pass_too_soon: "That session is too soon to book with a group pass. Please choose a later one.",
+  pass_used_up: "There are not enough sessions left on this group pass.",
 };
 
-/** Parent-facing message; names the full week for blocks. */
-export function failureMessage(reason: BookingFailure, fullDateLabel?: string): string {
-  if (reason === "session_full" && fullDateLabel) {
-    return `Sorry, the session on ${fullDateLabel} is full, so this block can't be booked. Please choose another start date.`;
-  }
+/** Parent-facing message. */
+export function failureMessage(reason: BookingFailure): string {
   return BookingFailureMessage[reason];
 }

@@ -187,12 +187,14 @@ interface CancelRow {
   parent_id: string | null;
   price_pence: number;
   payment_status: string;
+  pass_id: string | null;
 }
 
 /**
  * Cancels a group session and every pending/confirmed seat on it (free for the
  * family, whatever the notice). A paid seat is refunded or credited per
- * `refund` (ledger entry dated today in London). Each family is emailed; an
+ * `refund` (ledger entry dated today in London); a seat booked with a group
+ * pass goes back on the pass (no ledger entry). Each family is emailed; an
  * email failure never undoes the cancellation.
  */
 export async function cancelSession(sessionId: string, refund: boolean, opts: OpOptions = {}): Promise<AdminResult> {
@@ -208,16 +210,17 @@ export async function cancelSession(sessionId: string, refund: boolean, opts: Op
   }
   if (!flipped.data?.length) return fail("This session is already cancelled or could not be found.");
 
-  const seats = await db().from("bookings").select("id, parent_id, price_pence, payment_status").eq("group_session_id", sessionId).in("status", [...LIVE]);
+  const seats = await db().from("bookings").select("id, parent_id, price_pence, payment_status, pass_id").eq("group_session_id", sessionId).in("status", [...LIVE]);
   if (seats.error) return unexpected("load seats", seats.error);
 
   let ledgerFailed = false;
   // One email per family, however many children they had on the session.
   const families = new Map<string, { bookingId: string; paid: boolean }>();
   for (const seat of seats.data as CancelRow[]) {
-    const wasPaid = seat.payment_status === "paid";
+    const wasPaid = seat.payment_status === "paid" && !seat.pass_id;
     const patch: Record<string, unknown> = { status: "cancelled", cancelled_by: "tutor", cancelled_at: now.toISOString() };
-    if (wasPaid) patch.payment_status = refund ? "refunded" : "credited";
+    if (seat.pass_id) patch.payment_status = "unpaid";
+    else if (wasPaid) patch.payment_status = refund ? "refunded" : "credited";
     const up = await db().from("bookings").update(patch).eq("id", seat.id).in("status", [...LIVE]).select("id");
     if (up.error) {
       console.error("admin: cancel seat failed", up.error.message);

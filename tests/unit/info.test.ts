@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { COOLING_OFF_INFO, CREDIT_INFO, lateFeeInfo, locationInfo, typeInfo } from "@/lib/booking/info";
 
-const s = { lateFeePercent: 50, cancellationNoticeHours: 48, travelFeePence: 500, allowedPostcodeDistricts: ["BB1", "BB2"] };
+const s = {
+  lateFeePercent: 50,
+  cancellationNoticeHours: 48,
+  travelFeePence: 500,
+  allowedPostcodeDistricts: ["BB1", "BB2"],
+  passValidityMonths: 6,
+  passMinNoticeDays: 7,
+};
 const FORBIDDEN = /\b(fine|fines|penalty|penalties|waiver|waive)\b/i;
 
 describe("info texts", () => {
   const all = [
-    ...(["assessment", "one_to_one", "group", "sunday_bundle", "block"] as const).flatMap((t) => [typeInfo(t, "KS3", s), typeInfo(t, "GCSE", s)]),
+    ...(["assessment", "one_to_one", "group", "sunday_bundle", "pass", "pass_session"] as const).flatMap((t) => [typeInfo(t, "KS3", s), typeInfo(t, "GCSE", s)]),
     ...(["tutor_place", "home_visit", "online"] as const).map((l) => locationInfo(l, s)),
     COOLING_OFF_INFO,
     lateFeeInfo(s),
@@ -41,6 +48,26 @@ describe("info texts", () => {
     expect(typeInfo("group", "KS3", s)).toContain("Years 7–9");
     expect(typeInfo("group", "GCSE", s)).toContain("GCSE");
     expect(typeInfo("assessment", "KS3", s)).toContain("Year 9");
+  });
+
+  it("cooling-off and credit texts mention group passes", () => {
+    expect(COOLING_OFF_INFO).toMatch(/group pass/);
+    expect(COOLING_OFF_INFO).toMatch(/unused sessions go back as account credit/);
+    expect(CREDIT_INFO).toMatch(/group pass/);
+  });
+
+  it("pass texts explain payment, validity, notice, the 14-day rule and Sunday bundles", () => {
+    const ks3 = typeInfo("pass", "KS3", s);
+    expect(ks3).toContain("once we've received the payment");
+    expect(ks3).toContain("6 months");
+    expect(ks3).toContain("at least a week");
+    expect(ks3).toContain("If you change your mind within 14 days of buying, unused sessions go back as credit");
+    expect(ks3).not.toContain("Sunday bundle");
+    expect(typeInfo("pass", "GCSE", s)).toContain("A Sunday bundle (both Sunday sessions) uses 2.");
+    expect(typeInfo("pass", "KS3", { ...s, passMinNoticeDays: 10, passValidityMonths: 3 })).toMatch(/3 months.*at least 10 days/);
+    const session = typeInfo("pass_session", "KS3", s);
+    expect(session).toContain("goes back on your pass");
+    expect(session).toContain("50% of one session's value");
   });
 
   it("home visit text gives the travel fee and postcodes", () => {

@@ -141,21 +141,30 @@ describe("buildTaxPack", () => {
     const next = { label: "2027-28", start: "2027-04-06", end: "2028-04-05" };
     expect(buildTaxPack(next, l, [b], [], []).unpaidAtEnd).toEqual([]);
   });
-  test("a payment, waiver or credit on the booking, its bundle or its block settles it", () => {
+  test("a payment, waiver or credit on the booking or its bundle settles it", () => {
     const bs = [
       booking({ id: "w" }),
       booking({ id: "b1", bundleId: "bun" }),
       booking({ id: "b2", bundleId: "bun" }),
-      booking({ id: "k", blockBookingId: "blk" }),
       booking({ id: "r" }),
     ];
     const l = [
       led({ bookingId: "w", kind: "waiver", occurredOn: "2027-03-02" }),
       led({ bookingId: "b1", occurredOn: "2027-03-02" }),
-      led({ blockBookingId: "blk", occurredOn: "2027-03-02" }),
       led({ bookingId: "r", kind: "refund", occurredOn: "2027-03-02" }),
     ];
     expect(buildTaxPack(range, l, bs, [], []).unpaidAtEnd).toHaveLength(1);
+  });
+  test("a group pass payment is income labelled Group pass; its sessions are never owed, only their fees", () => {
+    const l = [led({ passId: "p1", parentId: "p1", amountPence: 7900, occurredOn: "2026-11-02", note: "" })];
+    const bs = [
+      booking({ id: "s1", passId: "p1", pricePence: 1316, status: "attended" }),
+      booking({ id: "s2", passId: "p1", pricePence: 1316, status: "late_cancelled", feePence: 658 }),
+    ];
+    const p = buildTaxPack(range, l, bs, [], [], new Map([["p1", "Jo Bloggs"]]));
+    expect(p.income).toEqual([expect.objectContaining({ label: "Group pass", detail: "Jo Bloggs · Group pass", amountPence: 7900 })]);
+    expect(p.summary.turnoverPence).toBe(7900);
+    expect(p.unpaidAtEnd.map((r) => r.amountPence)).toEqual([658]);
   });
   test("names are looked up for rows", () => {
     const p = buildTaxPack(range, [led({ parentId: "p1", amountPence: 5, occurredOn: "2026-10-01" })], [], [], [], new Map([["p1", "Jo Bloggs"]]));

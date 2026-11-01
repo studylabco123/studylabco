@@ -10,13 +10,11 @@ export type CancelResult =
   | { ok: true; outcome: "free"; feePence: 0 }
   | { ok: false; reason: "not_found" | "not_cancellable" | "error" }
   /** Inside the notice window: the parent must call or email; the tutor records any late cancellation. */
-  | { ok: false; reason: "call_required"; free: boolean }
-  /** A pass seat: cancelled through the pass flow (Task V5), not here. */
-  | { ok: false; reason: "pass_seat" };
+  | { ok: false; reason: "call_required"; free: boolean };
 
 /**
- * A parent cancels one booking row (one Sunday session, or one week of a
- * block) on the website.
+ * A parent cancels one booking row (one Sunday session, or one session booked
+ * with a group pass) on the website.
  *
  * - Only the parent's own pending/confirmed bookings that start in the future.
  * - Only while the lesson is at least `cancellationNoticeHours` away
@@ -25,11 +23,13 @@ export type CancelResult =
  *   `recordLateCancellation` (which applies the 14-day cooling-off and the
  *   late cancellation fee). There is no late path here. A pending home
  *   visit (never confirmed) is the exception: free online at any time.
- * - Pass seats are refused with 'pass_seat' (handled by the pass flow).
  * - A free cancel of a paid booking sets payment_status 'credited' and writes a
- *   ledger 'credit' for what was paid for that row (price plus travel; a block
- *   week's stored price), dated today in London, like the tutor path (Ruling
- *   R23). The tutor can spend it with "Pay from credit" or refund it.
+ *   ledger 'credit' for what was paid for that row (price plus travel), dated
+ *   today in London, like the tutor path (Ruling R23). The tutor can spend it
+ *   with "Pay from credit" or refund it.
+ * - A pass seat's session goes back on the pass instead: no credit, no fee
+ *   (payment_status 'unpaid'). Its 14-day cooling-off counts from when the
+ *   pass was bought.
  * - The update is conditional on the status still being pending/confirmed, so
  *   two racing cancels cannot both succeed.
  */
@@ -48,16 +48,15 @@ export async function cancelBookingForParent(
   if ((booking.status !== "pending" && booking.status !== "confirmed") || booking.startsAt.getTime() <= now.getTime()) {
     return { ok: false, reason: "not_cancellable" };
   }
-  if (booking.passId) return { ok: false, reason: "pass_seat" };
 
   const settings = await getSettings();
   // A pending home visit was never confirmed by the tutor, so it can be cancelled online at any time, free (Ruling R5).
   const neverConfirmed = booking.status === "pending" && booking.location === "home_visit";
   if (!neverConfirmed && !parentCanCancelOnline(booking.startsAt, now, settings.cancellationNoticeHours)) {
     let bookedAt = booking.createdAt;
-    if (booking.blockBookingId) {
-      const block = await c.from("block_bookings").select("created_at").eq("id", booking.blockBookingId).maybeSingle();
-      if (block.data) bookedAt = new Date(block.data.created_at as string);
+    if (booking.passId) {
+      const pass = await c.from("passes").select("created_at").eq("id", booking.passId).maybeSingle();
+      if (pass.data) bookedAt = new Date(pass.data.created_at as string);
     }
     const free = cancellationDecision(booking.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt).reason === "cooling_off";
     return { ok: false, reason: "call_required", free };
@@ -68,7 +67,8 @@ export async function cancelBookingForParent(
     cancelled_at: now.toISOString(),
     cancelled_by: "parent",
   };
-  if (booking.paymentStatus === "paid") patch.payment_status = "credited";
+  if (booking.passId) patch.payment_status = "unpaid";
+  else if (booking.paymentStatus === "paid") patch.payment_status = "credited";
   const updated = await c
     .from("bookings")
     .update(patch)

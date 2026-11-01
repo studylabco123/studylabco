@@ -378,7 +378,7 @@ test.describe("settings", () => {
   test("the settings page has every section and no axe violations", async ({ page }) => {
     await adminLogin(page);
     await page.goto("/admin/settings");
-    for (const name of ["Prices", "Block prices", "Where lessons can happen", "Booking rules", "Business details", "Bank and teaching details", "Calendar link", "Backup"]) {
+    for (const name of ["Prices", "Pass prices", "Where lessons can happen", "Booking rules", "Business details", "Bank and teaching details", "Calendar link", "Backup"]) {
       await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
     }
     for (const toggle of ["Tutor's place", "Home visits", "Online"]) await expect(page.getByRole("checkbox", { name: toggle, exact: true })).toBeVisible();

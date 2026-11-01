@@ -4,20 +4,21 @@
  *
  * parent signs up → adds a child → signs the agreement → books an Assessment
  * Lesson at the tutor's place → admin (TOTP) marks it attended (and paid) and
- * approves the child → parent books a Saturday 6-week block (£102) → the
- * dashboard shows the 6 sessions and the block's reference → parent
- * late-cancels week 1 (fee dialog) → admin marks the block paid → admin
- * downloads the Tax Year Pack, whose Income sheet holds the £102 payment.
+ * approves the child → parent buys a KS3 6-session group pass (£79) → admin
+ * marks it paid → parent books a Saturday session with it → near the session
+ * the parent is told to call → the tutor records the late cancellation (the
+ * session goes back on the pass, £6.58 owed) → admin downloads the Tax Year
+ * Pack, whose Income sheet holds the £79 group pass payment.
  *
  * Time travel, done with the service client because the server's clock can't
  * be moved:
  * - The assessment is moved into the past ("the lesson takes place") so the
  *   admin can mark it attended (only started lessons can be).
- * - Before the late cancellation the block's created_at is set 20 days back
- *   and week 1 is moved to start in about a day ("the parent comes back near
- *   the first lesson"). A cancellation within 14 days of booking is free
- *   (cooling-off, Ruling R20), so without the backdating the dialog would
- *   rightly offer a free cancellation and the fee path would go untested.
+ * - Before the late cancellation the pass's created_at is set 20 days back
+ *   and the session is moved to start in about a day ("the parent comes back
+ *   near the session"). A cancellation within 14 days of buying the pass is
+ *   free (cooling-off), so without the backdating it would rightly be free
+ *   and the fee path would go untested.
  */
 import { expect, test, type Browser, type Page, type TestInfo } from "@playwright/test";
 import ExcelJS from "exceljs";
@@ -81,7 +82,7 @@ async function moveBooking(id: string, at: () => Date) {
   }
 }
 
-test("journey: sign up, assessment, approval, Saturday block, late cancel, block paid, tax pack", async ({
+test("journey: sign up, assessment, approval, group pass paid, pass session, late cancel, tax pack", async ({
   page,
   browser,
   baseURL,
@@ -155,54 +156,63 @@ test("journey: sign up, assessment, approval, Saturday block, late cancel, block
   await admin.getByRole("button", { name: `Approve ${child.first} for lessons` }).click();
   await expect(admin.getByText("Approved", { exact: true })).toBeVisible();
 
-  // 5. Parent books a Saturday 6-week block for £102. The Saturday group is KS3 only, so the child is a KS3 pupil from here.
+  // 5. Parent buys a KS3 6-session group pass for £79. The Saturday group is KS3 only, so the child is a KS3 pupil from here.
   await service.from("children").update({ school_year: 8, level: "KS3", exam_board: null, tier: null }).eq("parent_id", parent.id);
   await page.goto("/account/book");
   await page.getByRole("button", { name: new RegExp(`^${childName}`) }).click();
-  await page.getByRole("button", { name: /^Group block/ }).click();
-  await page.getByLabel("Saturday group").check();
-  await page.getByLabel("6 weeks, £102").check();
-  await page.getByRole("button", { name: /^Starting / }).first().click();
-  await expect(page.getByTestId("total")).toHaveText("£102");
+  await page.getByRole("button", { name: /^Group pass/ }).click();
+  await page.getByRole("button", { name: /^6 sessions/ }).click();
+  await expect(page.getByTestId("total")).toHaveText("£79");
   await page.getByLabel(COOLING_OFF).check();
-  await page.getByRole("button", { name: "Confirm booking" }).click();
-  await expect(page).toHaveURL(/\/account\/bookings\//);
-  await expect(page.getByTestId("booking-total")).toHaveText("£102");
-  const reference = (await page.getByTestId("reference").textContent())!;
+  await page.getByRole("button", { name: "Buy pass" }).click();
+  const passes = page.getByRole("region", { name: "Group passes" });
+  await expect(passes.getByText("KS3 group pass — 6 sessions — awaiting payment")).toBeVisible();
+  const reference = (await passes.getByTestId("pass-reference").textContent())!.trim();
   expect(reference).toMatch(/^SLC-\d{4,}$/);
 
-  // 6. The dashboard shows all 6 sessions, each with the block's reference to pay with.
-  await page.goto("/account");
-  const upcoming = page.getByRole("region", { name: "Upcoming bookings" });
-  for (let week = 1; week <= 6; week++) {
-    await expect(upcoming.getByText(`Week ${week} of 6`, { exact: true })).toBeVisible();
-  }
-  await expect(upcoming.getByText(`Reference ${reference}`)).toHaveCount(6);
+  // 6. Admin marks the pass paid (one £79 payment, counted as income).
+  await admin.goto("/admin/money");
+  await admin.getByRole("button", { name: `Mark pass paid (bank transfer) for ${reference}` }).click();
+  await expect(admin.getByRole("button", { name: `Mark pass paid (bank transfer) for ${reference}` })).toHaveCount(0);
+  const pass = (await service.from("passes").select("id, price_pence, status").eq("payment_reference", reference).single()).data!;
+  expect(pass).toMatchObject({ price_pence: 7900, status: "active" });
+  const ledger = await service.from("ledger").select("kind, amount_pence, method").eq("pass_id", pass.id);
+  expect(ledger.data).toEqual([{ kind: "payment", amount_pence: 7900, method: "bank_transfer" }]);
 
-  // 7. Near week 1, outside the cooling-off, the parent sees the call/email message instead of a cancel button.
-  const block = (await service.from("block_bookings").select("id, price_pence").eq("payment_reference", reference).single()).data!;
-  expect(block.price_pence).toBe(10200);
-  const weeks = (await service.from("bookings").select("id").eq("block_booking_id", block.id).order("starts_at")).data!;
-  expect(weeks).toHaveLength(6);
-  await service.from("block_bookings").update({ created_at: new Date(Date.now() - 20 * DAY).toISOString() }).eq("id", block.id);
-  await moveBooking(weeks[0].id, () => new Date(Date.now() + DAY + randomInt(0, 12) * 5 * 60_000));
-
+  // 7. The parent books a Saturday session a week or more ahead with the pass.
   await page.reload();
-  const week1 = upcoming.getByRole("listitem").filter({ hasText: "Week 1 of 6" });
-  // Inside 48 hours the parent cannot cancel online: they are told to call or email.
-  await expect(week1.getByText(/Less than 48 hours to go — please call or email Study Lab Co to cancel\. A 50% late cancellation fee applies\./)).toBeVisible();
-  await expect(week1.getByRole("button", { name: "Cancel booking" })).toHaveCount(0);
-  expect((await service.from("bookings").select("status").eq("id", weeks[0].id).single()).data?.status).toBe("confirmed");
+  await passes.getByRole("link", { name: "Book a session" }).click();
+  const options = page.locator("[data-pass-session]");
+  await expect(options.first()).toBeVisible();
+  await options.nth(randomInt(0, await options.count())).click();
+  await page.getByRole("button", { name: "Book with pass" }).click();
+  await expect(page).toHaveURL(/\/account\/bookings\/[0-9a-f-]{36}$/);
+  const seatId = page.url().split("/").pop()!;
+  await page.goto("/account");
+  await expect(passes.getByText(/^KS3 group pass — 5 of 6 sessions left — expires /)).toBeVisible();
 
-  // 8. Admin marks the block paid (one £102 payment covers every week, the cancelled one included).
+  // 8. Near the session, outside the cooling-off, the parent sees the call/email message instead of a cancel button.
+  await service.from("passes").update({ created_at: new Date(Date.now() - 20 * DAY).toISOString() }).eq("id", pass.id);
+  await moveBooking(seatId, () => new Date(Date.now() + DAY + randomInt(0, 12) * 5 * 60_000));
+  await page.reload();
+  const upcoming = page.getByRole("region", { name: "Upcoming bookings" });
+  const seat = upcoming.getByRole("listitem").filter({ hasText: "Group pass" });
+  await expect(seat.getByText(/Less than 48 hours to go — please call or email Study Lab Co to cancel\. A 50% late cancellation fee applies\./)).toBeVisible();
+  await expect(seat.getByRole("button", { name: "Cancel booking" })).toHaveCount(0);
+
+  // 9. The parent phones; the tutor records the late cancellation: the session goes back on the pass and half a session's value (£6.58) is owed.
   await admin.goto(`/admin/bookings?filter=all&q=${tag}`);
-  await admin.getByRole("button", { name: `Mark block paid (bank transfer) for ${childName} ${reference}` }).click();
-  await expect(admin.getByText(reference)).toHaveCount(0);
-  expect((await service.from("block_bookings").select("status").eq("id", block.id).single()).data?.status).toBe("paid");
-  const ledger = await service.from("ledger").select("kind, amount_pence, method").eq("block_booking_id", block.id);
-  expect(ledger.data).toEqual([{ kind: "payment", amount_pence: 10200, method: "bank_transfer" }]);
+  const card = admin.locator(`[data-booking-id="${seatId}"]`);
+  await expect(card.getByText("Pass", { exact: true })).toBeVisible();
+  await card.getByRole("button", { name: `Record late cancellation for ${childName}` }).click();
+  await admin.getByRole("button", { name: "Yes, record it" }).click();
+  await expect(card.getByText("Late cancelled", { exact: true })).toBeVisible();
+  expect((await service.from("bookings").select("status, fee_pence").eq("id", seatId).single()).data).toEqual({ status: "late_cancelled", fee_pence: 658 });
+  await page.reload();
+  await expect(page.getByTestId("owed")).toHaveText("£6.58");
+  await expect(passes.getByText(/^KS3 group pass — 6 of 6 sessions left — expires /)).toBeVisible();
 
-  // 9. Admin downloads the Tax Year Pack: the Income sheet has the £102 (10200 pence) block payment.
+  // 10. Admin downloads the Tax Year Pack: the Income sheet has the £79 (7900 pence) group pass payment.
   await admin.goto("/admin/money/tax");
   await expect(admin.getByRole("heading", { name: "Tax Year Pack" })).toBeVisible();
   const year = (await admin.locator("h2").first().textContent())!.slice(0, 7);
@@ -218,10 +228,10 @@ test("journey: sign up, assessment, approval, Saturday block, late cancel, block
       ours.push({ family, method: String(row.getCell(3).value), amount: Number(row.getCell(4).value) });
     }
   });
-  const blockRow = ours.find((r) => r.family.includes("Block booking"));
-  expect(blockRow).toEqual({ family: `${fullName} · Block booking`, method: "Bank transfer", amount: 102 });
-  expect(Math.round(blockRow!.amount * 100)).toBe(10200);
-  expect(ours.map((r) => r.amount).sort((a, b) => a - b)).toEqual([10, 102]);
+  const passRow = ours.find((r) => r.family.includes("Group pass"));
+  expect(passRow).toEqual({ family: `${fullName} · Group pass (KS3, 6 sessions)`, method: "Bank transfer", amount: 79 });
+  expect(Math.round(passRow!.amount * 100)).toBe(7900);
+  expect(ours.map((r) => r.amount).sort((a, b) => a - b)).toEqual([10, 79]);
 
   await admin.context().close();
 });

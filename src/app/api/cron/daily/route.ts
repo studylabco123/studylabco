@@ -1,19 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { businessInbox, siteUrl } from "@/lib/email/config";
-import {
-  bankDetails,
-  buildLines,
-  loadBookings,
-  loadPeople,
-} from "@/lib/email/notifications";
-import { blocksNeedingPaymentReminder, dueReminders, expiredBlockHolds, type BlockHoldRow } from "@/lib/email/reminders";
+import { runPassCron } from "@/lib/booking/pass-service";
+import { bankDetails, buildLines, loadBookings, loadPeople } from "@/lib/email/notifications";
+import { dueReminders } from "@/lib/email/reminders";
 import { sendEmail } from "@/lib/email/send";
-import { blockDuePence } from "@/lib/booking/payment-view";
-import { formatPence } from "@/lib/format";
 import { createServiceClient } from "@/lib/supabase/service";
 import { addDays, londonDateOf } from "@/lib/time";
-import type { BookingStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -25,18 +17,10 @@ function authorised(request: Request): boolean {
   return given.length === wanted.length && timingSafeEqual(given, wanted);
 }
 
-interface BlockRow extends BlockHoldRow {
-  parentId: string | null;
-  reference: string;
-  /** The block's amount due: its price less weeks cancelled for free. */
-  pricePence: number;
-  weeks: number;
-}
-
 /**
- * Vercel Cron (07:00 daily). Sends due reminders and block-payment checks
- * (all idempotent through email_log), then makes sure group sessions exist 12
- * weeks ahead. Doing a database round trip also keeps the Supabase project awake.
+ * Vercel Cron (07:00 daily). Sends due reminders and group-pass payment
+ * reminders (all idempotent through email_log), marks expired passes, then
+ * makes sure group sessions exist 12 weeks ahead. Doing a database round trip also keeps the Supabase project awake.
  */
 export async function GET(request: Request): Promise<Response> {
   if (!authorised(request)) return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
@@ -46,13 +30,13 @@ export async function GET(request: Request): Promise<Response> {
   const counts = {
     freeCancelReminders: 0,
     lessonReminders: 0,
-    blockPaymentReminders: 0,
-    expiredBlockNotices: 0,
+    passPaymentReminders: 0,
+    passesExpired: 0,
     skipped: 0,
     failed: 0,
     groupSessionsCreated: 0,
   };
-  const tally = (r: "sent" | "skipped", key: "freeCancelReminders" | "lessonReminders" | "blockPaymentReminders" | "expiredBlockNotices") => {
+  const tally = (r: "sent" | "skipped", key: "freeCancelReminders" | "lessonReminders") => {
     if (r === "sent") counts[key]++;
     else counts.skipped++;
   };
@@ -102,93 +86,12 @@ export async function GET(request: Request): Promise<Response> {
     }
   });
 
-  // Block holds: remind the parent at 48 h, tell the business once a hold has run out.
-  await guard("block holds", async () => {
-    const { data, error } = await c
-      .from("block_bookings")
-      .select("id, status, created_at, hold_expires_at, parent_id, payment_reference, price_pence, weeks")
-      .eq("status", "held");
-    if (error) throw new Error(error.message);
-    // Weeks cancelled for free come off what a held block owes (review I3).
-    const ids = (data as { id: string }[]).map((r) => r.id);
-    const seats = ids.length
-      ? await c.from("bookings").select("block_booking_id, status, price_pence").in("block_booking_id", ids)
-      : { data: [], error: null };
-    if (seats.error) throw new Error(seats.error.message);
-    const seatsOf = (id: string) =>
-      (seats.data as { block_booking_id: string; status: string; price_pence: number }[])
-        .filter((r) => r.block_booking_id === id)
-        .map((r) => ({ status: r.status as BookingStatus, pricePence: r.price_pence }));
-    const blocks: BlockRow[] = (
-      data as {
-        id: string;
-        status: string;
-        created_at: string;
-        hold_expires_at: string | null;
-        parent_id: string | null;
-        payment_reference: string;
-        price_pence: number;
-        weeks: number;
-      }[]
-    ).map((r) => ({
-      id: r.id,
-      status: r.status,
-      createdAt: new Date(r.created_at),
-      holdExpiresAt: r.hold_expires_at ? new Date(r.hold_expires_at) : null,
-      parentId: r.parent_id,
-      reference: r.payment_reference,
-      pricePence: blockDuePence(r.price_pence, seatsOf(r.id)),
-      weeks: r.weeks,
-    }));
-    const remind = blocksNeedingPaymentReminder(blocks, now);
-    const expired = expiredBlockHolds(blocks, now);
-    if (remind.length === 0 && expired.length === 0) return;
-    const people = await loadPeople(c, [...remind, ...expired].map((b) => b.parentId));
-    const priv = await bankDetails();
-
-    for (const b of remind) {
-      await guard(`block reminder ${b.id}`, async () => {
-        const parent = b.parentId ? people.get(b.parentId) : undefined;
-        if (!parent) return;
-        tally(
-          await sendEmail({
-            to: parent.email,
-            template: "block_payment_reminder",
-            blockBookingId: b.id,
-            props: {
-              parentName: parent.name,
-              reference: b.reference,
-              totalPence: b.pricePence,
-              weeks: b.weeks,
-              holdExpiresAt: b.holdExpiresAt,
-              bank: priv.bank,
-            },
-          }),
-          "blockPaymentReminders",
-        );
-      });
-    }
-    for (const b of expired) {
-      await guard(`block expiry ${b.id}`, async () => {
-        const parent = b.parentId ? people.get(b.parentId) : undefined;
-        tally(
-          await sendEmail({
-            to: businessInbox(),
-            template: "admin_block_hold_expired",
-            blockBookingId: b.id,
-            props: {
-              title: "Block hold expired",
-              lines: [
-                `The hold on ${b.reference} (${b.weeks}-week block, ${formatPence(b.pricePence)}) for ${parent ? `${parent.name} (${parent.email})` : "a parent"} has expired and it is still unpaid.`,
-                "The places are still reserved until you release the block.",
-              ],
-              link: { href: `${siteUrl()}/admin`, label: "Open the admin area" },
-            },
-          }),
-          "expiredBlockNotices",
-        );
-      });
-    }
+  // Group passes: one payment reminder 48 h after buying, and expiry.
+  await guard("passes", async () => {
+    const r = await runPassCron(now);
+    counts.passPaymentReminders = r.reminders;
+    counts.passesExpired = r.expired;
+    counts.failed += r.failed;
   });
 
   await guard("group sessions", async () => {

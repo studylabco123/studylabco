@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockDuePence, bookingPaymentSummary, paymentBadge, seatDuePence, willBeOwed } from "@/lib/booking/payment-view";
+import { bookingPaymentSummary, paymentBadge, seatDuePence, willBeOwed } from "@/lib/booking/payment-view";
 import { creditBalancePence } from "@/lib/booking/owed";
 import type { Booking, LedgerEntry } from "@/lib/types";
 
@@ -64,58 +64,36 @@ describe("paymentBadge", () => {
   });
 });
 
-describe("blockDuePence (I3)", () => {
-  const seat = (id: string, status: Booking["status"], price = 1700) => mk({ id, status, pricePence: price, blockBookingId: "blk", kind: "group" });
-  it("is the block price minus seats cancelled for free", () => {
-    expect(blockDuePence(10200, [seat("1", "confirmed"), seat("2", "cancelled"), seat("3", "cancelled")])).toBe(10200 - 3400);
-  });
-  it("late-cancelled weeks are still charged", () => {
-    expect(blockDuePence(10200, [seat("1", "late_cancelled"), seat("2", "confirmed")])).toBe(10200);
-  });
-  it("never goes below zero", () => {
-    expect(blockDuePence(1000, [seat("1", "cancelled", 1700)])).toBe(0);
-  });
-});
-
 describe("bookingPaymentSummary (I1)", () => {
   it("a paid booking asks for nothing", () => {
-    const s = bookingPaymentSummary([mk({ paymentStatus: "paid" })], null);
+    const s = bookingPaymentSummary([mk({ paymentStatus: "paid" })]);
     expect(s).toMatchObject({ totalPence: 2500, toPayPence: 0, showHowToPay: false, awaitingApproval: false });
   });
   it("an unpaid confirmed booking asks for price plus travel", () => {
-    const s = bookingPaymentSummary([mk({ location: "home_visit", travelFeePence: 500 })], null);
+    const s = bookingPaymentSummary([mk({ location: "home_visit", travelFeePence: 500 })]);
     expect(s).toMatchObject({ totalPence: 3000, toPayPence: 3000, showHowToPay: true });
   });
   it("a late-cancelled home visit asks for 50% of the price (no travel)", () => {
-    const s = bookingPaymentSummary([mk({ status: "late_cancelled", location: "home_visit", travelFeePence: 500 })], null);
+    const s = bookingPaymentSummary([mk({ status: "late_cancelled", location: "home_visit", travelFeePence: 500 })]);
     expect(s).toMatchObject({ totalPence: 1250, toPayPence: 1250, showHowToPay: true });
   });
   it("a pending home visit is awaiting approval and does not ask for payment", () => {
-    const s = bookingPaymentSummary([mk({ status: "pending", location: "home_visit", travelFeePence: 500 })], null);
+    const s = bookingPaymentSummary([mk({ status: "pending", location: "home_visit", travelFeePence: 500 })]);
     expect(s).toMatchObject({ toPayPence: 0, showHowToPay: false, awaitingApproval: true });
   });
   it("an attended paid booking or a free-cancelled one asks for nothing", () => {
-    expect(bookingPaymentSummary([mk({ status: "attended", paymentStatus: "paid" })], null).showHowToPay).toBe(false);
-    expect(bookingPaymentSummary([mk({ status: "cancelled", paymentStatus: "credited" })], null)).toMatchObject({ totalPence: 0, showHowToPay: false });
+    expect(bookingPaymentSummary([mk({ status: "attended", paymentStatus: "paid" })]).showHowToPay).toBe(false);
+    expect(bookingPaymentSummary([mk({ status: "cancelled", paymentStatus: "credited" })])).toMatchObject({ totalPence: 0, showHowToPay: false });
   });
   it("a Sunday bundle leaves out a seat cancelled for free", () => {
     const rows = [mk({ id: "a", bundleId: "x", pricePence: 1500 }), mk({ id: "b", bundleId: "x", pricePence: 1500, status: "cancelled" })];
-    expect(bookingPaymentSummary(rows, null)).toMatchObject({ totalPence: 1500, toPayPence: 1500, showHowToPay: true });
+    expect(bookingPaymentSummary(rows)).toMatchObject({ totalPence: 1500, toPayPence: 1500, showHowToPay: true });
   });
-  it("a held block owes the block price less free-cancelled weeks", () => {
-    const rows = [1, 2, 3].map((i) => mk({ id: String(i), blockBookingId: "blk", pricePence: 1700, status: i === 2 ? "cancelled" : "confirmed" }));
-    expect(bookingPaymentSummary(rows, { pricePence: 5100, status: "held" })).toMatchObject({ totalPence: 3400, toPayPence: 3400, showHowToPay: true });
-  });
-  it("a paid block asks for nothing", () => {
-    const rows = [1, 2].map((i) => mk({ id: String(i), blockBookingId: "blk", pricePence: 1700, paymentStatus: "paid" }));
-    expect(bookingPaymentSummary(rows, { pricePence: 3400, status: "paid" })).toMatchObject({ totalPence: 3400, toPayPence: 0, showHowToPay: false });
-  });
-  it("a released block owes only its unpaid live seats one by one", () => {
-    const rows = [
-      mk({ id: "1", blockBookingId: "blk", pricePence: 1700, status: "attended" }),
-      mk({ id: "2", blockBookingId: "blk", pricePence: 1700, status: "cancelled" }),
-    ];
-    expect(bookingPaymentSummary(rows, { pricePence: 3400, status: "released" })).toMatchObject({ totalPence: 1700, toPayPence: 1700, showHowToPay: true });
+  it("a seat booked with a group pass asks for nothing; a late-cancelled one asks for its fee", () => {
+    const seat = mk({ kind: "group", passId: "p1", pricePence: 1316, paymentStatus: "paid" });
+    expect(bookingPaymentSummary([seat])).toMatchObject({ toPayPence: 0, showHowToPay: false });
+    const late = mk({ kind: "group", passId: "p1", pricePence: 1316, status: "late_cancelled", feePence: 658 });
+    expect(bookingPaymentSummary([late])).toMatchObject({ toPayPence: 658, showHowToPay: true });
   });
 });
 

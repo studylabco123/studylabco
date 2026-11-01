@@ -19,8 +19,8 @@ export interface BookingActionsProps {
   owedPence: number;
   /** Part of a Sunday bundle (paying one row pays both). */
   bundle: boolean;
-  /** Part of a block (paid from the Blocks section instead). */
-  inBlock: boolean;
+  /** Booked with a group pass: cancelling returns the session to the pass (nothing to refund or credit). */
+  fromPass?: boolean;
 }
 
 /** The buttons that make sense for one booking right now. */
@@ -29,7 +29,7 @@ export function BookingActions(p: BookingActionsProps) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const label = (text: string) => `${text} for ${p.childName}`;
   const live = p.status === "pending" || p.status === "confirmed";
-  const paid = p.paymentStatus === "paid";
+  const paid = p.paymentStatus === "paid" && !p.fromPass;
 
   const buttons: React.ReactNode[] = [];
   const btn = (key: string, text: string, onClick: () => void, variant: "primary" | "secondary" = "secondary") =>
@@ -50,7 +50,7 @@ export function BookingActions(p: BookingActionsProps) {
   // Parents often pay before the lesson, so payment can be recorded any time it is unpaid.
   const unpaid = p.paymentStatus === "unpaid" && p.status !== "cancelled" && p.status !== "declined";
   const awaitingApproval = p.status === "pending" && p.location === "home_visit";
-  if (unpaid && !p.inBlock && !awaitingApproval) {
+  if (unpaid && !awaitingApproval) {
     const what = p.bundle ? "Mark bundle paid" : "Mark paid";
     btn("paid-bank", `${what} (bank transfer)`, () => run(() => markPaid(p.bookingId, "bank_transfer")), "primary");
     btn("paid-cash", `${what} (cash)`, () => run(() => markPaid(p.bookingId, "cash")));
@@ -75,7 +75,9 @@ export function BookingActions(p: BookingActionsProps) {
         description={
           paid
             ? "It has been paid. Choose whether to refund it or keep the money as a credit. The family is emailed and no fee applies."
-            : "The family is emailed and no fee applies."
+            : p.fromPass
+              ? "The session goes back on the family's group pass. The family is emailed and no fee applies."
+              : "The family is emailed and no fee applies."
         }
         actions={
           <>

@@ -2,23 +2,29 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { BlockStep, BundleStep, GroupSessionStep } from "./steps/SessionStep";
+import { BundleStep, GroupSessionStep } from "./steps/SessionStep";
 import { ChildStep } from "./steps/ChildStep";
 import { LocationStep } from "./steps/LocationStep";
+import { PassBookReview, PassBuyReview, PassCards, PassSessionStep, PassSizeStep } from "./steps/PassSteps";
 import { ReviewStep } from "./steps/ReviewStep";
 import { SlotStep } from "./steps/SlotStep";
 import { LOCATION_LABEL, TYPE_LABEL } from "./steps/labels";
-import { blockProducts, sessionsForLevel } from "./steps/options";
+import { sessionsForLevel } from "./steps/options";
 import { summarise } from "./steps/summary";
 import { TypeStep } from "./steps/TypeStep";
 import type { Selection, WizardData } from "./types";
 
-type Step = "child" | "type" | "location" | "slot" | "session" | "review";
+type Step = "child" | "type" | "location" | "slot" | "session" | "review" | "pass_size" | "pass_buy" | "pass_session" | "pass_book";
 
-/** Child -> type -> location -> slot/session -> review -> confirm. */
-export function BookingWizard({ data }: { data: WizardData }) {
-  const [sel, setSel] = useState<Selection>({});
-  const [history, setHistory] = useState<Step[]>(["child"]);
+/**
+ * Child -> type -> location -> slot/session -> review -> confirm. Buying a
+ * pass: type -> size -> buy. Booking with a pass: the pass card -> session ->
+ * book (or straight there from the dashboard with `initialPassId`).
+ */
+export function BookingWizard({ data, initialPassId }: { data: WizardData; initialPassId?: string }) {
+  const start = data.passes.find((p) => p.id === initialPassId && p.bookable);
+  const [sel, setSel] = useState<Selection>(start ? { childId: start.childId, type: "pass_session", passId: start.id } : {});
+  const [history, setHistory] = useState<Step[]>(start ? ["child", "type", "pass_session"] : ["child"]);
   const step = history[history.length - 1];
 
   const go = (next: Step, patch: Partial<Selection>) => {
@@ -32,10 +38,15 @@ export function BookingWizard({ data }: { data: WizardData }) {
   const sessions = child ? sessionsForLevel(data.sessions, child.level) : [];
   const lesson = sel.type === "assessment" || sel.type === "one_to_one" ? sel.type : null;
   const summary = step === "review" ? summarise(sel, data) : null;
-  // What has been chosen on the steps before this one (the review step lists everything itself).
+  const childPasses = child ? data.passes.filter((p) => p.childId === child.id) : [];
+  const pass = data.passes.find((p) => p.id === sel.passId);
+  const review = step === "review" || step === "pass_buy" || step === "pass_book";
+  // What has been chosen on the steps before this one (the review steps list everything themselves).
   const chosen = [
-    step !== "child" && step !== "review" ? child?.name : undefined,
-    (step === "location" || step === "slot" || step === "session") && sel.type ? TYPE_LABEL[sel.type] : undefined,
+    step !== "child" && !review ? child?.name : undefined,
+    (step === "location" || step === "slot" || step === "session" || step === "pass_size" || step === "pass_session") && sel.type
+      ? TYPE_LABEL[sel.type]
+      : undefined,
     step === "slot" && sel.location ? LOCATION_LABEL[sel.location] : undefined,
   ].filter(Boolean);
 
@@ -58,21 +69,30 @@ export function BookingWizard({ data }: { data: WizardData }) {
       ) : null}
 
       {step === "type" && child ? (
-        <TypeStep
-          child={child}
-          settings={data.settings}
-          sessions={sessions}
-          familyMessage={data.familyMessage}
-          onSelect={(type) =>
-            go(type === "assessment" || type === "one_to_one" ? "location" : "session", {
-              type,
-              slot: undefined,
-              sessionId: undefined,
-              bundleDate: undefined,
-              block: undefined,
-            })
-          }
-        />
+        <div className="flex flex-col gap-6">
+          {data.familyMessage ? null : (
+            <PassCards
+              passes={childPasses}
+              onBook={(passId) => go("pass_session", { type: "pass_session", passId, sessionId: undefined, bundleDate: undefined })}
+            />
+          )}
+          <TypeStep
+            child={child}
+            settings={data.settings}
+            sessions={sessions}
+            familyMessage={data.familyMessage}
+            onSelect={(type) =>
+              go(type === "assessment" || type === "one_to_one" ? "location" : type === "pass" ? "pass_size" : "session", {
+                type,
+                slot: undefined,
+                sessionId: undefined,
+                bundleDate: undefined,
+                passSessions: undefined,
+                passId: undefined,
+              })
+            }
+          />
+        </div>
       ) : null}
 
       {step === "location" && lesson ? (
@@ -94,13 +114,29 @@ export function BookingWizard({ data }: { data: WizardData }) {
       {step === "session" && sel.type === "sunday_bundle" ? (
         <BundleStep sessions={sessions} onSelect={(bundleDate) => go("review", { bundleDate })} />
       ) : null}
-      {step === "session" && sel.type === "block" ? (
-        <BlockStep
+
+      {step === "pass_size" && child ? (
+        <PassSizeStep child={child} settings={data.settings} onSelect={(passSessions) => go("pass_buy", { passSessions })} />
+      ) : null}
+      {step === "pass_buy" && child && sel.passSessions ? (
+        <PassBuyReview child={child} sessions={sel.passSessions} settings={data.settings} />
+      ) : null}
+      {step === "pass_session" && pass ? (
+        <PassSessionStep
+          pass={pass}
           sessions={sessions}
-          products={child ? blockProducts(sessions, child.level) : []}
+          onSelect={(pick) =>
+            go("pass_book", "sessionId" in pick ? { sessionId: pick.sessionId, bundleDate: undefined } : { bundleDate: pick.bundleDate, sessionId: undefined })
+          }
+        />
+      ) : null}
+      {step === "pass_book" && pass && child && (sel.sessionId || sel.bundleDate) ? (
+        <PassBookReview
+          pass={pass}
+          pick={sel.sessionId ? { sessionId: sel.sessionId } : { bundleDate: sel.bundleDate! }}
+          sessions={sessions}
+          childName={child.name}
           settings={data.settings}
-          initial={sel.block}
-          onSelect={(block) => go("review", { block })}
         />
       ) : null}
 

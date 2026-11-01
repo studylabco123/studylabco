@@ -33,7 +33,7 @@ export async function cancelBooking(bookingId: string): Promise<CancelState> {
   return {
     status: "error",
     message:
-      res.reason === "not_cancellable" || res.reason === "pass_seat"
+      res.reason === "not_cancellable"
         ? "This booking can no longer be cancelled on the website. Please contact Study Lab Co."
         : res.reason === "not_found"
           ? "We could not find that booking."

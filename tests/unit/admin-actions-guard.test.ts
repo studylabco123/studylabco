@@ -65,3 +65,16 @@ describe("late cancellation (V4)", () => {
     expect(src).toMatch(/export async function recordLateCancellation\(bookingId: string\): Promise<AdminResult> \{\n  await requireAdmin\(\);/);
   });
 });
+
+describe("group passes (V5)", () => {
+  test("markPassPaid and convertPassToCredit are guarded money actions", () => {
+    const src = readFileSync("src/app/admin/(secure)/money/actions.ts", "utf8");
+    expect(src).toMatch(/export async function markPassPaid\(passId: string, method: PaymentMethod\): Promise<AdminResult> \{\n  await requireAdmin\(\);/);
+    expect(src).toMatch(/export async function convertPassToCredit\(passId: string\): Promise<AdminResult> \{\n  await requireAdmin\(\);/);
+  });
+
+  test("the block actions are gone", () => {
+    const src = readFileSync("src/app/admin/(secure)/bookings/actions.ts", "utf8");
+    expect(src).not.toMatch(/markBlockPaid|releaseBlock/);
+  });
+});

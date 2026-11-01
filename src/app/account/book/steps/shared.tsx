@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { cn } from "@/lib/cn";
 
-export { LOCATION_LABEL, londonDay, londonTime, londonWhen, PRODUCT_LABEL, TYPE_LABEL } from "./labels";
+export { LOCATION_LABEL, londonDay, londonTime, londonWhen, TYPE_LABEL } from "./labels";
 
 /** Step heading that takes focus when the step appears, so screen readers follow along. */
 export function StepHeading({ children }: { children: ReactNode }) {
@@ -27,6 +27,7 @@ export function Choice({
   disabled,
   label,
   info,
+  data,
 }: {
   title: ReactNode;
   detail?: ReactNode;
@@ -36,6 +37,8 @@ export function Choice({
   label?: string;
   /** An "i" button beside the choice (outside it, so the choice's own name is unchanged). */
   info?: { label: string; text: ReactNode };
+  /** data-* attributes for the button (tests find choices by them). */
+  data?: Record<`data-${string}`, string>;
 }) {
   return (
     <li className="flex flex-wrap items-center gap-1">
@@ -44,6 +47,7 @@ export function Choice({
         onClick={onSelect}
         disabled={disabled}
         aria-label={label}
+        {...data}
         className={cn(
           "group flex min-h-14 w-full min-w-0 flex-1 items-center gap-4 rounded-card border-2 border-sky-200 bg-white px-5 py-4 text-left",
           "transition-[border-color,background-color,transform] duration-150 ease-out hover:border-navy-900 hover:bg-sky-50",

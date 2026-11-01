@@ -85,7 +85,9 @@ export function buildTaxPack(
   lateFeePercent: number = DEFAULT_LATE_FEE_PERCENT,
 ): TaxPack {
   const who = (id: string | null) => (id ? (parentNames.get(id) ?? "") : "");
-  const detailOf = (l: LedgerEntry) => [who(l.parentId), l.note].filter(Boolean).join(" · ");
+  // A group-pass row always says so, even if its note was cleared (account deletion clears notes).
+  const passTag = (l: LedgerEntry) => (l.passId && !l.note.includes("Group pass") ? "Group pass" : "");
+  const detailOf = (l: LedgerEntry) => [who(l.parentId), passTag(l), l.note].filter(Boolean).join(" · ");
 
   const live = ledger.filter((l) => inRange(l.occurredOn, range));
   const payments = live.filter((l) => l.kind === "payment");
@@ -95,7 +97,8 @@ export function buildTaxPack(
   const income = byDate(
     payments.map<IncomeRow>((l) => ({
       date: l.occurredOn,
-      label: "Payment",
+      // A group pass is income on the day it is paid; its sessions are not income again.
+      label: l.passId ? "Group pass" : "Payment",
       detail: detailOf(l),
       method: l.method === "bank_transfer" ? "Bank transfer" : l.method === "cash" ? "Cash" : "",
       amountPence: l.amountPence,
@@ -166,16 +169,16 @@ export function buildTaxPack(
 
   // Unpaid at the end of the range: owed by the same rules as everywhere else (late cancellation: price
   // only), and no payment, waiver or credit dated on or before the end covers it (its own, its Sunday
-  // bundle's, or its block's). Today's payment_status is deliberately ignored: it may have changed since.
+  // bundle's). Today's payment_status is deliberately ignored: it may have changed since. A session
+  // booked with a group pass was paid by the pass; only its late cancellation / no-show fee can be owed.
   const endInstant = londonDateTime(range.end, "23:59:59");
   const settled = ledger.filter((l) => l.kind !== "refund" && l.occurredOn <= range.end);
   const settledBookings = new Set(settled.map((l) => l.bookingId).filter((i): i is string => !!i));
-  const settledBlocks = new Set(settled.map((l) => l.blockBookingId).filter((i): i is string => !!i));
   const bundleMembers = new Map<string, string[]>();
   for (const b of bookings) if (b.bundleId) bundleMembers.set(b.bundleId, [...(bundleMembers.get(b.bundleId) ?? []), b.id]);
   const isSettled = (b: Booking) =>
     settledBookings.has(b.id) ||
-    (b.blockBookingId !== null && settledBlocks.has(b.blockBookingId)) ||
+    (b.passId !== null && b.status !== "late_cancelled" && b.status !== "no_show") ||
     (b.bundleId !== null && (bundleMembers.get(b.bundleId) ?? []).some((id) => settledBookings.has(id)));
   const unpaidAtEnd = byDate(
     bookings

@@ -65,7 +65,7 @@ export default async function FaqPage() {
         },
         {
           q: "What happens after it?",
-          a: "The tutor approves your child as a student, and you can then book 1-to-1 lessons, group sessions or a block of weeks from your account.",
+          a: "The tutor approves your child as a student, and you can then book 1-to-1 lessons, group sessions or a group pass from your account.",
         },
       ],
     },

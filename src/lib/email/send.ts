@@ -12,8 +12,8 @@ export interface SendEmailArgs<T extends TemplateName> {
   props: TemplateProps<T>;
   /** With the template, makes the email idempotent for this booking. */
   bookingId?: string;
-  /** For block-level emails (no single booking): idempotent per block and template. */
-  blockBookingId?: string;
+  /** For pass-level emails (no single booking): idempotent per pass and template. */
+  passId?: string;
   /** Where replies go (the contact form sets the sender's address). */
   replyTo?: string;
 }
@@ -72,7 +72,7 @@ export const testOutbox: CapturedEmail[] = [];
 
 /**
  * Records the email in email_log first, then sends it. A unique conflict
- * (same template already sent for this booking/block) means 'skipped'. If the
+ * (same template already sent for this booking/pass) means 'skipped'. If the
  * transport fails the log row is removed so a retry can send, and the error is
  * rethrown: callers on a user action catch and log it.
  */
@@ -84,7 +84,7 @@ export async function sendEmail<T extends TemplateName>(args: SendEmailArgs<T>):
     .from("email_log")
     .insert({
       booking_id: args.bookingId ?? null,
-      block_booking_id: args.blockBookingId ?? null,
+      pass_id: args.passId ?? null,
       template: args.template,
       to_email: args.to,
     })

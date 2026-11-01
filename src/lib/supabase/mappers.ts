@@ -8,13 +8,10 @@ import type {
   AvailabilityRule,
   BlockedRule,
   BlockedTime,
-  BlockPrices,
-  BlockWeeks,
   Booking,
   BookingKind,
   BookingStatus,
   Expense,
-  GroupProduct,
   GroupSession,
   Level,
   Pass,
@@ -61,7 +58,6 @@ export interface SettingsRow {
   price_group_pence: number;
   price_sunday_bundle_pence: number;
   travel_fee_pence: number;
-  block_prices: Record<string, Record<string, number>>;
   online_enabled: boolean;
   home_visits_enabled: boolean;
   tutor_place_enabled: boolean;
@@ -89,7 +85,6 @@ export interface SettingsRow {
 
 /** Seed defaults (pence), used when a settings row predates a key (Ruling R4). */
 const DEFAULT_PASS_PRICES: PassPrices = { KS3: { 6: 7900, 10: 12600 }, GCSE: { 6: 10200, 10: 16200 } };
-const DEFAULT_BLOCK_PRICES: BlockPrices = { saturday: { 6: 10200, 10: 16200 }, sunday_bundle: { 6: 17100, 10: 27000 } };
 
 const priceOr = (v: unknown, fallback: number): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
 
@@ -101,14 +96,6 @@ function mapPassPrices(raw: SettingsRow["pass_prices"] | null | undefined): Pass
   return { KS3: level("KS3"), GCSE: level("GCSE") };
 }
 
-function mapBlockPrices(raw: SettingsRow["block_prices"] | null | undefined): BlockPrices {
-  const product = (p: GroupProduct): Record<BlockWeeks, number> => ({
-    6: priceOr(raw?.[p]?.["6"], DEFAULT_BLOCK_PRICES[p][6]),
-    10: priceOr(raw?.[p]?.["10"], DEFAULT_BLOCK_PRICES[p][10]),
-  });
-  return { saturday: product("saturday"), sunday_bundle: product("sunday_bundle") };
-}
-
 export function mapSettings(row: SettingsRow): Settings {
   return {
     priceAssessmentPence: row.price_assessment_pence,
@@ -116,7 +103,6 @@ export function mapSettings(row: SettingsRow): Settings {
     priceGroupPence: row.price_group_pence,
     priceSundayBundlePence: row.price_sunday_bundle_pence,
     travelFeePence: row.travel_fee_pence,
-    blockPrices: mapBlockPrices(row.block_prices),
     onlineEnabled: row.online_enabled,
     homeVisitsEnabled: row.home_visits_enabled,
     tutorPlaceEnabled: row.tutor_place_enabled,
@@ -147,7 +133,6 @@ const SETTINGS_COLUMNS: { [K in keyof Settings]: string } = {
   priceGroupPence: "price_group_pence",
   priceSundayBundlePence: "price_sunday_bundle_pence",
   travelFeePence: "travel_fee_pence",
-  blockPrices: "block_prices",
   onlineEnabled: "online_enabled",
   homeVisitsEnabled: "home_visits_enabled",
   tutorPlaceEnabled: "tutor_place_enabled",

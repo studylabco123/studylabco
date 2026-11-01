@@ -11,7 +11,7 @@ import { normalisePostcode } from "./postcode";
 import { quote } from "./pricing";
 import type { BookingResult } from "./results";
 
-export { createBlockBooking, createGroupBooking, createSundayBundle } from "./group-service";
+export { createGroupBooking, createSundayBundle } from "./group-service";
 export type { ServiceOptions } from "./data";
 export { onBookingCreated } from "./notify";
 

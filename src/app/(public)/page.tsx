@@ -121,7 +121,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             </p>
             <p>
               <Link href="/lessons" className={standaloneLink}>
-                Full prices, block bookings and times
+                Full prices, group passes and times
               </Link>
             </p>
           </div>

@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-guard";
-import { decideHomeVisit as decide, markAttended as attended, markNoShow as noShow, recordLateCancellation as lateCancel, releaseBlock as release, tutorCancel as cancel } from "@/lib/admin/lifecycle";
-import { markBlockPaid as blockPaid, markPaid as paid, payFromCredit as fromCredit, waiveFee as waive } from "@/lib/admin/payments";
+import { decideHomeVisit as decide, markAttended as attended, markNoShow as noShow, recordLateCancellation as lateCancel, tutorCancel as cancel } from "@/lib/admin/lifecycle";
+import { markPaid as paid, payFromCredit as fromCredit, waiveFee as waive } from "@/lib/admin/payments";
 import { fail, type AdminResult } from "@/lib/admin/result";
 import type { PaymentMethod } from "@/lib/types";
 
@@ -26,13 +26,7 @@ export async function markPaid(bookingId: string, method: PaymentMethod): Promis
   return done(await paid(bookingId, method));
 }
 
-export async function markBlockPaid(blockId: string, method: PaymentMethod): Promise<AdminResult> {
-  await requireAdmin();
-  if (!isId(blockId) || !METHODS.includes(method)) return fail("Something was missing. Please refresh and try again.");
-  return done(await blockPaid(blockId, method));
-}
-
-/** Pays an unpaid booking (or the held block it belongs to) from the family's credit (Ruling R23). */
+/** Pays an unpaid booking from the family's credit (Ruling R23). */
 export async function payFromCredit(bookingId: string): Promise<AdminResult> {
   await requireAdmin();
   if (!isId(bookingId)) return fail("Something was missing. Please refresh and try again.");
@@ -67,12 +61,6 @@ export async function decideHomeVisit(bookingId: string, approve: boolean): Prom
   await requireAdmin();
   if (!isId(bookingId)) return fail("Something was missing. Please refresh and try again.");
   return done(await decide(bookingId, approve === true));
-}
-
-export async function releaseBlock(blockId: string): Promise<AdminResult> {
-  await requireAdmin();
-  if (!isId(blockId)) return fail("Something was missing. Please refresh and try again.");
-  return done(await release(blockId));
 }
 
 /** Records a cancellation the parent made by phone or email: free in the cooling-off, otherwise the late cancellation fee. */

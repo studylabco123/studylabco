@@ -106,14 +106,14 @@ test.describe("booking", () => {
   test("group options hidden until approved", async ({ page }) => {
     await start(page);
     await expect(page.getByRole("button", { name: /^Assessment Lesson/ })).toBeVisible();
-    for (const name of [/^1-to-1 lesson/, /^Group session/, /^Sunday bundle/, /^Group block/]) {
+    for (const name of [/^1-to-1 lesson/, /^Group session/, /^Sunday bundle/, /^Group pass/]) {
       await expect(page.getByRole("button", { name })).toHaveCount(0);
     }
 
     await seedChild(parent!.id, { approved: true, firstName: "Ali" });
     await page.goto("/account/book");
     await page.getByRole("button", { name: /^Ali Parent/ }).click();
-    for (const name of [/^1-to-1 lesson/, /^Group session/, /^Sunday bundle/, /^Group block/]) {
+    for (const name of [/^1-to-1 lesson/, /^Group session/, /^Sunday bundle/, /^Group pass/]) {
       await expect(page.getByRole("button", { name })).toBeVisible();
     }
     await expect(page.getByRole("button", { name: /^Assessment Lesson/ })).toHaveCount(0);
@@ -144,7 +144,9 @@ test.describe("booking", () => {
     await expect(body).not.toContainText(/online/i);
     // Review -> slot -> location -> type.
     for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Back" }).click();
-    await page.getByRole("button", { name: /^Group block/ }).click();
+    await page.getByRole("button", { name: /^Group pass/ }).click();
+    await expect(body).not.toContainText(/online/i);
+    await page.getByRole("button", { name: /^6 sessions/ }).click();
     await expect(body).not.toContainText(/online/i);
   });
 
@@ -269,7 +271,7 @@ test.describe("booking", () => {
     await page.keyboard.press("Space");
     await expect(tip).toHaveAttribute("aria-expanded", "false");
     // Every lesson type has one.
-    for (const t of ["1-to-1 lesson", "Group session", "Group block"]) {
+    for (const t of ["1-to-1 lesson", "Group session", "Group pass"]) {
       await expect(page.getByRole("button", { name: `More about ${t}` })).toBeVisible();
     }
     // Locations, and the review step's cooling-off and late-fee lines.
@@ -291,28 +293,17 @@ test.describe("booking", () => {
     expect(axe.violations).toEqual([]);
   });
 
-  test("approved KS3 child books a 6-week Saturday block for £102", async ({ page }) => {
-    // The Saturday group is KS3 only.
-    await start(page, { approved: true, ks3: true });
-    await page.getByRole("button", { name: /^Group block/ }).click();
-    await page.getByLabel("Saturday group").check();
-    await page.getByLabel("6 weeks, £102").check();
-    await page.getByRole("button", { name: /^Starting / }).first().click();
+  test("a GCSE child's group pass costs £102 or £162 and needs the cooling-off tick", async ({ page }) => {
+    await start(page, { approved: true });
+    await expect(page.getByRole("button", { name: /^Group pass.*£102.*£162/ })).toBeVisible();
+    await page.getByRole("button", { name: /^Group pass/ }).click();
+    await expect(page.getByRole("button", { name: /^10 sessions.*£162/ })).toBeVisible();
+    await page.getByRole("button", { name: /^6 sessions/ }).click();
     await expect(page.getByTestId("total")).toHaveText("£102");
-    await expect(page.getByText("Location confirmed on booking")).toBeVisible();
-    await page.getByLabel(COOLING_OFF).check();
-    await page.getByRole("button", { name: "Confirm booking" }).click();
-
-    await expect(page).toHaveURL(/\/account\/bookings\//);
-    await expect(page.getByTestId("reference")).toHaveText(/^SLC-\d{4,}$/);
-    await expect(page.getByTestId("booking-total")).toHaveText("£102");
-    await expect(page.getByText("Location confirmed on booking")).toBeVisible();
-    await expect(page.getByText(/Seats are held until/)).toBeVisible();
-    await expect(page.getByText(TEST_BANK.teachingAddress)).toHaveCount(0);
-    const { count } = await serviceClient()
-      .from("bookings")
-      .select("id", { count: "exact", head: true })
-      .eq("parent_id", parent!.id);
-    expect(count).toBe(6);
+    await expect(page.getByText("If you change your mind within 14 days of buying, unused sessions go back as credit.", { exact: false })).toBeVisible();
+    await page.getByRole("button", { name: "Buy pass" }).click();
+    await expect(page.getByText(/Please tick the box/)).toBeVisible();
+    const { count } = await serviceClient().from("passes").select("id", { count: "exact", head: true }).eq("parent_id", parent!.id);
+    expect(count).toBe(0);
   });
 });

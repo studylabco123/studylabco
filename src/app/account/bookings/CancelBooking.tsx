@@ -12,7 +12,7 @@ import { cancelBooking } from "./actions";
  * re-checks on the server and answers 'call_required' if the booking slipped
  * into the notice window meanwhile.
  */
-export function CancelBooking({ bookingId }: { bookingId: string }) {
+export function CancelBooking({ bookingId, fromPass = false }: { bookingId: string; fromPass?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -43,7 +43,11 @@ export function CancelBooking({ bookingId }: { bookingId: string }) {
         open={open}
         onClose={() => setOpen(false)}
         title="Cancel this booking?"
-        description="This is free to cancel. If you have already paid, the payment is kept as credit on your account."
+        description={
+          fromPass
+            ? "This is free to cancel, and the session goes back on your group pass."
+            : "This is free to cancel. If you have already paid, the payment is kept as credit on your account."
+        }
         actions={
           <>
             <Button variant="secondary" onClick={() => setOpen(false)}>

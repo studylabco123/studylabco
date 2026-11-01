@@ -4,18 +4,16 @@ import { PriceTable, type PriceRow } from "@/components/site/PriceTable";
 import { Steps } from "@/components/site/Steps";
 import { ButtonLink } from "@/components/ui/Button";
 import { formatPence } from "@/lib/format";
-import { BLOCK_HOLD_HOURS, bookingWindowText } from "@/lib/policy";
+import { bookingWindowText } from "@/lib/policy";
 import { bookHref, loadGroupSeries, publicSettings } from "@/lib/public/data";
 import { pageMetadata } from "@/lib/public/meta";
-import { blockOffers, groupTimesByDay, lessonPrices } from "@/lib/public/prices";
+import { groupTimesByDay, lessonPrices, passOffers } from "@/lib/public/prices";
 
 export const metadata = pageMetadata(
   "Lessons and prices",
-  "Prices for the Assessment Lesson, 1-to-1 lessons, weekend group sessions and block bookings, plus when lessons run and how new students get started.",
+  "Prices for the Assessment Lesson, 1-to-1 lessons, weekend group sessions and group passes, plus when lessons run and how new students get started.",
   "/lessons",
 );
-
-const PRODUCT_NAME = { saturday: "Saturday group", sunday_bundle: "Sunday bundle" } as const;
 
 function list(items: string[]): string {
   return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
@@ -28,7 +26,7 @@ export default async function LessonsPage() {
   const place = settings.tutorPlaceEnabled;
   const areas = list(settings.allowedPostcodeDistricts);
   const groupTimes = groupTimesByDay(series);
-  const offers = blockOffers(settings);
+  const offers = passOffers(settings);
   const homeNote = `Sundays only, ${areas} postcodes`;
 
   const placeLabel = place ? "At the tutor's place" : "Per lesson";
@@ -92,34 +90,36 @@ export default async function LessonsPage() {
       </Section>
 
       <Section
-        id="blocks"
-        title="Block bookings for groups"
+        id="passes"
+        title="Group passes"
         tone="sky"
-        intro="Book the Saturday group or the Sunday bundle for 6 or 10 weeks in one go and pay less than booking week by week."
+        intro={`Buy 6 or 10 group sessions for one child at a lower price, then book them whenever suits you over ${settings.passValidityMonths} months.`}
       >
-        <ul aria-label="Block booking prices" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ul aria-label="Group pass prices" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {offers.map((o) => (
-            <li key={`${o.product}-${o.weeks}`} className="flex flex-col gap-2 rounded-card border border-sky-200 bg-white p-5">
+            <li key={`${o.level}-${o.sessions}`} className="flex flex-col gap-2 rounded-card border border-sky-200 bg-white p-5">
               <h3 className="font-display text-small font-semibold">
-                {PRODUCT_NAME[o.product]}, {o.weeks} weeks
+                {o.level} pass, {o.sessions} sessions
               </h3>
               <p className="font-display text-h2 font-semibold tabular-nums">{formatPence(o.pricePence)}</p>
               <p className="text-small text-navy-600">
                 {o.savingPence > 0 ? (
                   <>
                     <span className="font-semibold text-success-700">Save {formatPence(o.savingPence)}</span> against{" "}
-                    {formatPence(o.weeklyPence)} week by week
+                    {formatPence(o.singlePence)} one by one
                   </>
                 ) : (
-                  <>Same as booking week by week</>
+                  <>Same as booking one by one</>
                 )}
               </p>
             </li>
           ))}
         </ul>
         <p className="mt-6 max-w-prose text-small text-navy-600">
-          A block is held for {BLOCK_HOLD_HOURS} hours while you pay. If your child misses a week, the usual cancellation rules apply to that
-          week. See the <Link href="/refunds" className="font-semibold text-navy-900 underline underline-offset-4">Refund Policy</Link>.
+          Pay by bank transfer; sessions unlock once we&apos;ve received your payment. Book each session at least{" "}
+          {settings.passMinNoticeDays} days ahead. Cancel at least {settings.cancellationNoticeHours} hours before and the
+          session goes back on your pass. If you change your mind within 14 days of buying, unused sessions go back as
+          credit. See the <Link href="/refunds" className="font-semibold text-navy-900 underline underline-offset-4">Refund Policy</Link>.
         </p>
       </Section>
 
@@ -168,7 +168,7 @@ export default async function LessonsPage() {
               ),
             },
             { title: "Approval", body: "After the assessment, the tutor approves your child as a student." },
-            { title: "Book lessons", body: "Book 1-to-1 lessons, group sessions or a block, whenever suits you." },
+            { title: "Book lessons", body: "Book 1-to-1 lessons, group sessions or a group pass, whenever suits you." },
           ]}
         />
         <div className="mt-10">

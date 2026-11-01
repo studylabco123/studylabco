@@ -32,7 +32,6 @@ describe("BookingConfirmed", () => {
         bank: BANK,
         teachingAddress: "1 Teaching Road, Blackburn",
         meetingLink: null,
-        blockReference: null,
       }),
     );
     expect(out).toContain("SLC-1001");
@@ -56,7 +55,6 @@ describe("BookingConfirmed", () => {
         bank: BANK,
         teachingAddress: "1 Teaching Road, Blackburn",
         meetingLink: "https://meet.example/abc",
-        blockReference: null,
       }),
     );
     expect(out).not.toContain("1 Teaching Road");
@@ -73,7 +71,6 @@ describe("BookingConfirmed", () => {
         bank: BANK,
         teachingAddress: "1 Teaching Road, Blackburn",
         meetingLink: null,
-        blockReference: null,
       }),
     );
     expect(out).not.toContain("1 Teaching Road");
@@ -90,7 +87,6 @@ describe("BookingConfirmed", () => {
         bank: BANK,
         teachingAddress: null,
         meetingLink: null,
-        blockReference: null,
       }),
     );
     expect(declined).not.toContain("12345678");
@@ -102,7 +98,6 @@ describe("BookingConfirmed", () => {
         bank: BANK,
         teachingAddress: "1 Teaching Road",
         meetingLink: "https://meet.example/abc",
-        blockReference: null,
       }),
     );
     expect(online).toContain("https://meet.example/abc");
@@ -118,7 +113,6 @@ const sample: { [K in TemplateName]: Parameters<(typeof TEMPLATES)[K]["component
     bank: BANK,
     teachingAddress: "1 Teaching Road",
     meetingLink: null,
-    blockReference: null,
   },
   home_visit_decision: {
     parentName: "Pat",
@@ -131,20 +125,23 @@ const sample: { [K in TemplateName]: Parameters<(typeof TEMPLATES)[K]["component
   cancellation_receipt: { parentName: "Pat", session: line(), outcome: "late", wasPaid: false },
   group_cancelled: { parentName: "Pat", session: line({ title: "Saturday group", location: "group_venue" }), credited: true },
   group_message: { parentName: "Pat", subject: "Venue change", message: "We are in the main hall.\nSee you there." },
-  block_payment_reminder: {
+  pass_confirmed: {
     parentName: "Pat",
-    reference: "SLC-1002",
-    totalPence: 10200,
-    weeks: 6,
-    holdExpiresAt: START,
+    childName: "Sam",
+    level: "KS3",
+    sessions: 6,
+    totalPence: 7900,
+    reference: "SLC-1003",
     bank: BANK,
+    validityMonths: 6,
   },
+  pass_payment_reminder: { parentName: "Pat", level: "KS3", sessions: 6, totalPence: 7900, reference: "SLC-1003", bank: BANK },
   contact_message: { name: "Lee", email: "lee@example.test", phone: null, message: "Hello there" },
   admin_new_booking: { title: "New booking", lines: ["Pat booked a lesson"] },
   admin_home_visit_request: { title: "Home visit request - needs approval", lines: ["x"] },
   admin_late_cancellation: { title: "Late cancellation", lines: ["x"] },
   admin_new_signup: { title: "New sign-up", lines: ["x"] },
-  admin_block_hold_expired: { title: "Block hold expired", lines: ["x"] },
+  admin_new_pass: { title: "New group pass — awaiting payment", lines: ["x"] },
 };
 
 describe("cancellation line and the 14-day cooling-off (R20)", () => {
@@ -157,7 +154,6 @@ describe("cancellation line and the 14-day cooling-off (R20)", () => {
         bank: BANK,
         teachingAddress: null,
         meetingLink: null,
-        blockReference: null,
       }),
     );
     expect(out).toContain("cooling-off period, so you can cancel free of charge at any time before this lesson starts");
@@ -195,10 +191,42 @@ describe("email copy shows the 50% fee amount", () => {
         bank: BANK,
         teachingAddress: null,
         meetingLink: null,
-        blockReference: null,
       }),
     );
     expect(out).toContain("a late cancellation fee of £10 (40%) applies");
+  });
+});
+
+describe("group passes", () => {
+  it("PassConfirmed gives the reference, total, bank details, when sessions unlock and the 6-month validity", async () => {
+    const def = TEMPLATES.pass_confirmed;
+    const out = await render(def.component(sample.pass_confirmed), { plainText: true });
+    expect(out).toContain("SLC-1003");
+    expect(out).toContain("£79");
+    expect(out).toContain("04-00-04");
+    expect(out).toContain("Sessions unlock once we've received your payment");
+    expect(out).toContain("6 months from the day we mark it paid");
+    expect(out).toContain("within 14 days of buying");
+    expect(def.subject(sample.pass_confirmed)).toBe("Your KS3 group pass (SLC-1003): how to pay");
+  });
+
+  it("a session booked with a pass asks for no payment and says the session goes back on the pass", async () => {
+    const out = await render(
+      createElement(BookingConfirmed, {
+        parentName: "Pat",
+        sessions: [line({ fromPass: true, title: "Saturday KS3 Science Group", location: "group_venue", pricePence: 1316, lateFeePence: 658 })],
+        totalPence: 1316,
+        bank: BANK,
+        teachingAddress: null,
+        meetingLink: null,
+        pass: { name: "KS3 group pass", remaining: 5, total: 6 },
+      }),
+      { plainText: true },
+    );
+    expect(out).toContain("Booked with your KS3 group pass: nothing more to pay. 5 of 6 sessions left on the pass.");
+    expect(out).not.toContain("How to pay");
+    expect(out).toContain("the session goes back on your pass");
+    expect(out).toContain("£6.58 (50% of one pass session)");
   });
 });
 

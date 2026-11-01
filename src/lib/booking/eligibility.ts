@@ -25,7 +25,7 @@ export interface EligibilityCtx {
   /** The child's level (KS3 or GCSE). */
   childLevel: Level;
   request: {
-    type: "assessment" | "one_to_one" | "group" | "sunday_bundle" | "block";
+    type: "assessment" | "one_to_one" | "group" | "sunday_bundle" | "pass";
     location?: LocationKind;
     londonWeekday?: number;
     postcode?: string;

@@ -7,10 +7,6 @@ export interface SettingsFormInput {
   priceGroup: string;
   priceSundayBundle: string;
   travelFee: string;
-  blockSaturday6: string;
-  blockSaturday10: string;
-  blockSunday6: string;
-  blockSunday10: string;
   tutorPlaceEnabled: boolean;
   homeVisitsEnabled: boolean;
   onlineEnabled: boolean;
@@ -128,10 +124,6 @@ export function parseSettingsInput(input: SettingsFormInput): ParsedSettings {
     priceGroupPence: money("priceGroup", "The group price"),
     priceSundayBundlePence: money("priceSundayBundle", "The Sunday bundle price"),
     travelFeePence: money("travelFee", "The travel fee"),
-    blockPrices: {
-      saturday: { 6: money("blockSaturday6", "The 6-week Saturday price"), 10: money("blockSaturday10", "The 10-week Saturday price") },
-      sunday_bundle: { 6: money("blockSunday6", "The 6-week Sunday price"), 10: money("blockSunday10", "The 10-week Sunday price") },
-    },
     onlineEnabled: input.onlineEnabled === true,
     homeVisitsEnabled: input.homeVisitsEnabled === true,
     tutorPlaceEnabled: input.tutorPlaceEnabled === true,
@@ -177,10 +169,6 @@ export function settingsToFormInput(s: Settings, p: PrivateSettings): SettingsFo
     priceGroup: pounds(s.priceGroupPence),
     priceSundayBundle: pounds(s.priceSundayBundlePence),
     travelFee: pounds(s.travelFeePence),
-    blockSaturday6: pounds(s.blockPrices.saturday[6]),
-    blockSaturday10: pounds(s.blockPrices.saturday[10]),
-    blockSunday6: pounds(s.blockPrices.sunday_bundle[6]),
-    blockSunday10: pounds(s.blockPrices.sunday_bundle[10]),
     tutorPlaceEnabled: s.tutorPlaceEnabled,
     homeVisitsEnabled: s.homeVisitsEnabled,
     onlineEnabled: s.onlineEnabled,

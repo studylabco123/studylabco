@@ -16,8 +16,9 @@ const data: WizardData = {
     passPrices: { KS3: { "6": 7900, "10": 12600 }, GCSE: { "6": 10200, "10": 16200 } },
     priceSundayBundlePence: 3000,
     travelFeePence: 500,
-    blockPrices: { saturday: { 6: 10200, 10: 16200 }, sunday_bundle: { 6: 17100, 10: 27000 } },
     cancellationNoticeHours: 48,
+    passValidityMonths: 6,
+    passMinNoticeDays: 7,
     homeVisitBufferMinutes: 30,
     allowedPostcodeDistricts: ["BB1", "BB2"],
     groupVenue: null,
@@ -25,6 +26,7 @@ const data: WizardData = {
   },
   familyMessage: null,
   sessions: [],
+  passes: [],
 };
 
 describe("booking summary", () => {
@@ -42,7 +44,7 @@ describe("booking summary", () => {
   });
 
   test("a single group seat shows the session's own price (R17)", () => {
-    const session = { id: "s1", title: "Wed Group", startsAt: "2026-11-04T17:30:00.000Z", endsAt: "2026-11-04T18:30:00.000Z", seatsLeft: 5, pricePence: 1250, venue: null, product: null, level: "GCSE" as const };
+    const session = { id: "s1", title: "Wed Group", startsAt: "2026-11-04T17:30:00.000Z", endsAt: "2026-11-04T18:30:00.000Z", seatsLeft: 5, pricePence: 1250, venue: null, product: null, level: "GCSE" as const, passBookable: false };
     const s = summarise({ childId: "c1", type: "group", sessionId: "s1" }, { ...data, sessions: [session] });
     expect(s?.totalPence).toBe(1250);
     expect(s?.lines).toEqual([{ label: "Group session", pence: 1250 }]);
@@ -91,6 +93,7 @@ describe("groupPriceText", () => {
     venue: null,
     product: "saturday" as const,
     level: "KS3" as const,
+    passBookable: false,
   });
   test("quotes each session's own price, not the global default", () => {
     expect(groupPriceText([session(1250), session(1250)])).toBe("£12.50");

@@ -21,7 +21,9 @@ export function GroupCancelled({ parentName, session, credited, reason }: GroupC
       </P>
       <SessionList sessions={[session]} showCancellation={false} />
       <P>
-        {credited
+        {session.fromPass
+          ? "You will not be charged, and the session goes back on your group pass so you can book another one with it."
+          : credited
           ? "You will not be charged. The payment you made is kept as credit on your account, and the tutor will apply it to a future lesson. If you would rather have a refund, please get in touch."
           : "You will not be charged for this session."}
       </P>

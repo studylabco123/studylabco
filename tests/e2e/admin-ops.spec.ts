@@ -294,7 +294,7 @@ test.describe("admin operations", () => {
     await expect(bookingCard(page, late.id).getByText("Waived", { exact: true })).toBeVisible();
   });
 
-  test("blocks and bundles: pay a bundle, pay a block, release a block, with alerts for expired holds", async ({ page }) => {
+  test("bundles and passes: pay a bundle, alerts for passes awaiting payment, convert a paid pass to credit", async ({ page }) => {
     const parent = await seedParent();
     cleanup.push(parent.id);
     const name = `Kid${parent.tag}`;
@@ -314,51 +314,50 @@ test.describe("admin operations", () => {
       );
       await service.from("bookings").update({ bundle_id: bundle, group_session_id: null }).eq("id", rows[i].id);
     }
-    const mkBlock = async () => {
+    const mkPass = async (status: string) => {
+      const paid = status === "active";
       const { data, error } = await service
-        .from("block_bookings")
+        .from("passes")
         .insert({
           parent_id: parent.id,
           child_id: childId,
-          product: "saturday",
-          weeks: 6,
+          level: "GCSE",
+          sessions_total: 6,
           price_pence: 10200,
-          status: "held",
-          hold_expires_at: new Date(Date.now() - 3600_000).toISOString(),
+          status,
+          paid_at: paid ? new Date().toISOString() : null,
+          expires_at: paid ? new Date(Date.now() + 100 * DAY).toISOString() : null,
         })
         .select("id, payment_reference")
         .single();
       if (error) throw error;
       return data as { id: string; payment_reference: string };
     };
-    const payBlock = await mkBlock();
-    const dropBlock = await mkBlock();
-    const futureRow = await seedBooking(parent.id, childId, { daysAhead: 40, price: 1700 });
-    await service.from("bookings").update({ block_booking_id: dropBlock.id }).eq("id", futureRow.id);
+    const waiting = await mkPass("awaiting_payment");
+    const active = await mkPass("active");
     await adminLogin(page, await createAdmin());
 
     await page.goto("/admin");
     const alerts = page.getByRole("region", { name: "Needs your attention" });
-    await expect(alerts.getByRole("link", { name: new RegExp(`${parent.fullName}.*${payBlock.payment_reference}`) })).toBeVisible();
+    await expect(alerts.getByRole("link", { name: new RegExp(`${name}.*${waiting.payment_reference}`) })).toBeVisible();
     await expect(alerts.getByRole("link", { name: parent.fullName, exact: true })).toBeVisible(); // unpaid past lessons
 
     await openBookings(page, parent.tag);
-    await expect(page.getByText("Hold expired")).toHaveCount(2);
     await bookingCard(page, rows[1].id).getByRole("button", { name: "Mark bundle paid (bank transfer)" }).click();
     await expect(bookingCard(page, rows[0].id).getByText("Paid", { exact: true })).toBeVisible();
     await expect(bookingCard(page, rows[1].id).getByText("Paid", { exact: true })).toBeVisible();
     const bundleLedger = await service.from("ledger").select("amount_pence, booking_id").eq("parent_id", parent.id);
     expect(bundleLedger.data).toEqual([{ amount_pence: 3000, booking_id: rows[0].id }]);
 
-    await page.getByRole("button", { name: new RegExp(`Mark block paid \\(cash\\) for .*${payBlock.payment_reference}`) }).click();
-    await expect(page.getByText(payBlock.payment_reference)).toHaveCount(0);
-    expect((await service.from("block_bookings").select("status").eq("id", payBlock.id).single()).data?.status).toBe("paid");
-
-    await page.getByRole("button", { name: new RegExp(`Release block for .*${dropBlock.payment_reference}`) }).click();
-    await page.getByRole("button", { name: "Yes, release it" }).click();
-    await expect(page.getByText(dropBlock.payment_reference)).toHaveCount(0);
-    const released = await service.from("bookings").select("status, cancelled_by").eq("id", futureRow.id).single();
-    expect(released.data).toEqual({ status: "cancelled", cancelled_by: "tutor" });
+    // The family page lists both passes; the paid one is converted to credit (6 unused sessions = £102).
+    await page.goto(`/admin/families/${parent.id}`);
+    const passes = page.getByRole("region", { name: "Group passes" });
+    await expect(passes.getByText("Awaiting payment", { exact: true })).toBeVisible();
+    await passes.getByRole("button", { name: `Convert to credit for ${active.payment_reference}` }).click();
+    await page.getByRole("button", { name: "Yes, convert it" }).click();
+    await expect(passes.getByText("Cancelled", { exact: true })).toBeVisible();
+    const credit = await service.from("ledger").select("kind, amount_pence, pass_id").eq("pass_id", active.id);
+    expect(credit.data).toEqual([{ kind: "credit", amount_pence: 10200, pass_id: active.id }]);
   });
 
   test("Today lists today's lessons with time, child, kind, location and paid badge", async ({ page }) => {

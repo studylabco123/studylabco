@@ -19,7 +19,7 @@ export function ReviewStep({ summary, settings }: { summary: Summary; settings: 
   const [tickError, setTickError] = useState<string>();
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
-  const multi = summary.payload.type === "sunday_bundle" || summary.payload.type === "block";
+  const multi = summary.payload.type === "sunday_bundle";
   // Booking happens now, so the 14-day cooling-off runs from now.
   const [bookedAt] = useState(() => new Date());
   const terms = cancellationTerms(summary.firstStart, noticeHours, multi, bookedAt);

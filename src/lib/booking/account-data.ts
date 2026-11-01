@@ -1,20 +1,21 @@
 import "server-only";
 import { childLevelLine } from "@/lib/children/summary";
-import { getSettings } from "@/lib/settings";
-import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
+import { getPrivateSettings, getSettings } from "@/lib/settings";
+import { mapBooking, mapPass, type BookingRow, type PassRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
-import type { Booking, Level, Settings } from "@/lib/types";
+import type { Booking, Level, Pass, Settings } from "@/lib/types";
 import { cancellationDecision, parentCanCancelOnline } from "./cancellation";
 import { amountOwedPence, creditBalancePence } from "./owed";
+import { passCardText, passInCoolingOff, passRemaining, passUsable } from "./pass";
 import { seatDuePence } from "./payment-view";
 
 export interface BookingView {
   booking: Booking;
   title: string;
   childName: string | null;
-  /** "Sunday bundle" or "Week 3 of 6"; null for standalone bookings. */
+  /** "Group pass", "Sunday bundle" or both; null for standalone bookings. */
   membership: string | null;
-  /** The reference to pay with: the block's own reference for a week of a block, else the booking's. */
+  /** The reference to pay with. */
   reference: string;
   /** What this booking would owe if unpaid (price plus travel, or the late/no-show fee). */
   duePence: number;
@@ -42,6 +43,18 @@ export interface OwedLine {
   amountPence: number;
 }
 
+export interface PassView {
+  pass: Pass;
+  childName: string | null;
+  remaining: number;
+  /** "KS3 group pass — 4 of 6 sessions left — expires 1 May 2027". */
+  text: string;
+  /** Paid, not expired, with a session left: "Book a session" is offered. */
+  bookable: boolean;
+  /** Within 14 days of buying: the parent can cancel it on the website. */
+  cancellable: boolean;
+}
+
 export interface AccountOverview {
   isBlocked: boolean;
   upcoming: BookingView[];
@@ -57,6 +70,13 @@ export interface AccountOverview {
   noticeHours: number;
   /** The business phone (Settings), shown when set. */
   businessPhone: string | null;
+  /** Group passes that are awaiting payment, active, or expired with sessions still booked; newest first. */
+  passes: PassView[];
+  /** Bank details for paying a pass, when one is awaiting payment and they are set. */
+  bank: { accountName: string; sortCode: string; accountNumber: string } | null;
+  /** How long a pass lasts once paid, and how far ahead its sessions are booked (Settings). */
+  passValidityMonths: number;
+  passMinNoticeDays: number;
 }
 
 const KIND_TITLE = { assessment: "Assessment Lesson", one_to_one: "1-to-1 lesson", group: "Group session" } as const;
@@ -67,14 +87,15 @@ const KIND_TITLE = { assessment: "Assessment Lesson", one_to_one: "1-to-1 lesson
  */
 export async function loadAccountOverview(parentId: string, now: Date = new Date()): Promise<AccountOverview> {
   const c = createServiceClient();
-  const [profile, bookings, children, settings, credit] = await Promise.all([
+  const [profile, bookings, children, settings, credit, passRows] = await Promise.all([
     c.from("profiles").select("is_blocked").eq("id", parentId).single(),
     c.from("bookings").select("*").eq("parent_id", parentId).order("starts_at"),
     c.from("children").select("id, first_name, last_name, school_year, level, exam_board, tier, agreements(id), student_status(approved_at)").eq("parent_id", parentId).order("created_at"),
     getSettings(),
     c.from("ledger").select("kind, amount_pence").eq("parent_id", parentId).in("kind", ["credit", "credit_applied"]),
+    c.from("passes").select("*").eq("parent_id", parentId).neq("status", "cancelled").order("created_at", { ascending: false }),
   ]);
-  for (const r of [profile, bookings, children, credit]) if (r.error) throw new Error(`Could not load account: ${r.error.message}`);
+  for (const r of [profile, bookings, children, credit, passRows]) if (r.error) throw new Error(`Could not load account: ${r.error.message}`);
 
   const all = (bookings.data as BookingRow[]).map(mapBooking);
   const names = new Map<string, string>();
@@ -102,32 +123,18 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
   });
 
   const sessionIds = [...new Set(all.map((b) => b.groupSessionId).filter((x): x is string => x !== null))];
-  const blockIds = [...new Set(all.map((b) => b.blockBookingId).filter((x): x is string => x !== null))];
-  const [sessions, blocks] = await Promise.all([
-    sessionIds.length ? c.from("group_sessions").select("id, title").in("id", sessionIds) : null,
-    blockIds.length ? c.from("block_bookings").select("id, weeks, created_at, payment_reference, status").in("id", blockIds) : null,
-  ]);
+  const sessions = sessionIds.length ? await c.from("group_sessions").select("id, title").in("id", sessionIds) : null;
   const titles = new Map((sessions?.data ?? []).map((s) => [s.id as string, s.title as string]));
-  const weeks = new Map((blocks?.data ?? []).map((b) => [b.id as string, b.weeks as number]));
-  // A week of a block is paid with the block's reference, unless the block was released: then any
-  // lesson already taught from it is paid on its own (Ruling R16), with its own reference.
-  const blockRef = new Map(
-    (blocks?.data ?? []).filter((b) => b.status !== "released").map((b) => [b.id as string, b.payment_reference as string]),
-  );
-  const referenceOf = (b: Booking) => (b.blockBookingId && blockRef.get(b.blockBookingId)) || b.paymentReference;
-  // When each booking was made, for the 14-day cooling-off: a block week counts from the block.
-  const blockMade = new Map((blocks?.data ?? []).map((b) => [b.id as string, new Date(b.created_at as string)]));
-  const bookedAt = (b: Booking) => (b.blockBookingId && blockMade.get(b.blockBookingId)) || b.createdAt;
+  const referenceOf = (b: Booking) => b.paymentReference;
+
+  const passes = (passRows.data as PassRow[]).map(mapPass);
+  // A pass seat's 14-day cooling-off counts from when the pass was bought.
+  const passBought = new Map(passes.map((p) => [p.id, p.createdAt]));
+  const bookedAt = (b: Booking) => (b.passId && passBought.get(b.passId)) || b.createdAt;
 
   const view = (b: Booking): BookingView => {
-    let membership: string | null = null;
-    if (b.blockBookingId) {
-      const seats = all.filter((x) => x.blockBookingId === b.blockBookingId);
-      membership = `Week ${seats.indexOf(b) + 1} of ${weeks.get(b.blockBookingId) ?? seats.length}`;
-    } else if (b.bundleId) {
-      membership = "Sunday bundle";
-    }
-    const live = isCancellable(b, now) && !b.passId; // pass seats are handled with passes (Task V5)
+    const membership = b.passId ? (b.bundleId ? "Group pass · Sunday bundle" : "Group pass") : b.bundleId ? "Sunday bundle" : null;
+    const live = isCancellable(b, now);
     const neverConfirmed = b.status === "pending" && b.location === "home_visit";
     const cancellable = live && (neverConfirmed || parentCanCancelOnline(b.startsAt, now, settings.cancellationNoticeHours));
     return {
@@ -136,7 +143,8 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
       childName: b.childId ? (names.get(b.childId) ?? null) : null,
       membership,
       reference: referenceOf(b),
-      duePence: seatDuePence(b, settings.lateFeePercent),
+      // A pass seat costs nothing more unless a late cancellation / no-show fee is owed.
+      duePence: b.passId && b.status !== "late_cancelled" && b.status !== "no_show" ? 0 : seatDuePence(b, settings.lateFeePercent),
       cancellable,
       callRequired: live && !cancellable,
       callFree: live && !cancellable && freeInsideNotice(b, now, settings, bookedAt(b)),
@@ -154,6 +162,26 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
       owedLines.push({ reference: referenceOf(b), title: view(b).title, startsAt: b.startsAt, amountPence: amount });
     }
   }
+
+  const passViews: PassView[] = passes
+    .map((p) => {
+      const remaining = passRemaining(p, all);
+      return {
+        pass: p,
+        childName: p.childId ? (names.get(p.childId) ?? null) : null,
+        remaining,
+        text: passCardText(p, remaining),
+        bookable: passUsable(p, now) && remaining > 0,
+        cancellable: (p.status === "awaiting_payment" || p.status === "active") && passInCoolingOff(p, now),
+      };
+    })
+    // An expired pass stays on show only while it still has sessions booked ahead.
+    .filter((v) => v.pass.status !== "expired" || all.some((b) => b.passId === v.pass.id && isCancellable(b, now)));
+  const priv = passViews.some((v) => v.pass.status === "awaiting_payment") ? await getPrivateSettings() : null;
+  const bank =
+    priv?.bankAccountName && priv.bankSortCode && priv.bankAccountNumber
+      ? { accountName: priv.bankAccountName, sortCode: priv.bankSortCode, accountNumber: priv.bankAccountNumber }
+      : null;
 
   return {
     isBlocked: profile.data!.is_blocked as boolean,
@@ -173,6 +201,10 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
     lateFeePercent: settings.lateFeePercent,
     noticeHours: settings.cancellationNoticeHours,
     businessPhone: settings.businessPhone?.trim() || null,
+    passes: passViews,
+    bank,
+    passValidityMonths: settings.passValidityMonths,
+    passMinNoticeDays: settings.passMinNoticeDays,
   };
 }
 

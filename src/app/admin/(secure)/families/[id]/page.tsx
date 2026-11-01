@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApproveStudentButton, BlockToggle, ManualBookingForm, NoteForm, PayFromCreditButton, RecordLateCancellationButton } from "@/components/admin/FamilyControls";
+import { PassList } from "@/components/admin/passes/PassList";
 import { Badge } from "@/components/ui/Badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { requireAdmin } from "@/lib/admin-guard";
 import { KIND_LABEL, LOCATION_LABEL, PAYMENT_LABEL, statusLabel } from "@/lib/admin/labels";
 import { mailtoHref, telHref, whatsappHref } from "@/lib/admin/phone";
+import { loadAdminPasses } from "@/lib/admin/pass-queries";
 import { loadFamily, type FamilyChild } from "@/lib/admin/queries";
 import { seatDuePence, willBeOwed } from "@/lib/booking/payment-view";
 import { childLevelLine } from "@/lib/children/summary";
@@ -36,6 +38,7 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const f = await loadFamily(id);
   if (!f) notFound();
+  const passes = await loadAdminPasses({ parentId: f.id });
 
   const tel = telHref(f.phone);
   const wa = whatsappHref(f.phone);
@@ -188,6 +191,13 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
         )}
       </section>
 
+      <section aria-labelledby="passes-h" className="flex flex-col gap-4">
+        <h2 id="passes-h" className="text-h2">
+          Group passes
+        </h2>
+        <PassList items={passes} showFamily={false} empty="No group passes." />
+      </section>
+
       <section aria-labelledby="history-h" className="flex flex-col gap-4">
         <h2 id="history-h" className="text-h2">
           History
@@ -207,13 +217,14 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={status.tone}>{status.text}</Badge>
                     <Badge tone={pay.tone}>{pay.text}</Badge>
+                    {b.passId ? <Badge tone="sky">Pass</Badge> : null}
                     <span className="text-small text-navy-600">
                       {formatPence(seatDuePence(b, f.settings.lateFeePercent))}
                     </span>
                     {f.creditPence > 0 && willBeOwed(b) ? (
                       <PayFromCreditButton
                         bookingId={b.id}
-                        label={`${b.blockBookingId ? "Pay block from credit" : "Pay from credit"} for ${b.paymentReference}`}
+                        label={`Pay from credit for ${b.paymentReference}`}
                       />
                     ) : null}
                     {b.status === "pending" || b.status === "confirmed" ? (

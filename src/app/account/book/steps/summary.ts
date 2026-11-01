@@ -2,9 +2,9 @@ import { freeCancellationEnds } from "@/lib/booking/cancellation";
 import { assessmentLevel } from "@/lib/booking/level";
 import { lateFeePence } from "@/lib/booking/fees";
 import { quote } from "@/lib/booking/pricing";
-import { londonDateOf, londonDateTime } from "@/lib/time";
+import { londonDateOf } from "@/lib/time";
 import type { DraftPayload, Selection, SessionOption, WizardData } from "../types";
-import { LOCATION_LABEL, londonDay, londonTime, londonWhen, PRODUCT_LABEL, TYPE_LABEL } from "./labels";
+import { LOCATION_LABEL, londonDay, londonTime, londonWhen, TYPE_LABEL } from "./labels";
 
 export interface Summary {
   childName: string;
@@ -93,24 +93,9 @@ export function summarise(sel: Selection, data: WizardData): Summary | null {
         payload: { type: "sunday_bundle", childId: child.id, date: sel.bundleDate },
       };
     }
-    case "block": {
-      const b = sel.block;
-      if (!b) return null;
-      const first = data.sessions.find((x) => x.product === b.product && sameDay(x, b.firstDate));
-      const q = quote({ type: "block", product: b.product, weeks: b.weeks }, s);
-      const label = `${PRODUCT_LABEL[b.product]}, ${b.weeks}-week block`;
-      return {
-        ...base,
-        what: label,
-        when: `${b.weeks} weeks starting ${londonDay(londonDateTime(b.firstDate, "12:00"))}${first ? `, ${londonTime(first.startsAt)}` : ""}`,
-        where: venue(first),
-        lines: [{ label, pence: q.totalPence }],
-        totalPence: q.totalPence,
-        feePence: lateFeePence(q.perBookingPence[0], s.lateFeePercent),
-        firstStart: first ? new Date(first.startsAt) : londonDateTime(b.firstDate, "08:15"),
-        payload: { type: "block", childId: child.id, ...b },
-      };
-    }
+    default:
+      // Buying a pass and booking with one have their own review steps.
+      return null;
   }
 }
 

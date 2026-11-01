@@ -20,11 +20,8 @@ export type PeriodKind = "term" | "holiday";
 export type PaymentMethod = "bank_transfer" | "cash";
 export type LedgerKind = "payment" | "refund" | "credit" | "waiver" | "credit_applied";
 
-/** Group block products (group_series.product, block_bookings.product). */
+/** What a weekly group series is (group_series.product): the Saturday group or one of the Sunday-bundle pair. */
 export type GroupProduct = "saturday" | "sunday_bundle";
-export type BlockWeeks = 6 | 10;
-/** settings.block_prices: explicit pence per product and block length. */
-export type BlockPrices = Record<GroupProduct, Record<BlockWeeks, number>>;
 
 /** Teaching level. KS3 = Years 7-9, GCSE = Years 9-11 (Year 9 is the parent's choice). */
 export type Level = "KS3" | "GCSE";
@@ -41,7 +38,6 @@ export interface Settings {
   priceGroupPence: number;
   priceSundayBundlePence: number;
   travelFeePence: number;
-  blockPrices: BlockPrices;
   onlineEnabled: boolean;
   homeVisitsEnabled: boolean;
   tutorPlaceEnabled: boolean;
@@ -171,6 +167,7 @@ export interface Booking {
   /** endsAt plus any travel buffer (home visits). */
   busyUntil: Date;
   groupSessionId: string | null;
+  /** Legacy fixed-week block (removed in v2; the column stays, always null for new bookings). */
   blockBookingId: string | null;
   passId: string | null;
   /** Late fee owed for late_cancelled / no_show; null = use the legacy rule. */

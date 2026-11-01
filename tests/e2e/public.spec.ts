@@ -138,15 +138,15 @@ test("lessons shows every price from settings and the new-student steps", async 
     s.price_one_to_one_pence + s.travel_fee_pence,
     s.price_group_pence,
     s.price_sunday_bundle_pence,
-    s.block_prices.saturday["6"],
-    s.block_prices.saturday["10"],
-    s.block_prices.sunday_bundle["6"],
-    s.block_prices.sunday_bundle["10"],
+    s.pass_prices.KS3["6"],
+    s.pass_prices.KS3["10"],
+    s.pass_prices.GCSE["6"],
+    s.pass_prices.GCSE["10"],
   ]) {
     await expect(main.getByText(gbp(p), { exact: true }).first(), gbp(p)).toBeVisible();
   }
-  // Saving against weekly prices: 6 x £18 = £108 → save £6.
-  await expect(main.getByText(`Save ${gbp(6 * s.price_group_pence - s.block_prices.saturday["6"])}`).first()).toBeVisible();
+  // Saving against single sessions: 6 x £18 = £108 → a £102 GCSE pass saves £6.
+  await expect(main.getByText(`Save ${gbp(6 * s.price_group_pence - s.pass_prices.GCSE["6"])}`).first()).toBeVisible();
   await expect(main.getByText(/BB1 and BB2/).first()).toBeVisible();
   const steps = main.getByRole("list", { name: "Steps for new students" });
   await expect(steps.getByRole("listitem")).toHaveCount(4);

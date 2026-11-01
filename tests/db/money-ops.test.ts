@@ -93,22 +93,6 @@ describe("recordRefund", () => {
     expect((await db.query("select payment_status from bookings")).rows[0].payment_status).toBe("refunded");
     expect((await recordRefund(id, "1")).ok).toBe(false);
   });
-  test("refunds on sessions of one block share a single cap", async () => {
-    const blk = await db.query<{ id: string }>(
-      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, status) values ($1,$2,'saturday',6,10000,'paid') returning id`, [parentId, childId]);
-    const mk = async (days: number) =>
-      (await db.query<{ id: string }>(
-        `insert into bookings (parent_id, child_id, kind, location, starts_at, ends_at, busy_until, status, price_pence, payment_status, block_booking_id)
-         values ($1,$2,'one_to_one','tutor_place', now() - make_interval(days => $4), now() - make_interval(days => $4) + interval '1 hour', now() - make_interval(days => $4) + interval '1 hour', 'attended', 2500, 'paid', $3) returning id`,
-        [parentId, childId, blk.rows[0].id, days])).rows[0].id;
-    const [s1, s2] = [await mk(1), await mk(2)];
-    await db.query(`insert into ledger (block_booking_id, parent_id, kind, method, amount_pence, occurred_on) values ($1,$2,'payment','cash',10000,current_date)`, [blk.rows[0].id, parentId]);
-    expect((await recordRefund(s1, "60")).ok).toBe(true);
-    expect((await recordRefund(s2, "60")).ok).toBe(false);
-    expect((await recordRefund(s2, "40")).ok).toBe(true);
-    expect((await recordRefund(s1, "0.01")).ok).toBe(false);
-    expect((await db.query("select count(*)::int n from ledger where kind='refund' and block_booking_id = $1", [blk.rows[0].id])).rows[0].n).toBe(2);
-  });
   test("refunding a credited booking uses up that credit instead of leaving it to spend (R23)", async () => {
     const id = await paidBooking(2500);
     await db.query("update bookings set status = 'cancelled', payment_status = 'credited' where id = $1", [id]);

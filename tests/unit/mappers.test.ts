@@ -20,7 +20,6 @@ const row = {
   price_group_pence: 1800,
   price_sunday_bundle_pence: 3000,
   travel_fee_pence: 500,
-  block_prices: { saturday: { "6": 10200, "10": 16200 }, sunday_bundle: { "6": 17100, "10": 27000 } },
   online_enabled: false,
   home_visits_enabled: true,
   tutor_place_enabled: true,
@@ -74,12 +73,6 @@ describe("mapSettings", () => {
     expect(s.passValidityMonths).toBe(6);
     expect(s.passMinNoticeDays).toBe(7);
     expect(settingsPatchToRow({ lateFeePercent: 25, passValidityMonths: 3 })).toEqual({ late_fee_percent: 25, pass_validity_months: 3 });
-  });
-
-  test("block prices get numeric week keys", () => {
-    const s = mapSettings(row);
-    expect(s.blockPrices.saturday[6]).toBe(10200);
-    expect(s.blockPrices.sunday_bundle[10]).toBe(27000);
   });
 
   test("does not leak row-only columns", () => {
@@ -253,11 +246,13 @@ describe("calendar mappers", () => {
 });
 
 describe("settings rows missing price keys (Ruling R4)", () => {
-  test("pass and block prices fall back to the seed defaults", () => {
-    const s = mapSettings({ ...row, pass_prices: {}, block_prices: {} } as never);
+  test("pass prices fall back to the seed defaults", () => {
+    const s = mapSettings({ ...row, pass_prices: {} } as never);
     expect(s.passPrices).toEqual({ KS3: { 6: 7900, 10: 12600 }, GCSE: { 6: 10200, 10: 16200 } });
-    expect(s.blockPrices.saturday[6]).toBe(10200);
-    expect(s.blockPrices.sunday_bundle[10]).toBe(27000);
+  });
+
+  test("the unused block_prices column is not mapped", () => {
+    expect(mapSettings({ ...row, block_prices: {} } as never)).not.toHaveProperty("blockPrices");
   });
   test("a partial row keeps what it has and defaults the rest", () => {
     const s = mapSettings({ ...row, pass_prices: { KS3: { "6": 8000 } } } as never);

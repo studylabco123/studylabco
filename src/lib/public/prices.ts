@@ -1,4 +1,4 @@
-import type { BlockWeeks, GroupProduct, Settings } from "@/lib/types";
+import type { Level, PassSessions, Settings } from "@/lib/types";
 
 /** Every public price, in pence, straight from settings. Home visits add the travel fee. */
 export function lessonPrices(s: Settings) {
@@ -13,23 +13,23 @@ export function lessonPrices(s: Settings) {
   };
 }
 
-export interface BlockOffer {
-  product: GroupProduct;
-  weeks: BlockWeeks;
+export interface PassOffer {
+  level: Level;
+  sessions: PassSessions;
   pricePence: number;
-  /** The same weeks booked one at a time. */
-  weeklyPence: number;
+  /** The same sessions booked one at a time at the level's group price. */
+  singlePence: number;
   savingPence: number;
 }
 
-/** Group blocks with their saving against weekly booking (never negative). */
-export function blockOffers(s: Settings): BlockOffer[] {
-  const weekly: Record<GroupProduct, number> = { saturday: s.priceGroupPence, sunday_bundle: s.priceSundayBundlePence };
-  return (["saturday", "sunday_bundle"] as const).flatMap((product) =>
-    ([6, 10] as const).map((weeks) => {
-      const pricePence = s.blockPrices[product][weeks];
-      const weeklyPence = weekly[product] * weeks;
-      return { product, weeks, pricePence, weeklyPence, savingPence: Math.max(0, weeklyPence - pricePence) };
+/** Group passes with their saving against booking sessions one by one (never negative). */
+export function passOffers(s: Settings): PassOffer[] {
+  const single: Record<Level, number> = { KS3: s.priceKs3GroupPence, GCSE: s.priceGroupPence };
+  return (["KS3", "GCSE"] as const).flatMap((level) =>
+    ([6, 10] as const).map((sessions) => {
+      const pricePence = s.passPrices[level][String(sessions) as "6" | "10"];
+      const singlePence = single[level] * sessions;
+      return { level, sessions, pricePence, singlePence, savingPence: Math.max(0, singlePence - pricePence) };
     }),
   );
 }

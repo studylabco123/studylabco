@@ -59,15 +59,15 @@ describe("sendEmail", () => {
     expect(testOutbox.find((e) => e.template === "admin_new_booking")).toMatchObject({ to: "a@example.test", subject: "New booking" });
   });
 
-  test("block-level emails are idempotent too (R14)", async () => {
+  test("pass-level emails are idempotent too", async () => {
     const { rows } = await db.query<{ id: string }>(
-      "insert into block_bookings (parent_id, child_id, product, weeks, price_pence) values ($1, $2, 'saturday', 6, 10200) returning id",
+      "insert into passes (parent_id, child_id, level, sessions_total, price_pence) values ($1, $2, 'GCSE', 6, 10200) returning id",
       [parent.id, childId],
     );
-    const args = { to: "a@example.test", template: "admin_block_hold_expired", props: AN, blockBookingId: rows[0].id } as const;
+    const args = { to: "a@example.test", template: "admin_new_pass", props: AN, passId: rows[0].id } as const;
     expect(await sendEmail(args)).toBe("sent");
     expect(await sendEmail(args)).toBe("skipped");
-    // Emails with no booking or block are never deduplicated.
+    // Emails with no booking or pass are never deduplicated.
     const plain = { to: "a@example.test", template: "admin_new_signup", props: AN } as const;
     expect(await sendEmail(plain)).toBe("sent");
     expect(await sendEmail(plain)).toBe("sent");
@@ -140,15 +140,16 @@ describe("booking hooks", () => {
 });
 
 describe("daily cron", () => {
-  test("sends due reminders once, plus block payment reminder and expired-hold notice", async () => {
+  test("sends due reminders once, plus a pass payment reminder and pass expiry", async () => {
     await insertBooking(30);
     await insertBooking(72);
     await insertBooking(40);
     await insertBooking(30, { status: "cancelled" });
     await db.query(
-      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, created_at, hold_expires_at) values
-         ($1, $2, 'saturday', 6, 10200, now() - interval '50 hours', now() + interval '22 hours'),
-         ($1, $2, 'saturday', 6, 10200, now() - interval '80 hours', now() - interval '8 hours')`,
+      `insert into passes (parent_id, child_id, level, sessions_total, price_pence, status, created_at, paid_at, expires_at) values
+         ($1, $2, 'GCSE', 6, 10200, 'awaiting_payment', now() - interval '50 hours', null, null),
+         ($1, $2, 'GCSE', 6, 10200, 'awaiting_payment', now() - interval '20 hours', null, null),
+         ($1, $2, 'GCSE', 6, 10200, 'active', now() - interval '200 days', now() - interval '190 days', now() - interval '1 day')`,
       [parent.id, childId],
     );
     const first = await cron();
@@ -156,18 +157,18 @@ describe("daily cron", () => {
       ok: true,
       freeCancelReminders: 1,
       lessonReminders: 1,
-      blockPaymentReminders: 1,
-      expiredBlockNotices: 1,
+      passPaymentReminders: 1,
+      passesExpired: 1,
       failed: 0,
     });
     expect(first.groupSessionsCreated).toBeGreaterThanOrEqual(0);
     const second = await cron();
-    expect(second).toMatchObject({ freeCancelReminders: 0, lessonReminders: 0, blockPaymentReminders: 0, expiredBlockNotices: 0, skipped: 4 });
-    expect((await logged()).map((r) => r.template)).toEqual([
-      "admin_block_hold_expired",
-      "block_payment_reminder",
-      "free_cancel_reminder",
-      "lesson_reminder",
+    expect(second).toMatchObject({ freeCancelReminders: 0, lessonReminders: 0, passPaymentReminders: 0, passesExpired: 0, skipped: 2 });
+    expect((await logged()).map((r) => r.template)).toEqual(["free_cancel_reminder", "lesson_reminder", "pass_payment_reminder"]);
+    expect((await db.query("select status from passes order by created_at")).rows.map((r) => r.status)).toEqual([
+      "expired",
+      "awaiting_payment",
+      "awaiting_payment",
     ]);
   });
 
@@ -183,22 +184,6 @@ describe("daily cron", () => {
     } finally {
       await db.query("update settings set cancellation_notice_hours = 48");
     }
-  });
-
-  test("the block payment reminder asks for the block price less weeks cancelled for free (I3)", async () => {
-    const { rows } = await db.query<{ id: string }>(
-      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, created_at, hold_expires_at)
-       values ($1, $2, 'saturday', 6, 10200, now() - interval '50 hours', now() + interval '22 hours') returning id`,
-      [parent.id, childId],
-    );
-    const block = rows[0].id;
-    const a = await insertBooking(200, { kind: "group" });
-    const b = await insertBooking(368, { kind: "group", status: "cancelled" });
-    await db.query("update bookings set block_booking_id = $1, price_pence = 1700 where id in ($2, $3)", [block, a, b]);
-    expect(await cron()).toMatchObject({ blockPaymentReminders: 1 });
-    const mail = testOutbox.find((e) => e.template === "block_payment_reminder")!;
-    expect(mail.text).toContain("£85");
-    expect(mail.text).not.toContain("£102");
   });
 
   test("rejects a wrong secret", async () => {

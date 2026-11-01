@@ -1,6 +1,5 @@
 import "server-only";
 import { amountOwedPence, creditBalancePence, isFlagged } from "@/lib/booking/owed";
-import { blockDuePence } from "@/lib/booking/payment-view";
 import { getSettings } from "@/lib/settings";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -81,11 +80,11 @@ export async function loadToday(now: Date = new Date()): Promise<TodayData> {
   const dayEnd = londonDateTime(addDays(date, 1), "00:00");
   const settings = await getSettings();
 
-  const [todayRows, pendingRows, unpaidRows, holdRows, kids, assessments, badRows] = await Promise.all([
+  const [todayRows, pendingRows, unpaidRows, passRows, kids, assessments, badRows] = await Promise.all([
     c.from("bookings").select("*").gte("starts_at", dayStart.toISOString()).lt("starts_at", dayEnd.toISOString()).not("status", "in", "(cancelled,declined)").order("starts_at"),
     c.from("bookings").select("*").eq("status", "pending").eq("location", "home_visit").order("starts_at"),
     c.from("bookings").select("*").eq("payment_status", "unpaid").in("status", ["late_cancelled", "no_show", "attended", "confirmed"]).lte("starts_at", now.toISOString()).order("starts_at"),
-    c.from("block_bookings").select("id, parent_id, child_id, payment_reference, hold_expires_at, status").eq("status", "held").lt("hold_expires_at", now.toISOString()),
+    c.from("passes").select("id, parent_id, child_id, payment_reference, level, sessions_total").eq("status", "awaiting_payment").order("created_at"),
     c.from("children").select("id, parent_id, first_name, last_name, agreements(id), student_status(approved_at)"),
     c.from("bookings").select("child_id, status").eq("kind", "assessment").in("status", [...ACTIVE]),
     c.from("bookings").select("*").in("status", ["late_cancelled", "no_show"]).gte("starts_at", new Date(now.getTime() - 365 * DAY).toISOString()),
@@ -94,7 +93,9 @@ export async function loadToday(now: Date = new Date()): Promise<TodayData> {
   const today = toBookings(check("today's bookings", todayRows));
   const pending = toBookings(check("pending home visits", pendingRows));
   const unpaid = toBookings(check("unpaid lessons", unpaidRows)).filter((b) => amountOwedPence([b], [], now, settings.lateFeePercent) > 0);
-  const holds = check<{ id: string; parent_id: string | null; child_id: string | null; payment_reference: string }[]>("block holds", holdRows);
+  const waitingPasses = check<
+    { id: string; parent_id: string | null; child_id: string | null; payment_reference: string; level: string; sessions_total: number }[]
+  >("passes awaiting payment", passRows);
   const children = check<(ChildLite & { agreements: unknown; student_status: unknown })[]>("children", kids);
   const assessmentBookings = check<{ child_id: string | null; status: string }[]>("assessments", assessments);
   const bad = toBookings(check("late cancellations", badRows));
@@ -120,11 +121,11 @@ export async function loadToday(now: Date = new Date()): Promise<TodayData> {
     ...today.map((b) => b.parentId),
     ...pending.map((b) => b.parentId),
     ...unpaidByParent.keys(),
-    ...holds.map((h) => h.parent_id),
+    ...waitingPasses.map((p) => p.parent_id),
     ...children.map((ch) => ch.parent_id),
     ...flaggedIds,
   ]);
-  const kidMap = await childrenById([...today.map((b) => b.childId), ...pending.map((b) => b.childId), ...holds.map((h) => h.child_id)]);
+  const kidMap = await childrenById([...today.map((b) => b.childId), ...pending.map((b) => b.childId), ...waitingPasses.map((p) => p.child_id)]);
 
   const alerts: TodayData["alerts"] = [];
   const add = (key: string, title: string, items: AlertLink[]) => items.length && alerts.push({ key, title, items });
@@ -149,13 +150,13 @@ export async function loadToday(now: Date = new Date()): Promise<TodayData> {
     })),
   );
   add(
-    "holds",
-    "Block holds that have run out",
-    holds.map((h) => ({
-      key: h.id,
-      label: `${parentName(profiles.get(h.parent_id ?? ""))} (${h.payment_reference})`,
-      detail: "",
-      href: "/admin/bookings#blocks",
+    "passes",
+    "Group passes awaiting payment",
+    waitingPasses.map((p) => ({
+      key: p.id,
+      label: `${childName(kidMap.get(p.child_id ?? ""))} (${parentName(profiles.get(p.parent_id ?? ""))}, ${p.payment_reference})`,
+      detail: `${p.level} ${p.sessions_total}-session pass`,
+      href: "/admin/money#passes",
     })),
   );
   add(
@@ -210,21 +211,6 @@ export interface BookingItem {
   parentId: string | null;
   membership: string | null;
   owedPence: number;
-  /** Row of a block that was released: paid one by one. */
-  blockReleased: boolean;
-}
-
-export interface BlockItem {
-  id: string;
-  reference: string;
-  parentId: string | null;
-  parentName: string;
-  childName: string;
-  product: string;
-  weeks: number;
-  pricePence: number;
-  holdExpiresAt: Date | null;
-  expired: boolean;
 }
 
 /** Ids of parents and children whose name or email contains `q`, for the booking search. */
@@ -244,7 +230,7 @@ export async function loadBookings(
   filter: BookingFilter,
   q: string,
   now: Date = new Date(),
-): Promise<{ items: BookingItem[]; blocks: BlockItem[] }> {
+): Promise<{ items: BookingItem[] }> {
   const c = db();
   let query = c.from("bookings").select("*");
   const term = q.trim();
@@ -258,7 +244,7 @@ export async function loadBookings(
         m.parents.length ? `parent_id.in.(${m.parents.join(",")})` : "",
         m.children.length ? `child_id.in.(${m.children.join(",")})` : "",
       ].filter(Boolean);
-      if (!parts.length) return { items: [], blocks: await loadHeldBlocks(now, term) };
+      if (!parts.length) return { items: [] };
       query = query.or(parts.join(","));
     }
   }
@@ -282,7 +268,6 @@ export async function loadBookings(
   }
   const rows = toBookings(check("bookings", await query.limit(150)));
   const [profiles, kids] = await Promise.all([profilesById(rows.map((b) => b.parentId)), childrenById(rows.map((b) => b.childId))]);
-  const released = await releasedBlockIds(rows);
   const settings = await getSettings();
 
   const items = rows
@@ -291,54 +276,18 @@ export async function loadBookings(
       childName: childName(kids.get(b.childId ?? "")),
       parentName: parentName(profiles.get(b.parentId ?? "")),
       parentId: b.parentId,
-      membership: b.blockBookingId ? "Block" : b.bundleId ? "Sunday bundle" : null,
+      membership: membershipOf(b),
       owedPence: amountOwedPence([b], [], now, settings.lateFeePercent),
-      blockReleased: released.has(b.blockBookingId ?? ""),
     }))
-    // The unpaid view is about money owed now, which excludes lessons paid for through a block.
+    // The unpaid view is about money owed now, which excludes lessons paid for with a pass.
     .filter((i) => (filter === "unpaid" ? i.owedPence > 0 : true));
-  return { items, blocks: await loadHeldBlocks(now, term) };
+  return { items };
 }
 
-async function releasedBlockIds(rows: Booking[]): Promise<Set<string>> {
-  const ids = [...new Set(rows.map((b) => b.blockBookingId).filter((x): x is string => !!x))];
-  if (!ids.length) return new Set();
-  const res = check<{ id: string }[]>("blocks", await db().from("block_bookings").select("id").in("id", ids).eq("status", "released"));
-  return new Set(res.map((r) => r.id));
-}
-
-async function loadHeldBlocks(now: Date, q: string): Promise<BlockItem[]> {
-  const rows = check<
-    { id: string; parent_id: string | null; child_id: string | null; product: string; weeks: number; price_pence: number; payment_reference: string; hold_expires_at: string | null }[]
-  >("blocks", await db().from("block_bookings").select("id, parent_id, child_id, product, weeks, price_pence, payment_reference, hold_expires_at").eq("status", "held").order("created_at"));
-  const [profiles, kids, seatRes] = await Promise.all([
-    profilesById(rows.map((r) => r.parent_id)),
-    childrenById(rows.map((r) => r.child_id)),
-    rows.length
-      ? db().from("bookings").select("block_booking_id, status, price_pence").in("block_booking_id", rows.map((r) => r.id))
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-  const seats = check<{ block_booking_id: string; status: Booking["status"]; price_pence: number }[]>("block sessions", seatRes);
-  const items = rows.map<BlockItem>((r) => ({
-    id: r.id,
-    reference: r.payment_reference,
-    parentId: r.parent_id,
-    parentName: parentName(profiles.get(r.parent_id ?? "")),
-    childName: childName(kids.get(r.child_id ?? "")),
-    product: r.product,
-    weeks: r.weeks,
-    // The amount due: the block price less weeks cancelled for free (review I3).
-    pricePence: blockDuePence(
-      r.price_pence,
-      seats.filter((x) => x.block_booking_id === r.id).map((x) => ({ status: x.status, pricePence: x.price_pence })),
-    ),
-    holdExpiresAt: r.hold_expires_at ? new Date(r.hold_expires_at) : null,
-    expired: r.hold_expires_at ? new Date(r.hold_expires_at).getTime() < now.getTime() : false,
-  }));
-  const needle = q.toLowerCase();
-  return needle
-    ? items.filter((i) => [i.parentName, i.childName, i.reference].some((s) => s.toLowerCase().includes(needle)))
-    : items;
+/** "Pass" for a seat booked with a group pass, "Sunday bundle", or null. */
+export function membershipOf(b: Pick<Booking, "passId" | "bundleId">): string | null {
+  if (b.passId) return b.bundleId ? "Pass · Sunday bundle" : "Pass";
+  return b.bundleId ? "Sunday bundle" : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -511,9 +460,8 @@ export async function loadFamily(parentId: string, now: Date = new Date()): Prom
       childName: nameOf.get(b.childId ?? "") ?? "Removed child",
       parentName: parentName(p),
       parentId: p.id,
-      membership: b.blockBookingId ? "Block" : b.bundleId ? "Sunday bundle" : null,
+      membership: membershipOf(b),
       owedPence: amountOwedPence([b], [], now, settings.lateFeePercent),
-      blockReleased: false,
     })),
     owedPence: amountOwedPence(bookings, [], now, settings.lateFeePercent),
     creditPence: creditBalancePence(

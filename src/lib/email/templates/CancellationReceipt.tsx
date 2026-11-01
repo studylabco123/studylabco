@@ -26,7 +26,9 @@ export function CancellationReceipt({ parentName, session, outcome, wasPaid, ref
           this.
         </P>
         <SessionList sessions={[session]} showCancellation={false} />
-        {wasPaid ? (
+        {session.fromPass ? (
+          <P>The session goes back on your group pass, so you can book another one with it.</P>
+        ) : wasPaid ? (
           <P>
             {refunded
               ? "We will refund the payment you made. If you do not see it within a few days, please get in touch."
@@ -49,11 +51,13 @@ export function CancellationReceipt({ parentName, session, outcome, wasPaid, ref
       {outcome === "free" ? (
         <P>
           This was a free cancellation, so nothing is due.
+          {session.fromPass ? " The session goes back on your group pass, so you can book another one with it." : ""}
           {wasPaid ? " The payment you made is kept as credit on your account, and the tutor will apply it to a future lesson. If you would rather have a refund, please get in touch." : ""}
         </P>
       ) : (
         <P>
-          {`As this was inside the notice period, a late cancellation fee of ${formatPence(session.lateFeePence)} (${session.lateFeePercent ?? 50}%) applies.`}
+          {`As this was inside the notice period, a late cancellation fee of ${formatPence(session.lateFeePence)} (${session.lateFeePercent ?? 50}%${session.fromPass ? " of one pass session" : ""}) applies.`}
+          {session.fromPass ? " The session still goes back on your group pass." : ""}
           {wasPaid
             ? creditPence && creditPence > 0
               ? ` You had already paid, so the rest, ${formatPence(creditPence)}, is kept as credit on your account. If you would rather have a refund, please get in touch.`

@@ -91,7 +91,7 @@ export async function setMiles(mileageId: string, miles: unknown): Promise<Admin
 /**
  * Records a refund of money already paid for a booking (ledger 'refund', today's
  * London date). It cannot exceed what was paid for that booking (its own
- * payments, its block's, or its Sunday bundle's) minus refunds already made.
+ * payments, or its Sunday bundle's) minus refunds already made.
  * A full refund of a single paid booking also marks it 'refunded'. Refunding
  * a credited booking also uses up that much of the family's credit
  * ('credit_applied', Ruling R23), and is refused beyond the credit left.
@@ -100,23 +100,18 @@ export async function recordRefund(bookingId: string, amountText: unknown, opts:
   const pence = typeof amountText === "string" ? poundsToPence(amountText) : null;
   if (pence === null || pence <= 0) return fail("Enter the refund in pounds, like 25 or 12.50.");
 
-  const b = await db().from("bookings").select("id, parent_id, bundle_id, block_booking_id, payment_status").eq("id", bookingId).maybeSingle();
+  const b = await db().from("bookings").select("id, parent_id, bundle_id, payment_status").eq("id", bookingId).maybeSingle();
   if (b.error) return b.error.code === "22P02" ? fail("We could not find that booking.") : unexpected("load booking", b.error);
   if (!b.data) return fail("We could not find that booking.");
 
-  // Everything that shares the money: the booking, its Sunday bundle and its block (a block is paid once for all sessions).
+  // Everything that shares the money: the booking and its Sunday bundle.
   const ids = new Set([bookingId]);
-  const sharers = [
-    b.data.bundle_id ? await db().from("bookings").select("id").eq("bundle_id", b.data.bundle_id) : null,
-    b.data.block_booking_id ? await db().from("bookings").select("id").eq("block_booking_id", b.data.block_booking_id) : null,
-  ];
-  for (const r of sharers) {
-    if (r?.error) return unexpected("load related bookings", r.error);
-    for (const row of r?.data ?? []) ids.add(row.id as string);
+  if (b.data.bundle_id) {
+    const r = await db().from("bookings").select("id").eq("bundle_id", b.data.bundle_id);
+    if (r.error) return unexpected("load related bookings", r.error);
+    for (const row of r.data ?? []) ids.add(row.id as string);
   }
-  const ors = [`booking_id.in.(${[...ids].join(",")})`];
-  if (b.data.block_booking_id) ors.push(`block_booking_id.eq.${b.data.block_booking_id}`);
-  const led = await db().from("ledger").select("kind, amount_pence").or(ors.join(",")).in("kind", ["payment", "refund"]);
+  const led = await db().from("ledger").select("kind, amount_pence").in("booking_id", [...ids]).in("kind", ["payment", "refund"]);
   if (led.error) return unexpected("load ledger", led.error);
   const paid = led.data.reduce((n, r) => n + (r.kind === "payment" ? r.amount_pence : -r.amount_pence), 0);
   if (paid <= 0) return fail("No payment has been recorded for this booking, so there is nothing to refund.");
@@ -140,7 +135,6 @@ export async function recordRefund(bookingId: string, amountText: unknown, opts:
     .from("ledger")
     .insert({
       booking_id: bookingId,
-      block_booking_id: b.data.block_booking_id,
       parent_id: b.data.parent_id,
       kind: "refund",
       amount_pence: pence,
@@ -164,7 +158,7 @@ export async function recordRefund(bookingId: string, amountText: unknown, opts:
       return used.error ? unexpected("use credit for refund", used.error) : fail("This family's credit was just used. Please refresh and check.");
     }
   }
-  if (pence === paid && ids.size === 1 && !b.data.block_booking_id && (b.data.payment_status === "paid" || credited)) {
+  if (pence === paid && ids.size === 1 && (b.data.payment_status === "paid" || credited)) {
     await db().from("bookings").update({ payment_status: "refunded" }).eq("id", bookingId).eq("payment_status", b.data.payment_status);
   }
   return OK;

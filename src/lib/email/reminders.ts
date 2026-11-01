@@ -13,7 +13,7 @@ export type DueReminder =
  *   (48 to 96 h with the usual 48 h notice); it carries the deadline, which
  *   is later if the 14-day cooling-off runs past the notice deadline (R20).
  *   None is sent when the cooling-off lasts until the lesson starts: there is
- *   no deadline to remind about. (A block week's rows are made with the block.)
+ *   no deadline to remind about.
  * - lesson_reminder when the lesson starts in (0, 36] hours.
  * Sending is idempotent (email_log), so the daily cron may see a booking twice.
  */
@@ -31,26 +31,4 @@ export function dueReminders(bookings: Booking[], now: Date, noticeHours = 48): 
     }
   }
   return out;
-}
-
-export interface BlockHoldRow {
-  id: string;
-  status: string;
-  createdAt: Date;
-  holdExpiresAt: Date | null;
-}
-
-/** Held (unpaid) blocks whose hold has run out: the tutor decides what to do. */
-export function expiredBlockHolds<T extends BlockHoldRow>(blocks: T[], now: Date): T[] {
-  return blocks.filter((b) => b.status === "held" && b.holdExpiresAt !== null && b.holdExpiresAt.getTime() < now.getTime());
-}
-
-/** Held blocks that are at least 48 h old, unpaid and still inside their hold. */
-export function blocksNeedingPaymentReminder<T extends BlockHoldRow>(blocks: T[], now: Date): T[] {
-  return blocks.filter(
-    (b) =>
-      b.status === "held" &&
-      now.getTime() - b.createdAt.getTime() >= 48 * HOUR &&
-      (b.holdExpiresAt === null || b.holdExpiresAt.getTime() >= now.getTime()),
-  );
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { BLOCK_HOLD_HOURS, bookingWindowText } from "@/lib/policy";
-import { blockOffers, groupTimesByDay, lessonPrices } from "@/lib/public/prices";
+import { bookingWindowText } from "@/lib/policy";
+import { groupTimesByDay, lessonPrices, passOffers } from "@/lib/public/prices";
 import { SETTINGS } from "./fixtures";
 
 const fixtureSettings = () => structuredClone(SETTINGS);
@@ -20,20 +20,19 @@ describe("lessonPrices", () => {
   });
 });
 
-describe("blockOffers", () => {
-  it("shows each block with its saving against booking week by week", () => {
-    const offers = blockOffers(fixtureSettings());
-    expect(offers).toEqual([
-      { product: "saturday", weeks: 6, pricePence: 10200, weeklyPence: 10800, savingPence: 600 },
-      { product: "saturday", weeks: 10, pricePence: 16200, weeklyPence: 18000, savingPence: 1800 },
-      { product: "sunday_bundle", weeks: 6, pricePence: 17100, weeklyPence: 18000, savingPence: 900 },
-      { product: "sunday_bundle", weeks: 10, pricePence: 27000, weeklyPence: 30000, savingPence: 3000 },
+describe("passOffers", () => {
+  it("shows each group pass with its saving against booking sessions one by one", () => {
+    expect(passOffers(fixtureSettings())).toEqual([
+      { level: "KS3", sessions: 6, pricePence: 7900, singlePence: 8400, savingPence: 500 },
+      { level: "KS3", sessions: 10, pricePence: 12600, singlePence: 14000, savingPence: 1400 },
+      { level: "GCSE", sessions: 6, pricePence: 10200, singlePence: 10800, savingPence: 600 },
+      { level: "GCSE", sessions: 10, pricePence: 16200, singlePence: 18000, savingPence: 1800 },
     ]);
   });
   it("never shows a negative saving", () => {
     const s = fixtureSettings();
-    s.blockPrices.saturday[6] = 20000;
-    expect(blockOffers(s)[0].savingPence).toBe(0);
+    s.passPrices.KS3["6"] = 20000;
+    expect(passOffers(s)[0].savingPence).toBe(0);
   });
 });
 
@@ -55,7 +54,6 @@ describe("bookingWindowText", () => {
     expect(bookingWindowText(28)).toBe("4 weeks");
     expect(bookingWindowText(7)).toBe("1 week");
     expect(bookingWindowText(30)).toBe("30 days");
-    expect(BLOCK_HOLD_HOURS).toBe(72);
   });
 });
 

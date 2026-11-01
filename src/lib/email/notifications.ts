@@ -1,10 +1,11 @@
 import "server-only";
 import { getPrivateSettings, getSettings } from "@/lib/settings";
 import { createServiceClient } from "@/lib/supabase/service";
-import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
+import { mapBooking, mapPass, type BookingRow, type PassRow } from "@/lib/supabase/mappers";
 import { formatPence } from "@/lib/format";
 import type { Booking } from "@/lib/types";
 import { lateFeeFor } from "@/lib/booking/fees";
+import { passRemaining } from "@/lib/booking/pass";
 import { businessInbox, siteUrl } from "./config";
 import { whenText } from "./templates/parts";
 import { sendEmail } from "./send";
@@ -45,13 +46,18 @@ export async function loadPeople(c: Client, ids: (string | null)[]): Promise<Map
 export async function buildLines(c: Client, bookings: Booking[]): Promise<Map<string, SessionLine>> {
   const childIds = [...new Set(bookings.map((b) => b.childId).filter((i): i is string => !!i))];
   const sessionIds = [...new Set(bookings.map((b) => b.groupSessionId).filter((i): i is string => !!i))];
-  const [children, sessions, settings] = await Promise.all([
+  const passIds = [...new Set(bookings.map((b) => b.passId).filter((i): i is string => !!i))];
+  const [children, sessions, passes, settings] = await Promise.all([
     childIds.length ? c.from("children").select("id, first_name").in("id", childIds) : { data: [], error: null },
     sessionIds.length ? c.from("group_sessions").select("id, title, venue").in("id", sessionIds) : { data: [], error: null },
+    passIds.length ? c.from("passes").select("id, created_at").in("id", passIds) : { data: [], error: null },
     getSettings(),
   ]);
   if (children.error) fail("Could not load children", children.error);
   if (sessions.error) fail("Could not load group sessions", sessions.error);
+  if (passes.error) fail("Could not load passes", passes.error);
+  // A pass seat's 14-day cooling-off counts from when the pass was bought.
+  const passBought = new Map((passes.data as { id: string; created_at: string }[]).map((p) => [p.id, new Date(p.created_at)]));
   const childName = new Map((children.data as { id: string; first_name: string }[]).map((x) => [x.id, x.first_name]));
   const session = new Map(
     (sessions.data as { id: string; title: string; venue: string | null }[]).map((x) => [x.id, x]),
@@ -73,8 +79,9 @@ export async function buildLines(c: Client, bookings: Booking[]): Promise<Map<st
       lateFeePercent: settings.lateFeePercent,
       travelPence: b.travelFeePence,
       homeAddress: b.homeAddress,
-      bookedAt: b.createdAt,
+      bookedAt: (b.passId && passBought.get(b.passId)) || b.createdAt,
       venue: g ? (g.venue ?? settings.groupVenue) : null,
+      fromPass: b.passId !== null,
     });
   }
   return out;
@@ -103,31 +110,42 @@ export async function safely(label: string, fn: () => Promise<unknown>): Promise
 }
 
 const describe = (l: SessionLine) =>
-  `${whenText(l.startsAt)}: ${l.title}${l.childName ? ` for ${l.childName}` : ""} (${l.reference}, ${formatPence(l.pricePence + l.travelPence)})`;
+  `${whenText(l.startsAt)}: ${l.title}${l.childName ? ` for ${l.childName}` : ""} (${l.reference}, ${l.fromPass ? "group pass" : formatPence(l.pricePence + l.travelPence)})`;
+
+/** For seats booked with a pass: the pass's name and what is left on it. */
+async function passSummary(c: Client, passId: string | null): Promise<{ name: string; remaining: number; total: number } | null> {
+  if (!passId) return null;
+  const [pass, seats] = await Promise.all([
+    c.from("passes").select("*").eq("id", passId).maybeSingle(),
+    c.from("bookings").select("status, pass_id").eq("pass_id", passId),
+  ]);
+  if (pass.error || !pass.data) return null;
+  const p = mapPass(pass.data as PassRow);
+  const used = (seats.data ?? []) as { status: Booking["status"]; pass_id: string }[];
+  return {
+    name: `${p.level} group pass`,
+    remaining: passRemaining(p, used.map((r) => ({ status: r.status, passId: r.pass_id }))),
+    total: p.sessionsTotal,
+  };
+}
 
 /**
  * The booking confirmation (one email for the whole request: a Sunday bundle
- * or block lists every session) to the parent, and a notice to the business.
+ * lists both sessions) to the parent, and a notice to the business.
  */
 export async function notifyBookingCreated(bookingIds: string[]): Promise<void> {
   const c = createServiceClient();
   const bookings = await loadBookings(c, bookingIds);
   if (bookings.length === 0) return;
-  const blockId = bookings[0].blockBookingId;
   const people = await loadPeople(c, [bookings[0].parentId]);
   const parent = bookings[0].parentId ? people.get(bookings[0].parentId) : undefined;
   const lines = await buildLines(c, bookings);
   const sessions = bookings.map((b) => lines.get(b.id)!);
   const totalPence = sessions.reduce((n, s) => n + s.pricePence + s.travelPence, 0);
   const priv = await bankDetails();
-
-  let blockReference: string | null = null;
-  if (blockId) {
-    const { data } = await c.from("block_bookings").select("payment_reference").eq("id", blockId).maybeSingle();
-    blockReference = (data as { payment_reference: string } | null)?.payment_reference ?? null;
-  }
-  // Idempotency key: the block, or else the first booking of the request.
-  const key = blockId ? { blockBookingId: blockId } : { bookingId: bookingIds[0] };
+  const pass = await passSummary(c, bookings[0].passId);
+  // Idempotency key: the first booking of the request.
+  const key = { bookingId: bookingIds[0] };
 
   if (parent) {
     await safely("booking confirmation", () =>
@@ -142,7 +160,7 @@ export async function notifyBookingCreated(bookingIds: string[]): Promise<void> 
           bank: priv.bank,
           teachingAddress: priv.teachingAddress,
           meetingLink: priv.meetingLink,
-          blockReference,
+          pass,
           noticeHours: priv.noticeHours,
         },
       }),
@@ -161,7 +179,7 @@ export async function notifyBookingCreated(bookingIds: string[]): Promise<void> 
           `${parent?.name ?? "A parent"}${parent ? ` (${parent.email})` : ""} has booked ${sessions.length > 1 ? `${sessions.length} sessions` : "a session"}.`,
           ...sessions.map(describe),
           ...(homeVisit ? [`Address: ${sessions[0].homeAddress ?? "not given"}`] : []),
-          `Total: ${formatPence(totalPence)}`,
+          pass ? `Booked with a ${pass.name} (${pass.remaining} of ${pass.total} left)` : `Total: ${formatPence(totalPence)}`,
         ],
         link: { href: `${siteUrl()}/admin`, label: "Open the admin area" },
       },

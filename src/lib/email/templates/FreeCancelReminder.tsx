@@ -1,5 +1,5 @@
 import { formatLondon } from "@/lib/format";
-import { AccountLink, cancellationLine, freeCancelUntil, H, Layout, P, SessionList } from "./parts";
+import { AccountLink, cancellationLine, freeCancelUntil, H, Layout, P, passCancellationLine, SessionList } from "./parts";
 import { DEFAULT_NOTICE_HOURS, type SessionLine } from "../types";
 
 export interface ReminderProps {
@@ -30,7 +30,11 @@ export function FreeCancelReminder({
         noticeHours={noticeHours}
         showCancellation={false}
       />
-      <P muted>{cancellationLine(session.startsAt, session.lateFeePence, noticeHours, session.bookedAt, session.lateFeePercent)}</P>
+      <P muted>
+        {session.fromPass
+          ? passCancellationLine(session.lateFeePence, noticeHours, session.lateFeePercent)
+          : cancellationLine(session.startsAt, session.lateFeePence, noticeHours, session.bookedAt, session.lateFeePercent)}
+      </P>
       <AccountLink label="Manage your booking" />
     </Layout>
   );

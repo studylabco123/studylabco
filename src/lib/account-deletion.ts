@@ -18,13 +18,13 @@ export type DeleteAccountResult =
  * Refuses for non-parent profiles (R13), while money is owed, and while a
  * pending/confirmed lesson starts inside the cancellation notice window (R12).
  * Otherwise, in this order: cancel every future pending/confirmed booking (free,
- * paid -> credited, so slots and seats are released), release held blocks, delete email_log rows and
- * free-text notes tied to the parent's bookings, detach bookings
+ * paid -> credited, so slots and seats are released; a group-pass seat just goes back on the pass),
+ * delete email_log rows and free-text notes tied to the parent's bookings and passes, detach bookings
  * (parent, child, home address and postcode set to null; price, travel fee,
  * status, dates and the ledger are kept), delete consents, delete children
  * (cascades agreements, notes and student status), and finally delete the auth
- * user (cascades the profile; ledger/block rows keep their amounts with a null
- * parent). The auth user goes last so a failure part-way leaves an account
+ * user (cascades the profile; ledger and pass rows keep their amounts with a
+ * null parent). The auth user goes last so a failure part-way leaves an account
  * that can still log in and retry, never a half-deleted one that cannot. Every
  * step is safe to repeat. On any failure we stop and report.
  */
@@ -76,43 +76,38 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
 
   // Release slots and seats: all remaining future active bookings are outside the notice window, so free.
   const cancelPatch = { status: "cancelled", cancelled_at: now.toISOString(), cancelled_by: "parent" };
-  for (const [from, extra] of [
-    ["paid", { payment_status: "credited" }],
-    ["other", {}],
-  ] as const) {
+  for (const from of ["pass", "paid", "other"] as const) {
+    const extra = from === "pass" ? { payment_status: "unpaid" } : from === "paid" ? { payment_status: "credited" } : {};
     let q = c
       .from("bookings")
       .update({ ...cancelPatch, ...extra })
       .eq("parent_id", parentId)
       .in("status", ["pending", "confirmed"])
       .gt("starts_at", now.toISOString());
-    q = from === "paid" ? q.eq("payment_status", "paid") : q.neq("payment_status", "paid");
+    // A pass seat was paid for by the pass: its session goes back on the pass, nothing is credited.
+    q = from === "pass" ? q.not("pass_id", "is", null) : from === "paid" ? q.eq("payment_status", "paid") : q.neq("payment_status", "paid");
     const r = await q;
     if (r.error) return failed("cancel future bookings", r.error);
   }
 
-  // An unpaid (held) block would otherwise stay held, and the daily cron would keep reporting its expired hold.
-  const released = await c.from("block_bookings").update({ status: "released" }).eq("parent_id", parentId).eq("status", "held");
-  if (released.error) return failed("release held blocks", released.error);
-
-  // Personal data hanging off the parent's bookings (not the money columns).
+  // Personal data hanging off the parent's bookings and passes (not the money columns).
   const bookingIds = mine.map((b) => b.id);
-  const blocks = await c.from("block_bookings").select("id").eq("parent_id", parentId);
-  if (blocks.error) return failed("load blocks", blocks.error);
-  const blockIds = (blocks.data ?? []).map((b) => b.id as string);
+  const passes = await c.from("passes").select("id").eq("parent_id", parentId);
+  if (passes.error) return failed("load passes", passes.error);
+  const passIds = (passes.data ?? []).map((p) => p.id as string);
   if (bookingIds.length) {
     const r = await c.from("email_log").delete().in("booking_id", bookingIds);
     if (r.error) return failed("delete email log", r.error);
     const m = await c.from("mileage").update({ note: "" }).in("booking_id", bookingIds);
     if (m.error) return failed("clear mileage notes", m.error);
   }
-  if (blockIds.length) {
-    const r = await c.from("email_log").delete().in("block_booking_id", blockIds);
-    if (r.error) return failed("delete block email log", r.error);
+  if (passIds.length) {
+    const r = await c.from("email_log").delete().in("pass_id", passIds);
+    if (r.error) return failed("delete pass email log", r.error);
   }
   const ledgerFilters = [`parent_id.eq.${parentId}`];
   if (bookingIds.length) ledgerFilters.push(`booking_id.in.(${bookingIds.join(",")})`);
-  if (blockIds.length) ledgerFilters.push(`block_booking_id.in.(${blockIds.join(",")})`);
+  if (passIds.length) ledgerFilters.push(`pass_id.in.(${passIds.join(",")})`);
   const ledger = await c.from("ledger").update({ note: "" }).or(ledgerFilters.join(","));
   if (ledger.error) return failed("clear ledger notes", ledger.error);
 

@@ -36,8 +36,12 @@ export default async function RefundsPage() {
     ["An emergency", "Tell us. The tutor can waive the fee."],
     ["The tutor cancels", "You are not charged. Anything you have paid is refunded or kept as credit."],
     [
-      "Your child misses one week of a block booking",
-      `The same rules apply to that week: free with ${h} hours' notice, or within 14 days of booking the block.`,
+      "Your child misses a session booked with a group pass",
+      `Cancel with at least ${h} hours' notice and the session goes back on your pass. Later than that, or a no-show, the session still goes back on your pass and a late cancellation fee of ${s.lateFeePercent}% of one session's value is due.`,
+    ],
+    [
+      "You cancel a group pass",
+      "Within 14 days of buying it, the value of the sessions you have not used goes back as account credit (or nothing is owed if you had not paid). After that, unused sessions can't be refunded.",
     ],
   ];
   return (

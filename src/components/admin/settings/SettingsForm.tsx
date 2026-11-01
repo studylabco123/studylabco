@@ -61,20 +61,13 @@ export function SettingsForm({ initial }: { initial: SettingsFormInput }) {
         {money("travelFee", "Home visit travel fee")}
       </Section>
 
-      <Section title="Block prices" note="What a parent pays to book a whole block of weeks.">
-        {money("blockSaturday6", "Saturday, 6 weeks")}
-        {money("blockSaturday10", "Saturday, 10 weeks")}
-        {money("blockSunday6", "Sunday bundle, 6 weeks")}
-        {money("blockSunday10", "Sunday bundle, 10 weeks")}
-      </Section>
-
       <Section title="KS3 prices" note="Years 7 to 9 (KS3). Home visit travel is added on top.">
         {money("priceKs3Assessment", "Assessment lesson, KS3")}
         {money("priceKs3OneToOne", "1-to-1 lesson, KS3")}
         {money("priceKs3Group", "Group session, KS3")}
       </Section>
 
-      <Section title="Pass prices" note="What a parent pays for a pass of group sessions.">
+      <Section title="Pass prices" note="What a parent pays for a group pass (6 or 10 sessions at the child's level).">
         {money("passKs36", "KS3 pass, 6 sessions")}
         {money("passKs310", "KS3 pass, 10 sessions")}
         {money("passGcse6", "GCSE pass, 6 sessions")}

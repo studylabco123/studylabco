@@ -16,10 +16,6 @@ export const SETTINGS: Settings = {
   priceGroupPence: 1800,
   priceSundayBundlePence: 3000,
   travelFeePence: 500,
-  blockPrices: {
-    saturday: { 6: 10200, 10: 16200 },
-    sunday_bundle: { 6: 17100, 10: 27000 },
-  },
   onlineEnabled: false,
   homeVisitsEnabled: true,
   tutorPlaceEnabled: true,

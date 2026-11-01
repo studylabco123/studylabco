@@ -1,13 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { mapGroupSession, type GroupSessionRow } from "@/lib/supabase/mappers";
-import { addDays, londonDateOf, londonDateTime, londonWeekday } from "@/lib/time";
-import type { BlockWeeks, GroupProduct, GroupSession, Level, Settings } from "@/lib/types";
-import { BLOCK_HOLD_HOURS } from "@/lib/policy";
-import { planBlock } from "./block";
+import { addDays, londonDateTime, londonWeekday } from "@/lib/time";
+import type { GroupSession, Level, Settings } from "@/lib/types";
 import {
   db,
-  ensureGroupSessions,
   loadFamily,
   loadGroupSessions,
   mapDbError,
@@ -33,7 +30,7 @@ type Checked = { ok: true; settings: Settings; childLevel: Level } | { ok: false
 /** Ownership, eligibility (approved child etc.) and the cooling-off tick. */
 async function precheck(
   input: GroupInput,
-  type: "group" | "sunday_bundle" | "block",
+  type: "group" | "sunday_bundle",
   now: Date,
 ): Promise<Checked> {
   const family = await loadFamily(input.parentId, input.childId, now);
@@ -60,7 +57,6 @@ async function reserveSeat(
   input: GroupInput,
   price: number,
   bundleId: string | null = null,
-  blockId: string | null = null,
 ): Promise<Seat> {
   const { data, error } = await db().rpc("reserve_group_seat", {
     p_session: session.id,
@@ -68,7 +64,6 @@ async function reserveSeat(
     p_child: input.childId,
     p_price: price,
     p_bundle: bundleId,
-    p_block: blockId,
   });
   if (error) {
     const reason = mapDbError(error);
@@ -81,26 +76,22 @@ async function reserveSeat(
 /**
  * Takes one seat per session in order with the given prices. All-or-nothing:
  * if any seat fails, or anything throws (an unmapped database error, the
- * cooling-off insert), the seats already taken and the block row are removed.
+ * cooling-off insert), the seats already taken are removed.
  */
 async function reserveAll(
   input: GroupInput,
   seats: { session: GroupSession; price: number; bundleId: string | null }[],
   opts: ServiceOptions,
-  blockId: string | null = null,
 ): Promise<BookingResult> {
   const ids: string[] = [];
-  const undo = () => rollback(ids, blockId ?? undefined);
+  const undo = () => rollback(ids);
   try {
     await opts.beforeSeats?.();
     for (const seat of seats) {
-      const r = await reserveSeat(seat.session, input, seat.price, seat.bundleId, blockId);
+      const r = await reserveSeat(seat.session, input, seat.price, seat.bundleId);
       if (!r.ok) {
         await undo();
-        // A block names the week that filled up meanwhile.
-        return r.reason === "session_full" && blockId
-          ? { ok: false, reason: r.reason, fullDate: londonDateOf(seat.session.startsAt) }
-          : { ok: false, reason: r.reason };
+        return { ok: false, reason: r.reason };
       }
       ids.push(r.id);
     }
@@ -169,82 +160,4 @@ export async function createSundayBundle(
     sessions.map((session, i) => ({ session, price: prices[i], bundleId })),
     opts,
   );
-}
-
-/**
- * A 6- or 10-week Saturday or Sunday-bundle block from `firstDate`: one held
- * block_bookings row (held for BLOCK_HOLD_HOURS) and one seat per planned session.
- */
-export async function createBlockBooking(
-  input: GroupInput & { product: GroupProduct; weeks: BlockWeeks; firstDate: string },
-  opts: ServiceOptions = {},
-): Promise<BookingResult> {
-  const now = opts.now ?? new Date();
-  const checked = await precheck(input, "block", now);
-  if (!checked.ok) return checked;
-  const { product, weeks, firstDate } = input;
-  if (
-    (product !== "saturday" && product !== "sunday_bundle") ||
-    (weeks !== 6 && weeks !== 10) ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(firstDate)
-  ) {
-    return { ok: false, reason: "session_unavailable" };
-  }
-
-  // Generous horizon: cancelled or closed weeks push the block later.
-  const until = addDays(firstDate, 7 * (weeks + 8));
-  await ensureGroupSessions(until);
-  const { sessions, seatsLeft } = await loadGroupSessions(
-    londonDateTime(firstDate, "00:00").toISOString(),
-    londonDateTime(addDays(until, 1), "00:00").toISOString(),
-    product,
-  );
-  const plan = planBlock(sessions, seatsLeft, product, weeks, firstDate);
-  if (!plan.ok) {
-    return "fullDate" in plan
-      ? { ok: false, reason: "session_full", fullDate: plan.fullDate }
-      : { ok: false, reason: "session_unavailable" };
-  }
-  const planned = plan.sessionIds.map((id) => sessions.find((s) => s.id === id)!);
-  if (londonDateOf(planned[0].startsAt) !== firstDate || !sessionBookable(planned[0], checked.settings, now)) {
-    return { ok: false, reason: "session_unavailable" };
-  }
-  if (planned.some((s) => s.level !== checked.childLevel)) return { ok: false, reason: "level_mismatch" };
-
-  const price = quote({ type: "block", product, weeks }, checked.settings);
-  const block = await db()
-    .from("block_bookings")
-    .insert({
-      parent_id: input.parentId,
-      child_id: input.childId,
-      product,
-      weeks,
-      price_pence: price.totalPence,
-      hold_expires_at: new Date(now.getTime() + BLOCK_HOLD_HOURS * 3600_000).toISOString(),
-      status: "held",
-    })
-    .select("id")
-    .single();
-  if (block.error) throw new Error(`Could not create block: ${block.error.message}`);
-
-  const blockId = block.data.id as string;
-  // Nothing may leave a held block row behind (reserveAll also removes its seats).
-  try {
-    const bundles = new Map<string, string>();
-    const bundleFor = (s: GroupSession): string | null => {
-      if (product !== "sunday_bundle") return null;
-      const date = londonDateOf(s.startsAt);
-      if (!bundles.has(date)) bundles.set(date, randomUUID());
-      return bundles.get(date)!;
-    };
-    return await reserveAll(
-      input,
-      planned.map((session, i) => ({ session, price: price.perBookingPence[i], bundleId: bundleFor(session) })),
-      opts,
-      blockId,
-    );
-  } catch (err) {
-    await rollback([], blockId);
-    throw err;
-  }
 }

@@ -26,8 +26,9 @@ async function loadBooking(id: string): Promise<{ booking: Booking } | { error: 
  * A no-show records the late cancellation fee (Settings percentage of the
  * price) in fee_pence; a home visit also owes its travel (see `bookingFeePence`).
  * If the booking was already paid, payment_status stays 'paid' and what was
- * paid beyond the fee is written as a ledger 'credit'. A pass seat records the
- * status only: its fee is handled with passes (Task V5).
+ * paid beyond the fee is written as a ledger 'credit'. A pass seat's session
+ * goes back on the pass: its fee is the same percentage of its stored price
+ * (one session's pass value) and is owed (payment_status 'unpaid'), with no credit.
  */
 async function conclude(bookingId: string, to: "attended" | "no_show", now: Date): Promise<AdminResult> {
   const found = await loadBooking(bookingId);
@@ -38,11 +39,12 @@ async function conclude(bookingId: string, to: "attended" | "no_show", now: Date
 
   const patch: Record<string, unknown> = { status: to };
   let credit = 0;
-  if (to === "no_show" && !b.passId) {
+  if (to === "no_show") {
     const { lateFeePercent } = await getSettings();
     const fee = lateFeePence(b.pricePence, lateFeePercent);
     patch.fee_pence = fee;
-    if (b.paymentStatus === "paid") {
+    if (b.passId) patch.payment_status = "unpaid";
+    else if (b.paymentStatus === "paid") {
       credit = Math.max(0, b.pricePence + b.travelFeePence - bookingFeePence({ ...b, status: "no_show", feePence: fee }, lateFeePercent));
     }
   }
@@ -76,13 +78,16 @@ export const markNoShow = (bookingId: string, opts: OpOptions = {}) => conclude(
  * or confirmed booking, future or already started.
  *
  * - Free (status 'cancelled'): at least `cancellationNoticeHours` ahead, within
- *   the 14-day cooling-off (a block counts from the block's created_at), or a
- *   pending home visit the tutor never confirmed. A paid booking becomes
+ *   the 14-day cooling-off (a pass seat counts from when the pass was bought),
+ *   or a pending home visit the tutor never confirmed. A paid booking becomes
  *   'credited' with a ledger credit for what was paid.
  * - Otherwise 'late_cancelled' with fee_pence = the Settings percentage of the
  *   price (never travel). Unpaid: the fee is owed. Paid: it stays 'paid' and a
  *   ledger credit of price + travel - fee is written.
- * - cancelled_by is 'parent'. A pass seat is refused (handled with passes, Task V5).
+ * - A pass seat: the session goes back on the pass either way and no credit is
+ *   ever written; late, its fee (the percentage of the seat's stored price, one
+ *   session's pass value) is owed (payment_status 'unpaid').
+ * - cancelled_by is 'parent'.
  * - The parent gets a CancellationReceipt; a failed email never undoes it.
  */
 export async function recordLateCancellation(bookingId: string, opts: OpOptions = {}): Promise<AdminResult> {
@@ -91,27 +96,28 @@ export async function recordLateCancellation(bookingId: string, opts: OpOptions 
   if ("error" in found) return found.error;
   const b = found.booking;
   if (b.status !== "pending" && b.status !== "confirmed") return fail("Only a pending or confirmed booking can be cancelled.");
-  if (b.passId) return fail("This lesson is a pass session. Cancel it from the pass instead.");
 
   const settings = await getSettings();
   let bookedAt = b.createdAt;
-  if (b.blockBookingId) {
-    const blk = await db().from("block_bookings").select("created_at").eq("id", b.blockBookingId).maybeSingle();
-    if (blk.error) return unexpected("load block", blk.error);
-    if (blk.data) bookedAt = new Date(blk.data.created_at as string);
+  if (b.passId) {
+    const pass = await db().from("passes").select("created_at").eq("id", b.passId).maybeSingle();
+    if (pass.error) return unexpected("load pass", pass.error);
+    if (pass.data) bookedAt = new Date(pass.data.created_at as string);
   }
   const neverConfirmed = b.status === "pending" && b.location === "home_visit";
   const free = neverConfirmed || cancellationDecision(b.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt).outcome === "free";
 
   const fee = free ? null : lateFeePence(b.pricePence, settings.lateFeePercent);
-  const wasPaid = b.paymentStatus === "paid";
+  // A pass seat was paid for by the pass: nothing is credited, the session goes back on the pass.
+  const wasPaid = b.paymentStatus === "paid" && !b.passId;
   const patch: Record<string, unknown> = {
     status: free ? "cancelled" : "late_cancelled",
     cancelled_by: "parent",
     cancelled_at: now.toISOString(),
   };
   if (fee !== null) patch.fee_pence = fee;
-  if (free && wasPaid) patch.payment_status = "credited";
+  if (b.passId) patch.payment_status = "unpaid";
+  else if (free && wasPaid) patch.payment_status = "credited";
   const res = await db().from("bookings").update(patch).eq("id", bookingId).in("status", ["pending", "confirmed"]).select("id");
   if (res.error) return unexpected("record late cancellation", res.error);
   if (!res.data?.length) return fail("This booking was just updated. Please refresh and check.");
@@ -138,7 +144,8 @@ export async function recordLateCancellation(bookingId: string, opts: OpOptions 
 /**
  * The tutor cancels a pending or confirmed booking: no fee ever. A paid
  * booking is refunded (ledger 'refund', payment_status 'refunded') or credited
- * (ledger 'credit', 'credited'). The parent gets an email.
+ * (ledger 'credit', 'credited'). A pass seat's session simply goes back on the
+ * pass (no ledger entry). The parent gets an email.
  */
 export async function tutorCancel(bookingId: string, refund: boolean, opts: OpOptions = {}): Promise<AdminResult> {
   const now = opts.now ?? new Date();
@@ -147,9 +154,10 @@ export async function tutorCancel(bookingId: string, refund: boolean, opts: OpOp
   const b = found.booking;
   if (b.status !== "pending" && b.status !== "confirmed") return fail("Only a pending or confirmed booking can be cancelled.");
 
-  const wasPaid = b.paymentStatus === "paid";
+  const wasPaid = b.paymentStatus === "paid" && !b.passId;
   const patch: Record<string, unknown> = { status: "cancelled", cancelled_by: "tutor", cancelled_at: now.toISOString() };
-  if (wasPaid) patch.payment_status = refund ? "refunded" : "credited";
+  if (b.passId) patch.payment_status = "unpaid";
+  else if (wasPaid) patch.payment_status = refund ? "refunded" : "credited";
   const res = await db().from("bookings").update(patch).eq("id", bookingId).in("status", ["pending", "confirmed"]).select("id");
   if (res.error) return unexpected("tutor cancel", res.error);
   if (!res.data?.length) return fail("This booking was just updated. Please refresh and check.");
@@ -204,35 +212,5 @@ export async function decideHomeVisit(bookingId: string, approve: boolean, opts:
     if (m.error) console.error("admin: mileage row failed", m.error.message);
   }
   await notifyHomeVisitDecision(bookingId, approve);
-  return OK;
-}
-
-/**
- * Releases a block (for example an unpaid hold that ran out): the block becomes
- * 'released' and its future pending/confirmed sessions are cancelled by the
- * tutor, freeing the seats. A paid block is refused: cancel its sessions one
- * by one so each can be refunded or credited.
- */
-export async function releaseBlock(blockId: string, opts: OpOptions = {}): Promise<AdminResult> {
-  const now = opts.now ?? new Date();
-  const block = await db().from("block_bookings").select("id, status").eq("id", blockId).maybeSingle();
-  if (block.error) return block.error.code === "22P02" ? fail("We could not find that block.") : unexpected("load block", block.error);
-  if (!block.data) return fail("We could not find that block.");
-  if (block.data.status === "paid") {
-    return fail("This block is paid. Cancel its sessions one by one so each can be refunded or credited.");
-  }
-  if (block.data.status === "released") return fail("This block is already released.");
-
-  const flipped = await db().from("block_bookings").update({ status: "released" }).eq("id", blockId).eq("status", "held").select("id");
-  if (flipped.error) return unexpected("release block", flipped.error);
-  if (!flipped.data?.length) return fail("This block was just updated. Please refresh and check.");
-
-  const cancelled = await db()
-    .from("bookings")
-    .update({ status: "cancelled", cancelled_by: "tutor", cancelled_at: now.toISOString() })
-    .eq("block_booking_id", blockId)
-    .in("status", ["pending", "confirmed"])
-    .gt("starts_at", now.toISOString());
-  if (cancelled.error) return unexpected("cancel block sessions", cancelled.error);
   return OK;
 }

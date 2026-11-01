@@ -122,18 +122,25 @@ describe("deleteAccount", () => {
     expect(u).toMatchObject({ status: "cancelled", payment_status: "unpaid", cancelled_by: "parent" });
   });
 
-  test("releases the parent's held blocks so the cron stops reporting them (R25)", async () => {
-    const { rows } = await db.query<{ id: string; status: string }>(
-      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, status, hold_expires_at) values
-         ($1, $2, 'saturday', 6, 10200, 'held', '2026-11-12T12:00:00Z'),
-         ($1, $2, 'saturday', 6, 10200, 'paid', null)
-       returning id, status`,
+  test("a future group-pass seat is cancelled back onto the pass, never credited", async () => {
+    const pass = await db.query<{ id: string }>(
+      "insert into passes (parent_id, child_id, level, sessions_total, price_pence, status) values ($1, $2, 'GCSE', 6, 10200, 'active') returning id",
       [parentId, childId],
     );
+    const seat = (
+      await db.query<{ id: string }>(
+        `insert into bookings (parent_id, child_id, kind, location, starts_at, ends_at, busy_until, status, price_pence, payment_status, pass_id)
+         values ($1, $2, 'group', 'group_venue', '2026-11-25T08:15:00Z', '2026-11-25T09:15:00Z', '2026-11-25T09:15:00Z', 'confirmed', 1700, 'paid', $3)
+         returning id`,
+        [parentId, childId, pass.rows[0].id],
+      )
+    ).rows[0].id;
     expect(await deleteAccount(parentId, { now: NOW })).toEqual({ ok: true });
-    const after = (await db.query("select id, status, parent_id from block_bookings")).rows;
-    expect(after.find((r) => r.id === rows[0].id)).toMatchObject({ status: "released", parent_id: null });
-    expect(after.find((r) => r.id === rows[1].id)).toMatchObject({ status: "paid" });
+    expect((await db.query("select status::text, payment_status::text from bookings where id = $1", [seat])).rows[0]).toEqual({
+      status: "cancelled",
+      payment_status: "unpaid",
+    });
+    expect((await db.query("select 1 from ledger where kind = 'credit'")).rows).toEqual([]);
   });
 
   test("refuses for a non-parent profile", async () => {

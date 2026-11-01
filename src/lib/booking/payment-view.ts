@@ -41,16 +41,6 @@ export function willBeOwed(b: Pick<Booking, "status" | "location" | "paymentStat
   }
 }
 
-/**
- * The amount due on a held (unpaid) block: its price less the stored prices of
- * the weeks cancelled for free (status 'cancelled'). Late-cancelled weeks are
- * still charged (their price is part of the block price). Never negative.
- */
-export function blockDuePence(blockPricePence: number, seats: Pick<Booking, "status" | "pricePence">[]): number {
-  const freed = seats.filter((s) => s.status === "cancelled").reduce((n, s) => n + s.pricePence, 0);
-  return Math.max(0, blockPricePence - freed);
-}
-
 /** The payment badge for one booking, or null when nothing is or will be owed and nothing was paid. */
 export function paymentBadge(b: Pick<Booking, "status" | "location" | "paymentStatus">): { text: string; tone: BadgeTone } | null {
   switch (b.paymentStatus) {
@@ -80,25 +70,12 @@ export interface PaymentSummary {
 
 /**
  * The money on one booking page. `related` is the booking with its Sunday
- * bundle or block siblings; `block` is the block it belongs to, if any.
- * - A held block owes its block price less free-cancelled weeks (I3).
- * - A paid block owes nothing.
- * - Otherwise (single booking, bundle, released block) each live seat owes
- *   its own amount while it is unpaid (R11, R16).
+ * bundle sibling. Each live seat owes its own amount while it is unpaid
+ * (R11, R16). A seat booked with a group pass is paid by the pass, so it
+ * asks for nothing unless a late cancellation / no-show fee is owed.
  */
-export function bookingPaymentSummary(
-  related: Booking[],
-  block: { pricePence: number; status: "held" | "paid" | "released" | string } | null,
-  lateFeePercent: number = DEFAULT_LATE_FEE_PERCENT,
-): PaymentSummary {
+export function bookingPaymentSummary(related: Booking[], lateFeePercent: number = DEFAULT_LATE_FEE_PERCENT): PaymentSummary {
   const awaitingApproval = related.some((b) => b.status === "pending" && b.location === "home_visit");
-  if (block && block.status === "held") {
-    const due = blockDuePence(block.pricePence, related);
-    return { totalPence: due, toPayPence: due, showHowToPay: due > 0, awaitingApproval };
-  }
-  if (block && block.status === "paid") {
-    return { totalPence: block.pricePence, toPayPence: 0, showHowToPay: false, awaitingApproval };
-  }
   const live = related.filter((b) => b.status !== "cancelled" && b.status !== "declined");
   const totalPence = live.reduce((n, b) => n + seatDuePence(b, lateFeePercent), 0);
   const toPayPence = live.filter(willBeOwed).reduce((n, b) => n + seatDuePence(b, lateFeePercent), 0);

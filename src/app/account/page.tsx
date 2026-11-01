@@ -11,6 +11,7 @@ import { formatLondon, formatPence } from "@/lib/format";
 import { createServerClient } from "@/lib/supabase/server";
 import { BookingList, contactFrom } from "./bookings/BookingList";
 import { CancelNotice } from "./bookings/CancelNotice";
+import { PassSection } from "./passes/PassSection";
 import { signOut } from "./actions";
 
 export const metadata: Metadata = { title: "Your account" };
@@ -18,12 +19,12 @@ export const metadata: Metadata = { title: "Your account" };
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cancelled?: string; fee?: string }>;
+  searchParams: Promise<{ cancelled?: string; fee?: string; pass?: string }>;
 }) {
   const supabase = await createServerClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect("/login?next=%2Faccount");
-  const { cancelled, fee } = await searchParams;
+  const { cancelled, fee, pass } = await searchParams;
   const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", auth.user.id).single();
   const name = profile?.full_name || auth.user.email;
   const o = await loadAccountOverview(auth.user.id);
@@ -70,6 +71,8 @@ export default async function AccountPage({
           </div>
         </Card>
       ) : null}
+
+      <PassSection o={o} justBought={typeof pass === "string" && o.passes.some((v) => v.pass.paymentReference === pass)} />
 
       <section aria-labelledby="children" className="flex flex-col gap-4">
         <h2 id="children" className="text-h2">

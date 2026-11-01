@@ -2,18 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { bookWithPass, buyPass } from "@/lib/booking/pass-service";
 import { failureMessage, type BookingResult } from "@/lib/booking/results";
-import {
-  createBlockBooking,
-  createBooking,
-  createGroupBooking,
-  createSundayBundle,
-  getAvailableSlots,
-} from "@/lib/booking/service";
-import { formatLondon } from "@/lib/format";
+import { createBooking, createGroupBooking, createSundayBundle, getAvailableSlots } from "@/lib/booking/service";
 import { getSettings } from "@/lib/settings";
 import { createServerClient } from "@/lib/supabase/server";
-import { addDays, londonDateOf, londonDateTime } from "@/lib/time";
+import { addDays, londonDateOf } from "@/lib/time";
 import type { ConfirmPayload } from "./types";
 
 /** The signed-in parent's id from the session cookie (never from input). */
@@ -68,14 +62,6 @@ const confirmSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("group"), childId: z.string(), sessionId: z.string(), coolingOff: z.boolean() }),
   z.object({ type: z.literal("sunday_bundle"), childId: z.string(), date, coolingOff: z.boolean() }),
-  z.object({
-    type: z.literal("block"),
-    childId: z.string(),
-    product: z.enum(["saturday", "sunday_bundle"]),
-    weeks: z.union([z.literal(6), z.literal(10)]),
-    firstDate: date,
-    coolingOff: z.boolean(),
-  }),
 ]);
 
 export interface ConfirmState {
@@ -97,12 +83,46 @@ export async function confirmBooking(payload: ConfirmPayload): Promise<ConfirmSt
     return { error: "We could not make that booking. Please try again." };
   }
 
-  if (!result.ok) {
-    const label = result.fullDate
-      ? formatLondon(londonDateTime(result.fullDate, "12:00"), "EEEE d MMMM")
-      : undefined;
-    return { error: failureMessage(result.reason, label) };
+  if (!result.ok) return { error: failureMessage(result.reason) };
+  redirect(`/account/bookings/${result.bookingId}`);
+}
+
+const buySchema = z.object({ childId: z.string(), sessions: z.union([z.literal(6), z.literal(10)]), coolingOff: z.boolean() });
+
+/** Buys a group pass for one of the parent's children; on success goes to the account page, which shows how to pay. */
+export async function buyGroupPass(payload: z.input<typeof buySchema>): Promise<ConfirmState> {
+  const parent = await parentId();
+  const parsed = buySchema.safeParse(payload);
+  if (!parsed.success) return { error: "Something went wrong with that pass. Please start again." };
+  let result: Awaited<ReturnType<typeof buyPass>>;
+  try {
+    result = await buyPass({ parentId: parent, ...parsed.data });
+  } catch (err) {
+    console.error("buyGroupPass failed", err);
+    return { error: "We could not set up that pass. Please try again." };
   }
+  if (!result.ok) return { error: failureMessage(result.reason) };
+  redirect(`/account?pass=${encodeURIComponent(result.reference)}#passes`);
+}
+
+const passBookingSchema = z.union([
+  z.object({ passId: z.string().max(64), sessionId: z.string().max(64) }),
+  z.object({ passId: z.string().max(64), sundayDate: date }),
+]);
+
+/** Books a session (or a Sunday bundle) with one of the parent's passes; on success goes to the booking page. */
+export async function bookWithGroupPass(payload: z.input<typeof passBookingSchema>): Promise<ConfirmState> {
+  const parent = await parentId();
+  const parsed = passBookingSchema.safeParse(payload);
+  if (!parsed.success) return { error: "Something went wrong with that booking. Please start again." };
+  let result: BookingResult;
+  try {
+    result = await bookWithPass({ parentId: parent, ...parsed.data });
+  } catch (err) {
+    console.error("bookWithGroupPass failed", err);
+    return { error: "We could not make that booking. Please try again." };
+  }
+  if (!result.ok) return { error: failureMessage(result.reason) };
   redirect(`/account/bookings/${result.bookingId}`);
 }
 
@@ -124,7 +144,5 @@ function create(parent: string, p: z.infer<typeof confirmSchema>): Promise<Booki
       return createGroupBooking({ parentId: parent, ...p });
     case "sunday_bundle":
       return createSundayBundle({ parentId: parent, ...p });
-    case "block":
-      return createBlockBooking({ parentId: parent, ...p });
   }
 }
