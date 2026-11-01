@@ -1,3 +1,4 @@
+import { DEFAULT_LATE_FEE_PERCENT } from "@/lib/booking/fees";
 import { amountOwedPence } from "@/lib/booking/owed";
 import { categoryLabel } from "@/lib/money/categories";
 import { mileageAllowancePence, taxYearFor, type DateSpan } from "@/lib/money/tax-year";
@@ -81,6 +82,7 @@ export function buildTaxPack(
   expenses: Expense[],
   mileage: MileageEntry[],
   parentNames: ReadonlyMap<string, string> = new Map(),
+  lateFeePercent: number = DEFAULT_LATE_FEE_PERCENT,
 ): TaxPack {
   const who = (id: string | null) => (id ? (parentNames.get(id) ?? "") : "");
   const detailOf = (l: LedgerEntry) => [who(l.parentId), l.note].filter(Boolean).join(" · ");
@@ -181,7 +183,7 @@ export function buildTaxPack(
       // A late-cancellation fee arises when the booking is cancelled; anything else when the lesson starts.
       .filter((b) => (b.status === "late_cancelled" ? (b.cancelledAt ?? b.startsAt) : b.startsAt).getTime() <= endInstant.getTime())
       .filter((b) => !isSettled(b))
-      .map((b) => ({ b, owed: amountOwedPence([{ ...b, paymentStatus: "unpaid" }], [], endInstant) }))
+      .map((b) => ({ b, owed: amountOwedPence([{ ...b, paymentStatus: "unpaid" }], [], endInstant, lateFeePercent) }))
       .filter((x) => x.owed > 0)
       .map<Row>(({ b, owed }) => ({
         date: londonDateOf(b.startsAt),

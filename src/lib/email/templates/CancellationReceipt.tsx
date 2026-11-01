@@ -51,7 +51,7 @@ export function CancellationReceipt({ parentName, session, outcome, wasPaid, ref
         </P>
       ) : (
         <P>
-          As this was inside the notice period, a late cancellation fee of {formatPence(session.pricePence)} applies.
+          As this was inside the notice period, a late cancellation fee of {formatPence(session.lateFeePence)} applies.
           Please pay it using reference {session.reference}. Bank details are in your original booking email and on
           your account.
         </P>

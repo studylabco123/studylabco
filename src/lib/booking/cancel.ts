@@ -4,7 +4,7 @@ import { getSettings } from "@/lib/settings";
 import { createServiceClient } from "@/lib/supabase/service";
 import { londonDateOf } from "@/lib/time";
 import { cancellationOutcome } from "./cancellation";
-import { lateFeePence } from "./fees";
+import { lateFeeFor } from "./fees";
 import { onBookingCancelled } from "./notify";
 
 export type CancelResult =
@@ -60,7 +60,7 @@ export async function cancelBookingForParent(
     ? "free"
     : cancellationOutcome(booking.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt);
   if (outcome === "late" && !opts.confirmLate) {
-    return { ok: false, reason: "late_confirmation_needed", feePence: lateFeePence(booking.pricePence, settings.lateFeePercent) };
+    return { ok: false, reason: "late_confirmation_needed", feePence: lateFeeFor(booking, settings.lateFeePercent) };
   }
 
   const patch: Record<string, unknown> = {
@@ -96,5 +96,5 @@ export async function cancelBookingForParent(
   }
 
   await onBookingCancelled(bookingId, outcome);
-  return { ok: true, outcome, feePence: outcome === "late" ? lateFeePence(booking.pricePence, settings.lateFeePercent) : 0 };
+  return { ok: true, outcome, feePence: outcome === "late" ? lateFeeFor(booking, settings.lateFeePercent) : 0 };
 }

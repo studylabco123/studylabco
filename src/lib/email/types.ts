@@ -11,6 +11,8 @@ export interface SessionLine {
   status: BookingStatus;
   /** Lesson price in pence, excluding any travel fee. */
   pricePence: number;
+  /** The late cancellation fee for this lesson (a share of the price, never travel). */
+  lateFeePence: number;
   travelPence: number;
   /** Family address for a home visit. */
   homeAddress?: string | null;

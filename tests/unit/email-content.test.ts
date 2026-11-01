@@ -16,6 +16,7 @@ const line = (over: Partial<SessionLine> = {}): SessionLine => ({
   location: "tutor_place",
   status: "confirmed",
   pricePence: 2500,
+  lateFeePence: 1250,
   travelPence: 0,
   ...over,
 });
@@ -42,7 +43,7 @@ describe("BookingConfirmed", () => {
     expect(out).toContain("1 Teaching Road, Blackburn");
     expect(out).toContain("use reference SLC-1001");
     // 10 Nov 2026 16:00 UTC is 4pm GMT; cancellation deadline is 48h earlier.
-    expect(out).toContain("Free cancellation until Sunday 8 November at 4:00pm. After that a late cancellation fee of £25 applies.");
+    expect(out).toContain("Free cancellation until Sunday 8 November at 4:00pm. After that a late cancellation fee of £12.50 applies.");
     expect(out).not.toMatch(/online/i);
   });
 

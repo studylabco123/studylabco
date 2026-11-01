@@ -8,6 +8,11 @@ export function lateFeePence(pricePence: number, percent: number): number {
   return Math.round((pricePence * percent) / 100);
 }
 
+/** The late cancellation fee for a booking: its stored `feePence` if set, else the percentage of its price. */
+export function lateFeeFor(b: Pick<Booking, "pricePence" | "feePence">, percent: number): number {
+  return b.feePence ?? lateFeePence(b.pricePence, percent);
+}
+
 /**
  * What a booking owes if unpaid, from its stored prices. A stored `feePence`
  * (set when the fee is changed or removed) overrides the computed fee.
@@ -19,7 +24,7 @@ export function bookingFeePence(
   b: Pick<Booking, "status" | "location" | "pricePence" | "travelFeePence" | "feePence">,
   percent: number,
 ): number {
-  const fee = b.feePence ?? lateFeePence(b.pricePence, percent);
+  const fee = lateFeeFor(b, percent);
   const travel = b.location === "home_visit" ? b.travelFeePence : 0;
   if (b.status === "late_cancelled") return fee;
   if (b.status === "no_show") return fee + travel;

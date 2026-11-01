@@ -71,6 +71,14 @@ test("legal pages each show the last updated date", async ({ page }) => {
   }
 });
 
+test("refund policy and FAQ state the 50% late cancellation fee", async ({ page }) => {
+  await page.goto("/refunds");
+  await expect(page.getByText(/late cancellation fee is 50% of the lesson price/)).toBeVisible();
+  await expect(page.getByText(/plus the travel fee for a home visit/)).toBeVisible();
+  await page.goto("/faq");
+  await expect(page.getByText(/late cancellation fee of 50% of the lesson price/)).toBeAttached();
+});
+
 test('home shows "Qualified Teacher (QTS)", "Enhanced DBS Checked", "All Exam Boards" and "Book your £10 Assessment Lesson"', async ({ page }) => {
   await page.goto("/");
   const main = page.locator("main");

@@ -68,7 +68,8 @@ export default async function RefundsPage() {
 
       <h2>The late cancellation fee</h2>
       <p>
-        The late cancellation fee is the price of the lesson only. It never includes the travel fee for a home visit, and there
+        The late cancellation fee is {s.lateFeePercent}% of the lesson price. It never includes the travel fee for a home visit. If a
+        student does not attend without cancelling, the same {s.lateFeePercent}% fee is due, plus the travel fee for a home visit. There
         are no other charges. If you have already paid, the payment covers the fee; if not, the fee is owed.
       </p>
 

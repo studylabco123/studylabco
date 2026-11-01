@@ -76,6 +76,7 @@ export async function loadTaxPack(range: PackRange): Promise<TaxPack> {
     expenses.map(mapExpense),
     mileage.map(mapMileage),
     names,
+    (await getSettings()).lateFeePercent,
   );
 }
 

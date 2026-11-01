@@ -4,7 +4,7 @@ import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { Booking, Settings } from "@/lib/types";
 import { cancellationDecision, cancellationOutcome } from "./cancellation";
-import { lateFeePence } from "./fees";
+import { lateFeeFor } from "./fees";
 import { amountOwedPence, creditBalancePence } from "./owed";
 import { seatDuePence } from "./payment-view";
 
@@ -166,7 +166,7 @@ function isCancellable(b: Booking, now: Date): boolean {
 function lateFee(b: Booking, now: Date, settings: Settings, bookedAt: Date): number | null {
   if (b.status === "pending" && b.location === "home_visit") return null;
   return cancellationOutcome(b.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt) === "late"
-    ? (b.feePence ?? lateFeePence(b.pricePence, settings.lateFeePercent))
+    ? lateFeeFor(b, settings.lateFeePercent)
     : null;
 }
 

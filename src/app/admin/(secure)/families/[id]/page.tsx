@@ -9,7 +9,7 @@ import { requireAdmin } from "@/lib/admin-guard";
 import { KIND_LABEL, LOCATION_LABEL, PAYMENT_LABEL, statusLabel } from "@/lib/admin/labels";
 import { mailtoHref, telHref, whatsappHref } from "@/lib/admin/phone";
 import { loadFamily, type FamilyChild } from "@/lib/admin/queries";
-import { willBeOwed } from "@/lib/booking/payment-view";
+import { seatDuePence, willBeOwed } from "@/lib/booking/payment-view";
 import { formatLondon, formatPence } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Family" };
@@ -207,7 +207,7 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
                     <Badge tone={status.tone}>{status.text}</Badge>
                     <Badge tone={pay.tone}>{pay.text}</Badge>
                     <span className="text-small text-navy-600">
-                      {formatPence(b.status === "late_cancelled" ? b.pricePence : b.pricePence + b.travelFeePence)}
+                      {formatPence(seatDuePence(b, f.settings.lateFeePercent))}
                     </span>
                     {f.creditPence > 0 && willBeOwed(b) ? (
                       <PayFromCreditButton

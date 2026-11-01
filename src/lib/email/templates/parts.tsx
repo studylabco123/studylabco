@@ -69,7 +69,7 @@ export function freeCancelUntil(startsAt: Date, noticeHours = DEFAULT_NOTICE_HOU
 /** "Free cancellation until <London time>. After that a late cancellation fee of £X applies." */
 export function cancellationLine(
   startsAt: Date,
-  lessonPricePence: number,
+  lateFeePence: number,
   noticeHours = DEFAULT_NOTICE_HOURS,
   bookedAt?: Date,
 ): string {
@@ -77,7 +77,7 @@ export function cancellationLine(
   if (until.getTime() >= startsAt.getTime()) {
     return "You're within your 14-day cooling-off period, so you can cancel free of charge at any time before this lesson starts.";
   }
-  return `Free cancellation until ${formatLondon(until, "EEEE d MMMM 'at' h:mmaaa")}. After that a late cancellation fee of ${formatPence(lessonPricePence)} applies.`;
+  return `Free cancellation until ${formatLondon(until, "EEEE d MMMM 'at' h:mmaaa")}. After that a late cancellation fee of ${formatPence(lateFeePence)} applies.`;
 }
 
 export function SessionList({
@@ -109,7 +109,7 @@ export function SessionList({
             <Text style={{ ...text, color: MUTED, fontSize: "14px", margin: 0 }}>
               {s.status === "pending" && s.location === "home_visit"
                 ? "You can cancel this request free of charge until we confirm it."
-                : cancellationLine(s.startsAt, s.pricePence, noticeHours, s.bookedAt)}
+                : cancellationLine(s.startsAt, s.lateFeePence, noticeHours, s.bookedAt)}
             </Text>
           )}
         </Section>

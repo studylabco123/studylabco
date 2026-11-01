@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { formatPence } from "@/lib/format";
 import type { Booking } from "@/lib/types";
+import { lateFeeFor } from "@/lib/booking/fees";
 import { businessInbox, siteUrl } from "./config";
 import { whenText } from "./templates/parts";
 import { sendEmail } from "./send";
@@ -68,6 +69,7 @@ export async function buildLines(c: Client, bookings: Booking[]): Promise<Map<st
       location: b.location,
       status: b.status,
       pricePence: b.pricePence,
+      lateFeePence: lateFeeFor(b, settings.lateFeePercent),
       travelPence: b.travelFeePence,
       homeAddress: b.homeAddress,
       bookedAt: b.createdAt,
@@ -196,7 +198,7 @@ export async function notifyBookingCancelled(bookingId: string, outcome: "free" 
           lines: [
             `${parent?.name ?? "A parent"}${parent ? ` (${parent.email})` : ""} cancelled inside the notice period.`,
             describe(session),
-            `Late cancellation fee: ${formatPence(session.pricePence)}`,
+            `Late cancellation fee: ${formatPence(session.lateFeePence)}`,
           ],
           link: { href: `${siteUrl()}/admin`, label: "Open the admin area" },
         },
