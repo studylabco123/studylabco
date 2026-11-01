@@ -12,7 +12,7 @@ test.afterEach(async () => {
 /** Inserts an online one-to-one for `parent` starting `minutesAhead` from now (up to ~33h of random jitter avoids clashes between parallel projects). */
 async function seedBooking(
   childId: string,
-  opts: { minutesAhead: number; status?: string; paymentStatus?: string; price?: number; bookedDaysAgo?: number },
+  opts: { minutesAhead: number; status?: string; paymentStatus?: string; price?: number; bookedDaysAgo?: number; location?: string; homeAddress?: string },
 ) {
   for (let attempt = 0; ; attempt++) {
     const start = new Date(Date.now() + (opts.minutesAhead + randomInt(0, 400) * 5) * 60_000);
@@ -24,7 +24,8 @@ async function seedBooking(
         parent_id: parent!.id,
         child_id: childId,
         kind: "one_to_one",
-        location: "online",
+        location: opts.location ?? "online",
+        home_address: opts.homeAddress ?? null,
         starts_at: start.toISOString(),
         ends_at: end.toISOString(),
         busy_until: end.toISOString(),
@@ -100,6 +101,16 @@ test.describe("dashboard", () => {
     await expect(outside.getByRole("button", { name: "Cancel booking" })).toBeVisible();
     await expect(outside.getByText(/Less than 48 hours/)).toHaveCount(0);
     expect((await row(b.id)).status).toBe("confirmed");
+  });
+
+  test("a pending home visit inside 48h still has its cancel button", async ({ page }) => {
+    parent = await createParent(page);
+    const child = await seedChild(parent.id, { approved: true });
+    const b = await seedBooking(child, { minutesAhead: 6 * 60, status: "pending", bookedDaysAgo: 20, location: "home_visit", homeAddress: "1 Test Road" });
+    await page.goto("/account/bookings");
+    const card = page.getByRole("listitem").filter({ hasText: b.payment_reference });
+    await expect(card.getByRole("button", { name: "Cancel booking" })).toBeVisible();
+    await expect(card.getByText(/Less than 48 hours/)).toHaveCount(0);
   });
 
   test("owed balance blocks new booking with money_owed message", async ({ page }) => {

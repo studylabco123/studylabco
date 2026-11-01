@@ -74,8 +74,8 @@ describe("cancelBookingForParent", () => {
 
   test("parent online cancel inside 48h -> call_required, nothing changes", async () => {
     const id = await insertBooking({ starts: "2026-11-11T10:00:00Z", paymentStatus: "unpaid" });
-    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: false, reason: "call_required" });
-    expect(await cancelBookingForParent(parentId, id, { now: NOW, confirmLate: true } as never)).toEqual({ ok: false, reason: "call_required" });
+    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: false, reason: "call_required", free: false });
+    expect(await cancelBookingForParent(parentId, id, { now: NOW, confirmLate: true } as never)).toEqual({ ok: false, reason: "call_required", free: false });
     expect((await get(id)).status).toBe("confirmed");
   });
 
@@ -90,13 +90,16 @@ describe("cancelBookingForParent", () => {
     expect((await get(id)).status).toBe("confirmed");
   });
 
-  test("inside 48h the parent is told to call, even within the 14-day cooling-off or for a pending home visit", async () => {
-    const home = await insertBooking({ starts: "2026-11-11T10:00:00Z", status: "pending", location: "home_visit", paymentStatus: "unpaid" });
+  test("inside 48h the parent is told to call, even within the 14-day cooling-off (and the message says it is free)", async () => {
     const cooling = await insertBooking({ starts: "2026-11-11T08:00:00Z", createdAt: "2026-11-07T12:00:00Z" });
-    for (const id of [home, cooling]) {
-      expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: false, reason: "call_required" });
-    }
+    expect(await cancelBookingForParent(parentId, cooling, { now: NOW })).toEqual({ ok: false, reason: "call_required", free: true });
     expect((await get(cooling)).status).toBe("confirmed");
+  });
+
+  test("pending home visit inside 48h cancels free online", async () => {
+    const id = await insertBooking({ starts: "2026-11-11T10:00:00Z", status: "pending", location: "home_visit", paymentStatus: "unpaid" });
+    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toEqual({ ok: true, outcome: "free", feePence: 0 });
+    expect((await get(id)).status).toBe("cancelled");
   });
 
   test("exactly 48 hours away can still be cancelled online, free", async () => {

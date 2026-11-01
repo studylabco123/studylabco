@@ -255,6 +255,14 @@ describe("recordLateCancellation", () => {
     expect((await ledger())[0]).toMatchObject({ kind: "credit", amount_pence: 2500 });
   });
 
+  test("recording twice on a paid booking writes exactly one credit", async () => {
+    const id = await insertBooking(10, { price: 2500, payment: "paid" });
+    await madeDaysAgo(id, 30);
+    expect(await recordLateCancellation(id)).toEqual({ ok: true });
+    expect((await recordLateCancellation(id)).ok).toBe(false);
+    expect((await ledger()).filter((l) => l.kind === "credit")).toHaveLength(1);
+  });
+
   test("uses the Settings late fee percent", async () => {
     await db.query("update settings set late_fee_percent = 40");
     const id = await insertBooking(10, { price: 2500 });

@@ -3,6 +3,7 @@ import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import type { AccountOverview, BookingView } from "@/lib/booking/account-data";
 import { FALLBACK_EMAIL } from "@/lib/site";
+import { callToCancelText } from "@/lib/booking/cancellation";
 import { paymentBadge } from "@/lib/booking/payment-view";
 import { formatLondon, formatPence } from "@/lib/format";
 import type { Booking, BookingStatus } from "@/lib/types";
@@ -27,9 +28,7 @@ function CallToCancel({ view, contact }: { view: BookingView; contact: Contact }
   return (
     <div className="flex flex-col gap-1 text-small" data-testid="call-to-cancel">
       <p>
-        {view.callFree
-          ? `Less than ${noticeHours} hours to go — please call or email Study Lab Co to cancel. There is no fee for this one.`
-          : `Less than ${noticeHours} hours to go — please call or email Study Lab Co to cancel. A ${lateFeePercent}% late cancellation fee applies.`}
+        {callToCancelText(noticeHours, lateFeePercent, view.callFree)}
       </p>
       <p>
         {businessPhone ? (

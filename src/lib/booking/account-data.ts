@@ -22,7 +22,7 @@ export interface BookingView {
   cancellable: boolean;
   /** Inside the notice period: the parent must call or email; no cancel button. */
   callRequired: boolean;
-  /** When `callRequired`: cancelling would be free (14-day cooling-off, or a pending home visit the tutor never confirmed). */
+  /** When `callRequired`: cancelling would be free (14-day cooling-off). */
   callFree: boolean;
 }
 
@@ -128,7 +128,8 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
       membership = "Sunday bundle";
     }
     const live = isCancellable(b, now) && !b.passId; // pass seats are handled with passes (Task V5)
-    const cancellable = live && parentCanCancelOnline(b.startsAt, now, settings.cancellationNoticeHours);
+    const neverConfirmed = b.status === "pending" && b.location === "home_visit";
+    const cancellable = live && (neverConfirmed || parentCanCancelOnline(b.startsAt, now, settings.cancellationNoticeHours));
     return {
       booking: b,
       title: (b.groupSessionId && titles.get(b.groupSessionId)) || KIND_TITLE[b.kind],
@@ -179,8 +180,7 @@ function isCancellable(b: Booking, now: Date): boolean {
   return (b.status === "pending" || b.status === "confirmed") && b.startsAt > now;
 }
 
-/** Inside the notice period, cancelling by phone or email is still free for a pending home visit or within the 14-day cooling-off. */
+/** Inside the notice period, cancelling by phone or email is still free within the 14-day cooling-off. */
 function freeInsideNotice(b: Booking, now: Date, settings: Settings, bookedAt: Date): boolean {
-  if (b.status === "pending" && b.location === "home_visit") return true;
   return cancellationDecision(b.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt).reason === "cooling_off";
 }

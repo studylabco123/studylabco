@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { callToCancelText } from "@/lib/booking/cancellation";
 import { cancelBookingForParent } from "@/lib/booking/cancel";
 import { getSettings } from "@/lib/settings";
 import { createServerClient } from "@/lib/supabase/server";
@@ -26,7 +27,7 @@ export async function cancelBooking(bookingId: string): Promise<CancelState> {
     const s = await getSettings();
     return {
       status: "call_required",
-      message: `Less than ${s.cancellationNoticeHours} hours to go — please call or email Study Lab Co to cancel. A ${s.lateFeePercent}% late cancellation fee applies.`,
+      message: callToCancelText(s.cancellationNoticeHours, s.lateFeePercent, res.free),
     };
   }
   return {

@@ -24,6 +24,13 @@ export function parentCanCancelOnline(startsAt: Date, now: Date, noticeHours: nu
   return startsAt.getTime() - now.getTime() >= noticeHours * 3600_000;
 }
 
+/** The parent-facing message inside the notice period (dashboard and server action). */
+export function callToCancelText(noticeHours: number, lateFeePercent: number, free: boolean): string {
+  return free
+    ? `Less than ${noticeHours} hours to go — please call or email Study Lab Co to cancel. There is no fee for this one.`
+    : `Less than ${noticeHours} hours to go — please call or email Study Lab Co to cancel. A ${lateFeePercent}% late cancellation fee applies.`;
+}
+
 export function cancellationDecision(
   startsAt: Date,
   now: Date,

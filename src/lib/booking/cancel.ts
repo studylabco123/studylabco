@@ -3,14 +3,14 @@ import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { getSettings } from "@/lib/settings";
 import { createServiceClient } from "@/lib/supabase/service";
 import { londonDateOf } from "@/lib/time";
-import { parentCanCancelOnline } from "./cancellation";
+import { cancellationDecision, parentCanCancelOnline } from "./cancellation";
 import { onBookingCancelled } from "./notify";
 
 export type CancelResult =
   | { ok: true; outcome: "free"; feePence: 0 }
   | { ok: false; reason: "not_found" | "not_cancellable" | "error" }
   /** Inside the notice window: the parent must call or email; the tutor records any late cancellation. */
-  | { ok: false; reason: "call_required" }
+  | { ok: false; reason: "call_required"; free: boolean }
   /** A pass seat: cancelled through the pass flow (Task V5), not here. */
   | { ok: false; reason: "pass_seat" };
 
@@ -23,7 +23,8 @@ export type CancelResult =
  *   (`parentCanCancelOnline`). Inside that window the answer is 'call_required':
  *   the parent phones or emails and the tutor records it with
  *   `recordLateCancellation` (which applies the 14-day cooling-off and the
- *   late cancellation fee). There is no late path here.
+ *   late cancellation fee). There is no late path here. A pending home
+ *   visit (never confirmed) is the exception: free online at any time.
  * - Pass seats are refused with 'pass_seat' (handled by the pass flow).
  * - A free cancel of a paid booking sets payment_status 'credited' and writes a
  *   ledger 'credit' for what was paid for that row (price plus travel; a block
@@ -50,8 +51,16 @@ export async function cancelBookingForParent(
   if (booking.passId) return { ok: false, reason: "pass_seat" };
 
   const settings = await getSettings();
-  if (!parentCanCancelOnline(booking.startsAt, now, settings.cancellationNoticeHours)) {
-    return { ok: false, reason: "call_required" };
+  // A pending home visit was never confirmed by the tutor, so it can be cancelled online at any time, free (Ruling R5).
+  const neverConfirmed = booking.status === "pending" && booking.location === "home_visit";
+  if (!neverConfirmed && !parentCanCancelOnline(booking.startsAt, now, settings.cancellationNoticeHours)) {
+    let bookedAt = booking.createdAt;
+    if (booking.blockBookingId) {
+      const block = await c.from("block_bookings").select("created_at").eq("id", booking.blockBookingId).maybeSingle();
+      if (block.data) bookedAt = new Date(block.data.created_at as string);
+    }
+    const free = cancellationDecision(booking.startsAt, now, settings.cancellationNoticeHours, "parent", bookedAt).reason === "cooling_off";
+    return { ok: false, reason: "call_required", free };
   }
 
   const patch: Record<string, unknown> = {
