@@ -6,7 +6,7 @@ export const OG_IMAGE = { url: "/icons/icon-512.png", width: 512, height: 512, a
 
 /** Title, description, canonical path and Open Graph tags for one public page. */
 export function pageMetadata(title: string | null, description: string, path: string): Metadata {
-  const ogTitle = title ? `${title} | ${SITE_NAME}` : `${SITE_NAME} | GCSE Science tuition in Blackburn`;
+  const ogTitle = title ? `${title} | ${SITE_NAME}` : `${SITE_NAME} | KS3 and GCSE Science tuition in Blackburn`;
   return {
     ...(title ? { title } : {}),
     description,

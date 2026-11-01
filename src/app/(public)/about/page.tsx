@@ -7,7 +7,7 @@ import { pageMetadata } from "@/lib/public/meta";
 
 export const metadata = pageMetadata(
   "About the tutor",
-  "Study Lab Co is run by a qualified secondary science teacher: PGCE with QTS from Edge Hill University, BSc Biology from the University of Salford, enhanced DBS checked.",
+  "Study Lab Co offers KS3 and GCSE Science lessons from a qualified secondary science teacher: PGCE with QTS from Edge Hill University, BSc Biology from the University of Salford, enhanced DBS checked.",
   "/about",
 );
 
@@ -26,7 +26,7 @@ const APPROACH: { title: string; body: string }[] = [
   },
   {
     title: "Teach to the specification",
-    body: "I teach to your child's exam board and tier, using the same required practicals, command words and mark schemes they will meet in the exam.",
+    body: "At GCSE, I teach to your child's exam board and tier, using the same required practicals, command words and mark schemes they will meet in the exam. At KS3, lessons follow what your child is learning at school and build the foundations GCSE needs.",
   },
   {
     title: "Practise answering, not just reading",
@@ -34,7 +34,7 @@ const APPROACH: { title: string; body: string }[] = [
   },
   {
     title: "Keep you in the loop",
-    body: "You're welcome to ask how lessons are going and what to focus on next. If something isn't working, we change the plan.",
+    body: "You'll hear what we covered and what to focus on next, and test results with feedback appear in your account. If something isn't working, we change the plan.",
   },
 ];
 
@@ -44,7 +44,7 @@ export default async function AboutPage() {
     <>
       <PageIntro title="About the tutor">
         <p>
-          I&apos;m a qualified secondary science teacher, and I set up Study Lab Co to offer focused GCSE Science lessons to
+          I&apos;m a qualified secondary science teacher, and I set up Study Lab Co to offer focused KS3 and GCSE Science lessons to
           students in Blackburn. Every lesson is planned and taught by me.
         </p>
       </PageIntro>
@@ -93,10 +93,11 @@ export default async function AboutPage() {
           </h2>
           <p className="max-w-prose text-navy-600">
             It&apos;s the best way to see whether lessons are right for your child. It costs{" "}
-            {formatPence(settings.priceAssessmentPence)} and lasts 60 minutes, including a 15-minute talk with you.
+            {formatPence(settings.priceKs3AssessmentPence)} for KS3 (Years 7–8) or {formatPence(settings.priceAssessmentPence)} for
+            GCSE and every Year 9 student, and lasts 60 minutes, including a 15-minute talk with you.
           </p>
           <ButtonLink href={href} size="lg">
-            Book your {formatPence(settings.priceAssessmentPence)} Assessment Lesson
+            Book an Assessment Lesson
           </ButtonLink>
         </div>
       </section>

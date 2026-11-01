@@ -6,7 +6,7 @@ import { FALLBACK_EMAIL } from "@/lib/site";
 import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { addDays, londonDateOf } from "@/lib/time";
-import type { Settings } from "@/lib/types";
+import type { Level, Settings } from "@/lib/types";
 
 /** Settings once per request (layout and page share it). */
 export const publicSettings = cache((): Promise<Settings> => getSettings());
@@ -44,6 +44,8 @@ export interface PublicGroup {
   startsAt: Date;
   endsAt: Date;
   yearGroup: string | null;
+  /** KS3 or GCSE: who can book it. */
+  level: Level;
   seatsLeft: number;
   pricePence: number;
   /** The session's venue, else the default group venue, else NO_VENUE. */
@@ -62,7 +64,7 @@ export async function loadUpcomingGroups(now: Date, opts: { limit?: number } = {
   const c = createServiceClient();
   let q = c
     .from("group_sessions")
-    .select("id, title, starts_at, ends_at, price_pence, venue, is_online, group_series(year_group)")
+    .select("id, title, starts_at, ends_at, price_pence, venue, is_online, level, group_series(year_group)")
     .eq("status", "scheduled")
     .gt("starts_at", now.toISOString())
     .lt("starts_at", new Date(now.getTime() + settings.bookingWindowDays * 86_400_000).toISOString())
@@ -79,6 +81,7 @@ export async function loadUpcomingGroups(now: Date, opts: { limit?: number } = {
     price_pence: number;
     venue: string | null;
     is_online: boolean;
+    level: Level;
     group_series: { year_group: string } | null;
   };
   const rows = data as unknown as Row[];
@@ -95,6 +98,7 @@ export async function loadUpcomingGroups(now: Date, opts: { limit?: number } = {
     startsAt: new Date(r.starts_at),
     endsAt: new Date(r.ends_at),
     yearGroup: r.group_series?.year_group ?? null,
+    level: r.level,
     seatsLeft: seats[i],
     pricePence: r.price_pence,
     venue: r.is_online ? "Online" : r.venue?.trim() || settings.groupVenue?.trim() || NO_VENUE,
@@ -102,16 +106,16 @@ export async function loadUpcomingGroups(now: Date, opts: { limit?: number } = {
 }
 
 /** Active weekly groups (for the timetable summary). */
-export async function loadGroupSeries(): Promise<{ weekday: number; startTime: string; active: boolean }[]> {
+export async function loadGroupSeries(): Promise<{ weekday: number; startTime: string; active: boolean; level: Level }[]> {
   const { data, error } = await createServiceClient()
     .from("group_series")
-    .select("weekday, start_time, active, is_online")
+    .select("weekday, start_time, active, is_online, level")
     .eq("active", true);
   if (error) throw new Error(`Could not load groups: ${error.message}`);
   const s = await publicSettings();
-  return (data as { weekday: number; start_time: string; active: boolean; is_online: boolean }[])
+  return (data as { weekday: number; start_time: string; active: boolean; is_online: boolean; level: Level }[])
     .filter((r) => s.onlineEnabled || !r.is_online)
-    .map((r) => ({ weekday: r.weekday, startTime: r.start_time.slice(0, 5), active: r.active }));
+    .map((r) => ({ weekday: r.weekday, startTime: r.start_time.slice(0, 5), active: r.active, level: r.level }));
 }
 
 /** Where "Book" buttons go: the booking wizard when signed in, else sign-up. */

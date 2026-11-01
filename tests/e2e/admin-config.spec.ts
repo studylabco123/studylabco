@@ -365,8 +365,8 @@ test.describe("settings", () => {
   test("a bad sort code is refused with a message and nothing is saved", async ({ page }) => {
     await adminLogin(page);
     await page.goto("/admin/settings");
-    await page.getByLabel("Sort code").fill("12-34");
-    await page.getByLabel("Account number").fill("1234");
+    await page.getByLabel("Sort code", { exact: true }).fill("12-34");
+    await page.getByLabel("Account number", { exact: true }).fill("1234");
     await page.getByLabel("Group session (£)").fill("19");
     await page.getByRole("button", { name: "Save settings" }).click();
     await expect(page.getByText("A sort code is six digits, like 12-34-56.")).toBeVisible();
@@ -382,6 +382,13 @@ test.describe("settings", () => {
       await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
     }
     for (const toggle of ["Tutor's place", "Home visits", "Online"]) await expect(page.getByRole("checkbox", { name: toggle, exact: true })).toBeVisible();
+    // Every settings field has an "i" button with a short explanation.
+    const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Save settings" }) });
+    const fields = await form.locator("input:not([type=hidden]), textarea").count();
+    await expect(form.getByRole("button", { name: /^More about / })).toHaveCount(fields);
+    const tip = form.getByRole("button", { name: "More about Late cancellation fee (% of the lesson price)" });
+    await tip.click();
+    await expect(form.getByText(/share of the lesson price owed for a late cancellation/)).toBeVisible();
     const axe = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
     expect(axe.violations).toEqual([]);
   });

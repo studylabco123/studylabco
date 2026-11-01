@@ -9,7 +9,7 @@ export const MAIN_NAV: NavItem[] = [
   { href: "/about", label: "About" },
   { href: "/lessons", label: "Lessons & Pricing" },
   { href: "/groups", label: "Group Sessions" },
-  { href: "/faq", label: "FAQ" },
+  { href: "/faq", label: "Q&A" },
   { href: "/contact", label: "Contact" },
 ];
 

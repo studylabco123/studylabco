@@ -74,7 +74,7 @@ test("legal pages each show the last updated date", async ({ page }) => {
 test("refund policy and FAQ state the 50% late cancellation fee", async ({ page }) => {
   await page.goto("/refunds");
   await expect(page.getByText(/late cancellation fee is 50% of the lesson price/)).toBeVisible();
-  await expect(page.getByText(/plus the travel fee for a home visit/)).toBeVisible();
+  await expect(page.getByText(/plus the travel fee for a home visit/).first()).toBeVisible();
   await page.goto("/faq");
   await expect(page.getByText(/late cancellation fee of 50% of the lesson price/)).toBeAttached();
 });
@@ -250,4 +250,114 @@ test("robots and sitemap keep private areas out", async ({ request }) => {
   const sitemap = await (await request.get("/sitemap.xml")).text();
   for (const p of PAGES.slice(1)) expect(sitemap, p).toContain(`${p}</loc>`);
   expect(sitemap).not.toMatch(/\/account|\/admin|\/test-harness|\/api/);
+});
+
+test.describe("v2 content (V8)", () => {
+  test("lessons shows KS3 assessment £7.50, 1-to-1 £20, group £14, passes £79/£126 and GCSE passes £102/£162", async ({ page }) => {
+    await page.goto("/lessons");
+    const main = page.locator("main");
+    const ks3 = main.getByRole("list", { name: "KS3 prices" });
+    const gcse = main.getByRole("list", { name: "GCSE prices" });
+    await expect(ks3.getByTestId("price-ks3-assessment")).toHaveText("£7.50");
+    await expect(ks3.getByTestId("price-ks3-one-to-one")).toHaveText("£20");
+    await expect(ks3.getByTestId("price-ks3-group")).toHaveText("£14");
+    await expect(ks3.getByTestId("price-ks3-pass-6")).toHaveText("£79");
+    await expect(ks3.getByTestId("price-ks3-pass-10")).toHaveText("£126");
+    await expect(ks3).toContainText("KS3 only (Years 7–9)");
+    await expect(gcse.getByTestId("price-assessment")).toHaveText("£10");
+    await expect(gcse.getByTestId("price-one-to-one")).toHaveText("£25");
+    await expect(gcse.getByTestId("price-group")).toHaveText("£18");
+    await expect(gcse.getByTestId("price-sunday-bundle")).toHaveText("£30");
+    await expect(gcse.getByTestId("price-gcse-pass-6")).toHaveText("£102");
+    await expect(gcse.getByTestId("price-gcse-pass-10")).toHaveText("£162");
+    await expect(main.getByText(/home visit adds a £5 travel fee/i).first()).toBeVisible();
+    await expect(main.getByText("Year 9? Choose KS3 or GCSE when you add your child. Every Year 9 student books the GCSE Assessment Lesson.")).toBeVisible();
+    // Every price has an info button, and it opens a short explanation.
+    const priceCount = await main.locator("[data-testid^=price-]").count();
+    const tips = main.getByRole("button", { name: /^More about / });
+    expect(await tips.count()).toBeGreaterThanOrEqual(priceCount);
+    const passTip = ks3.getByRole("button", { name: "More about the KS3 group pass, 6 sessions" });
+    await passTip.click();
+    await expect(passTip).toHaveAttribute("aria-expanded", "true");
+    await expect(ks3).toContainText("at least a week ahead");
+    const axe = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
+    expect(axe.violations).toEqual([]);
+  });
+
+  test("faq titled Common questions and answers with mailto studylabco123@gmail.com", async ({ page }) => {
+    await page.goto("/faq");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Common questions and answers");
+    expect(await page.title()).toBe("Common questions and answers | Study Lab Co");
+    await expect(page.getByRole("navigation", { name: "Main" }).or(page.locator("footer")).getByRole("link", { name: "Q&A", exact: true }).first()).toBeAttached();
+    for (const heading of ["Booking", "Prices", "KS3, GCSE and Year 9", "Group passes", "Cancelling and the late cancellation fee", "Your 14-day cooling-off right", "Credit, refunds and paying", "Test results", "Safeguarding"]) {
+      await expect(page.getByRole("heading", { level: 2, name: heading, exact: true }), heading).toBeVisible();
+    }
+    const text = await allText(page);
+    expect(text).toContain("Buy 6 or 10 group sessions upfront at a discount, then book the dates you want — at least a week ahead — within 6 months. Miss one with 48 hours' notice and the session goes back on your pass.");
+    expect(text).toContain("By law, you have 14 days after booking (or buying a pass) to change your mind. Cancel within those 14 days and it's free — even if the lesson is less than 48 hours away. For a pass, unused sessions become account credit.");
+    expect(text).toContain("Year 9? Choose KS3 or GCSE when you add your child. Every Year 9 student books the GCSE Assessment Lesson.");
+    await expect(page.locator("details")).not.toHaveCount(0);
+    const end = page.getByText(/^Still have a question\? Email/);
+    await expect(end).toBeVisible();
+    await expect(end.getByRole("link", { name: "studylabco123@gmail.com" })).toHaveAttribute("href", "mailto:studylabco123@gmail.com");
+  });
+
+  test("terms mention 50% late cancellation fee and call or email inside 48 hours", async ({ page }) => {
+    for (const path of ["/terms", "/refunds"]) {
+      await page.goto(path);
+      const text = (await allText(page)).replace(/\s+/g, " ");
+      expect(text, path).toMatch(/late cancellation fee (is|of) 50% of the lesson price/);
+      expect(text, path).toMatch(/less than 48 hours[^.]*call or email/i);
+      expect(text, path).toMatch(/refund(ed)? (it )?to your card/i);
+      if (path === "/terms") expect(text, path).toMatch(/booked at least 7 days ahead/);
+      expect(text, path).toMatch(/50% of one session's value/);
+    }
+    await page.goto("/refunds");
+    // A no-show is the same 50%, not the full price.
+    await expect(page.getByRole("row", { name: /no-show/i }).first()).toContainText("50%");
+  });
+
+  test("Saturday group labelled KS3 only (Years 7–9)", async ({ page }) => {
+    await page.goto("/groups");
+    const saturday = page.getByRole("list", { name: "Upcoming group sessions" }).getByRole("listitem").filter({ hasText: "Saturday" }).first();
+    await expect(saturday).toContainText("KS3 only (Years 7–9)");
+    const sunday = page.getByRole("list", { name: "Upcoming group sessions" }).getByRole("listitem").filter({ hasText: "Sunday" }).first();
+    await expect(sunday).toContainText("GCSE (Years 10–11; Year 9 GCSE students welcome)");
+    await page.goto("/lessons");
+    await expect(page.locator("main").getByText(/Saturday: KS3 only \(Years 7–9\)/)).toBeVisible();
+    await page.goto("/");
+    await expect(page.locator("main").getByText("KS3 only (Years 7–9)").first()).toBeVisible();
+  });
+
+  test("footer shows Study Lab Co is run by Abdullah Chopdat", async ({ page }) => {
+    for (const path of ["/", "/faq"]) {
+      await page.goto(path);
+      await expect(page.locator("footer").getByTestId("owner-line")).toHaveText("Study Lab Co is run by Abdullah Chopdat.");
+    }
+  });
+
+  test('no "fine"/"penalty"/"waiver"/online wording or gendered tutor pronouns on any public page', async ({ page }) => {
+    test.setTimeout(90_000);
+    for (const path of PAGES) {
+      await page.goto(path);
+      const text = await allText(page);
+      expect(text, path).not.toMatch(/\bfines?\b|penalt|waiver/i);
+      expect(text, path).not.toMatch(/\bonline\b/i);
+      expect(text, path).not.toMatch(/\b(he|she|him|her|his|hers|himself|herself)\b/i);
+    }
+  });
+
+  test("home and about restore the confirmed claims", async ({ page }) => {
+    await page.goto("/");
+    let text = await allText(page);
+    expect(text).toContain("what examiners look for");
+    expect(text).toContain("without waiting for a reply");
+    expect(text).toContain("It takes about five minutes.");
+    await page.goto("/about");
+    text = await allText(page);
+    expect(text).toContain("You'll hear what we covered");
+    await page.goto("/safeguarding");
+    text = await allText(page);
+    expect(text).toContain("Lessons are never passed to anyone else.");
+  });
 });

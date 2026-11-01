@@ -7,7 +7,7 @@ import { FALLBACK_EMAIL } from "@/lib/site";
 
 export const metadata = pageMetadata(
   "Terms of Service",
-  "The terms for booking and paying for Study Lab Co lessons: bookings, payment, the 48-hour cancellation rule, conduct and your 14-day cooling-off right.",
+  "The terms for booking and paying for Study Lab Co lessons: bookings, group passes, payment, the 48-hour cancellation rule and late cancellation fee, credit, conduct and your 14-day cooling-off right.",
   "/terms",
 );
 
@@ -22,7 +22,8 @@ export default async function TermsPage() {
     >
       <h2>Who we are</h2>
       <p>
-        Study Lab Co is a GCSE Science tutoring business run by a sole trader in Blackburn, Lancashire. You can contact us at{" "}
+        Study Lab Co is a KS3 and GCSE Science tutoring business run by{" "}
+        {s.ownerName?.trim() ? `${s.ownerName.trim()}, a sole trader,` : "a sole trader"} in Blackburn, Lancashire. You can contact us at{" "}
         <a href={`mailto:${FALLBACK_EMAIL}`}>{FALLBACK_EMAIL}</a>. In these terms, &ldquo;we&rdquo; and &ldquo;the tutor&rdquo;
         mean Study Lab Co, and &ldquo;you&rdquo; means the parent or guardian who holds the account.
       </p>
@@ -34,6 +35,18 @@ export default async function TermsPage() {
         <li>
           Before booking anything other than the Assessment Lesson, you sign the Parent/Guardian Agreement &amp; Consent Form for
           each child.
+        </li>
+      </ul>
+
+      <h2>KS3 and GCSE</h2>
+      <ul>
+        <li>
+          Students in Years 7 and 8 are KS3, and students in Years 10 and 11 are GCSE. For a Year 9 student, you choose KS3 or
+          GCSE when you add your child, and you can change it later.
+        </li>
+        <li>
+          KS3 students can book the KS3 Assessment Lesson (Years 7 and 8), 1-to-1 lessons and KS3 groups. GCSE students can book
+          the GCSE Assessment Lesson, 1-to-1 lessons and GCSE groups. Every Year 9 student books the GCSE Assessment Lesson.
         </li>
       </ul>
 
@@ -58,11 +71,12 @@ export default async function TermsPage() {
             if a request is declined you are not charged.
           </li>
         ) : null}
+        <li>Group sessions have a limited number of seats, and each is for one level: KS3 or GCSE.</li>
         <li>
-          Group sessions have a limited number of seats. A group pass is 6 or 10 group sessions at your child&apos;s level
-          (KS3 or GCSE), paid by bank transfer. You can book sessions with it once we&apos;ve received the payment; it then
-          lasts {s.passValidityMonths} months, and each session must be booked at least {s.passMinNoticeDays} days ahead. A
-          Sunday bundle uses 2 sessions of a GCSE pass. Sessions not used by the end of the pass expire.
+          A group pass is 6 or 10 group sessions for one child, at their level, paid upfront by bank transfer. You can book
+          sessions with it once we&apos;ve received the payment; it then lasts {s.passValidityMonths} months from that date, and
+          each session must be booked at least {s.passMinNoticeDays} days ahead. A Sunday bundle uses 2 sessions of a GCSE
+          pass. Sessions not used by the end of the pass expire.
         </li>
         <li>All lessons last 60 minutes.</li>
       </ul>
@@ -85,21 +99,23 @@ export default async function TermsPage() {
       <ul>
         <li>
           You can cancel free of charge from your account up to {s.cancellationNoticeHours} hours before the lesson starts.
+          If you had already paid, the amount becomes account credit straight away.
         </li>
         <li>
           You can also cancel free of charge at any time in the first 14 days after making a booking, however close the
-          lesson is. This is your cooling-off period (see below). For a group pass, the 14 days count from when you bought
-          the pass: cancel it in that time and the value of the sessions you have not used goes back as account credit.
-          After that, unused sessions can&apos;t be refunded.
+          lesson is. This is your cooling-off period (see below).
         </li>
-        <li>When a cancellation is free, any money you have paid is refunded or kept as credit.</li>
         <li>
-          If you cancel less than {s.cancellationNoticeHours} hours before the lesson and more than 14 days after making the
-          booking, please call or email us to cancel (the website cancels lessons at least {s.cancellationNoticeHours} hours away). It is recorded as a late cancellation and a
-          late cancellation fee is due. The fee is {s.lateFeePercent}% of the lesson price (not any travel fee).
+          With less than {s.cancellationNoticeHours} hours to go, you can&apos;t cancel on the website: please call or email
+          us to cancel. Outside the 14-day cooling-off period it is recorded as a late cancellation, and the late cancellation
+          fee is {s.lateFeePercent}% of the lesson price (never the travel fee for a home visit). If you had already paid in
+          full, we keep the fee and the rest becomes account credit.
         </li>
-        <li>If the student doesn&apos;t attend without cancelling, it is recorded as a no-show and the same {s.lateFeePercent}% fee is due, plus the travel fee for a home visit.</li>
-        <li>In an emergency, please tell us. We can waive the fee.</li>
+        <li>
+          If the student doesn&apos;t attend without cancelling, it is recorded as a no-show and the same {s.lateFeePercent}% fee
+          is due, plus the travel fee for a home visit (the tutor has travelled to you).
+        </li>
+        <li>In an emergency, please tell us. The tutor can choose not to charge the fee.</li>
         <li>
           If late cancellations or no-shows happen repeatedly, we may talk to you about it and may stop taking new bookings from
           the account.
@@ -107,19 +123,51 @@ export default async function TermsPage() {
         <li>The full details are in our <Link href="/refunds">Refund Policy</Link>.</li>
       </ul>
 
+      <h2>Group pass sessions and refunds</h2>
+      <ul>
+        <li>
+          Cancel a pass session at least {s.cancellationNoticeHours} hours before it and the session goes back on your pass.
+        </li>
+        <li>
+          With less than {s.cancellationNoticeHours} hours to go (please call or email us), or if your child doesn&apos;t
+          attend, the session still goes back on your pass, but a late cancellation fee of {s.lateFeePercent}% of one
+          session&apos;s value (the pass price divided by its number of sessions) is due. The tutor can choose not to charge it.
+        </li>
+        <li>
+          Unused pass sessions are not refunded as money. If you cancel a pass within 14 days of buying it, the value of the
+          sessions you have not used becomes account credit. After those 14 days, unused sessions can&apos;t be refunded unless
+          the tutor decides otherwise.
+        </li>
+      </ul>
+
+      <h2>Account credit</h2>
+      <ul>
+        <li>
+          Credit is money we hold for you, for example from a paid lesson you cancelled free of charge. The tutor uses it to pay
+          for a future lesson.
+        </li>
+        <li>
+          If you would rather have your credit back, email{" "}
+          <a href={`mailto:${FALLBACK_EMAIL}`}>{FALLBACK_EMAIL}</a> and we will refund it to your card or bank account.
+        </li>
+      </ul>
+
       <h2>If we cancel</h2>
       <p>
-        Occasionally we may have to cancel a lesson or a group session, for example because of illness. We will tell you as
-        soon as we can. You are not charged, and anything you have paid for that lesson is refunded or kept as credit, as you
-        prefer.
+        We may cancel any booking, for example because of illness. We will tell you as soon as we can. You are not charged:
+        anything you have paid for that lesson becomes account credit or is refunded, as you prefer, and a session booked with
+        a group pass goes back on your pass.
       </p>
 
       <h2>Your 14-day cooling-off right</h2>
       <p>
         Under the Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013 you have 14 days from
         making a booking to change your mind. During those 14 days you can cancel any lesson in the booking that hasn&apos;t
-        taken place yet, free of charge, even if it is less than {s.cancellationNoticeHours} hours away. Anything you have paid
-        for it is refunded or kept as credit.
+        taken place yet, free of charge, even if it is less than {s.cancellationNoticeHours} hours away (with less than{" "}
+        {s.cancellationNoticeHours} hours to go, please call or email us and we will cancel it free of charge). Anything you
+        have paid for it becomes account credit, and we refund it to you whenever you ask. For a group pass, the 14 days count
+        from the day you bought it: cancel the pass in that time and the value of the sessions you have not used becomes
+        account credit, which you can also ask us to refund.
       </p>
       <p>
         When you book, you can ask for lessons to start within those 14 days by ticking the box that says &ldquo;I want lessons

@@ -29,7 +29,7 @@ export function Footer({ email = FALLBACK_EMAIL, phone, address, ownerName }: Fo
             <Logo size={88} alt="" className="size-20 sm:size-22" />
             <div>
               <p className="font-display text-h3 font-semibold">{SITE_NAME}</p>
-              <p className="text-small text-white/85">GCSE Science tuition in Blackburn from a qualified teacher.</p>
+              <p className="text-small text-white/85">KS3 and GCSE Science tuition in Blackburn from a qualified teacher.</p>
             </div>
           </div>
           <ul className="flex flex-wrap gap-2" aria-label="Credentials">

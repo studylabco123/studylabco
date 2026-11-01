@@ -6,13 +6,13 @@ import { PriceTable, type PriceRow } from "@/components/site/PriceTable";
 import { ButtonLink } from "@/components/ui/Button";
 import { testimonials } from "@/content/testimonials";
 import { formatPence } from "@/lib/format";
-import { bookHref, loadUpcomingGroups, publicSettings } from "@/lib/public/data";
+import { bookHref, loadGroupSeries, loadUpcomingGroups, publicSettings } from "@/lib/public/data";
 import { pageMetadata } from "@/lib/public/meta";
-import { lessonPrices } from "@/lib/public/prices";
+import { groupDaysByLevel, lessonPrices } from "@/lib/public/prices";
 
 export const metadata = pageMetadata(
   null,
-  "GCSE Biology, Chemistry, Physics and Combined Science tuition in Blackburn from a qualified teacher (QTS), enhanced DBS checked. Years 10 and 11, all exam boards.",
+  "KS3 Science and GCSE Biology, Chemistry, Physics and Combined Science tuition in Blackburn from a qualified teacher (QTS), enhanced DBS checked. Years 7 to 11, all exam boards.",
   "/",
 );
 
@@ -21,10 +21,10 @@ const standaloneLink =
   "inline-flex min-h-11 items-center font-display font-semibold underline decoration-sky-500 decoration-2 underline-offset-4 transition-[text-decoration-color] duration-150 hover:decoration-navy-900";
 
 const FACTS: [string, string][] = [
-  ["Subjects", "Biology, Chemistry, Physics and Combined Science"],
-  ["Exam boards", "AQA, Edexcel, OCR and WJEC/Eduqas"],
-  ["Tiers", "Foundation and Higher"],
-  ["Who for", "Years 10 and 11 (GCSE)"],
+  ["Who for", "Years 7–9 (KS3) and Years 10–11 (GCSE)"],
+  ["Subjects", "KS3 Science; GCSE Biology, Chemistry, Physics and Combined Science"],
+  ["GCSE exam boards", "AQA, Edexcel, OCR and WJEC/Eduqas"],
+  ["GCSE tiers", "Foundation and Higher"],
 ];
 
 const CREDENTIALS = [
@@ -37,31 +37,46 @@ const CREDENTIALS = [
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ notice?: string }> }) {
   const { notice } = await searchParams;
-  const [settings, href, groups] = await Promise.all([publicSettings(), bookHref(), loadUpcomingGroups(new Date(), { limit: 3 })]);
+  const [settings, href, groups, series] = await Promise.all([
+    publicSettings(),
+    bookHref(),
+    loadUpcomingGroups(new Date(), { limit: 3 }),
+    loadGroupSeries(),
+  ]);
+  const groupDays = groupDaysByLevel(series);
   const p = lessonPrices(settings);
   const home = settings.homeVisitsEnabled;
   const place = settings.tutorPlaceEnabled;
 
-  const at = (pence: number, testId?: string) => ({ label: place ? "At the tutor's place" : "Per lesson", pence, testId });
+  const where = place ? ", at the tutor's place" : "";
   const rows: PriceRow[] = [
     {
       name: "Assessment Lesson",
-      detail: "Every new student's first lesson: 60 minutes, including a 15-minute talk with you.",
-      prices: [at(p.assessment), ...(home ? [{ label: "Home visit", pence: p.assessmentHome }] : [])],
+      detail: "Every new student's first lesson: 60 minutes, including a 15-minute talk with you. Year 9 books the GCSE one.",
+      prices: [
+        { label: `KS3 (Years 7–8)${where}`, pence: p.ks3Assessment },
+        { label: `GCSE${where}`, pence: p.assessment },
+      ],
     },
     {
       name: "1-to-1 lesson",
       detail: "60 minutes on your child's own targets and weak spots.",
-      prices: [at(p.oneToOne), ...(home ? [{ label: "Home visit", pence: p.oneToOneHome }] : [])],
+      prices: [
+        { label: `KS3${where}`, pence: p.ks3OneToOne },
+        { label: `GCSE${where}`, pence: p.oneToOne },
+      ],
     },
     {
       name: "Group session",
-      detail: "60 minutes in a small weekend group working through GCSE topics and exam questions.",
-      prices: [{ label: "Per student", pence: p.group }],
+      detail: `60 minutes in a small weekend group, at your child's level. ${groupDays}`,
+      prices: [
+        { label: "KS3, per student", pence: p.ks3Group },
+        { label: "GCSE, per student", pence: p.group },
+      ],
     },
     {
       name: "Sunday bundle",
-      detail: "Both Sunday morning groups, back to back.",
+      detail: "Both Sunday morning GCSE groups, back to back.",
       prices: [{ label: "Per student", pence: p.sundayBundle }],
     },
   ];
@@ -74,7 +89,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </p>
       ) : null}
 
-      <Hero assessmentPence={p.assessment} assessmentHomePence={home ? p.assessmentHome : null} bookHref={href} />
+      <Hero
+        assessmentPence={p.assessment}
+        ks3AssessmentPence={p.ks3Assessment}
+        travelPence={home ? p.travel : null}
+        bookHref={href}
+      />
 
       <section aria-label="What is taught" className="border-b border-sky-200 bg-white">
         <dl className="mx-auto grid max-w-content gap-x-8 gap-y-5 px-5 py-8 sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
@@ -94,13 +114,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               How it works
             </h2>
             <p className="max-w-prose text-navy-600 md:col-span-7">
-              Everything is booked through your account, where you can see the free times.{" "}
-              {settings.homeVisitsEnabled
-                ? "Lessons at the tutor's place are confirmed straight away; a home visit is confirmed once the tutor has approved it."
-                : "Lessons are confirmed straight away."}
+              Everything is booked through your account, where you can see the free times and book without waiting for a
+              reply.
+              {home ? " The one exception is a home visit, which is confirmed once the tutor has approved it." : null}
             </p>
           </div>
-          <HowItWorks assessmentPence={p.assessment} />
+          <HowItWorks assessmentPence={p.assessment} ks3AssessmentPence={p.ks3Assessment} />
           <div className="mt-12 flex flex-col gap-3 sm:flex-row">
             <ButtonLink href={href} size="lg" className="w-full sm:w-auto">
               Book your {formatPence(p.assessment)} Assessment Lesson
@@ -118,6 +137,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <p className="text-navy-600">
               All lessons last 60 minutes. Pay by bank transfer in advance, or by cash before the lesson starts. No VAT,
               no joining fee: the price you see is the price you pay.
+              {home ? ` A home visit adds a ${formatPence(p.travel)} travel fee.` : null}
             </p>
             <p>
               <Link href="/lessons" className={standaloneLink}>
@@ -136,8 +156,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               Taught by a qualified science teacher
             </h2>
             <p className="text-navy-600">
-              Lessons are planned and taught by a trained secondary science teacher with Qualified Teacher Status, and
-              follow your child&apos;s exam board specification.
+              Lessons are planned and taught by a trained secondary science teacher with Qualified Teacher Status, who
+              knows the KS3 curriculum, the GCSE specifications and what examiners look for.
             </p>
             <p>
               <Link href="/about" className={standaloneLink}>
@@ -165,7 +185,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <h2 id="groups" className="text-h2">
                 Upcoming group sessions
               </h2>
-              <p className="max-w-prose text-navy-600">Weekend groups for students who have had their Assessment Lesson.</p>
+              <p className="max-w-prose text-navy-600">
+                Weekend groups for students who have had their Assessment Lesson. {groupDays}
+              </p>
             </div>
             <Link href="/groups" className={standaloneLink}>
               All group sessions

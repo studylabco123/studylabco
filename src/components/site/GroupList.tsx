@@ -1,6 +1,8 @@
+import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { formatLondon, formatPence } from "@/lib/format";
 import type { PublicGroup } from "@/lib/public/data";
+import { GROUP_LEVEL_LABEL } from "@/lib/public/prices";
 
 /** Upcoming group sessions with honest seat counts. Times are UK time. */
 export function GroupList({ groups, bookHref, label = "Upcoming group sessions" }: { groups: PublicGroup[]; bookHref: string; label?: string }) {
@@ -24,7 +26,10 @@ export function GroupList({ groups, bookHref, label = "Upcoming group sessions" 
                 <span className="text-h2 font-semibold tabular-nums">{formatLondon(g.startsAt, "d")}</span>
                 <span className="text-fine text-navy-600">{formatLondon(g.startsAt, "MMM")}</span>
               </p>
-              <div className="flex flex-1 flex-col justify-center gap-0.5 px-4 py-3">
+              <div className="flex flex-1 flex-col items-start justify-center gap-1 px-4 py-3">
+                <Badge tone={g.level === "KS3" ? "neutral" : "sky"} data-testid="group-level">
+                  {g.level === "KS3" ? "KS3 only" : "GCSE"}
+                </Badge>
                 <h3 className="font-display text-small font-semibold">{g.title}</h3>
                 <p className="text-small text-navy-600">
                   <span className="sr-only">{when}, </span>
@@ -35,12 +40,8 @@ export function GroupList({ groups, bookHref, label = "Upcoming group sessions" 
               </div>
             </div>
             <dl className="grid flex-1 grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 px-4 py-4 text-small">
-              {g.yearGroup ? (
-                <>
-                  <dt className="text-navy-600">For</dt>
-                  <dd>{g.yearGroup}</dd>
-                </>
-              ) : null}
+              <dt className="text-navy-600">For</dt>
+              <dd>{GROUP_LEVEL_LABEL[g.level]}</dd>
               <dt className="text-navy-600">Where</dt>
               <dd>{g.venue}</dd>
               <dt className="text-navy-600">Price</dt>

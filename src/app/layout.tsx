@@ -16,9 +16,9 @@ const atkinson = Atkinson_Hyperlegible_Next({
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
-  title: { default: "Study Lab Co | GCSE Science tuition in Blackburn", template: "%s | Study Lab Co" },
+  title: { default: "Study Lab Co | KS3 and GCSE Science tuition in Blackburn", template: "%s | Study Lab Co" },
   description:
-    "GCSE Science tuition in Blackburn from a qualified teacher (QTS), enhanced DBS checked, for all exam boards.",
+    "KS3 and GCSE Science tuition in Blackburn from a qualified teacher (QTS), enhanced DBS checked, for all exam boards.",
   applicationName: "Study Lab Co",
   appleWebApp: { title: "Study Lab Co", capable: true, statusBarStyle: "default" },
   formatDetection: { telephone: false },

@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Study Lab Co",
     short_name: "Study Lab Co",
-    description: "GCSE Science tuition in Blackburn from a qualified teacher.",
+    description: "KS3 and GCSE Science tuition in Blackburn from a qualified teacher.",
     start_url: "/",
     scope: "/",
     display: "standalone",

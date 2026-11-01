@@ -2,12 +2,15 @@
 
 import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
+import { InfoTip } from "./InfoTip";
 
 type ShellProps = {
   label: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
   className?: string;
+  /** An "i" button beside the label with a short explanation; `label` names it ("More about …"). */
+  info?: { label: string; text: ReactNode };
 };
 
 export const controlClasses =
@@ -29,14 +32,25 @@ function Shell({
   hint,
   error,
   className,
+  info,
   ids,
   children,
 }: ShellProps & { ids: ReturnType<typeof useFieldIds>; children: ReactNode }) {
+  const labelEl = (
+    <label htmlFor={ids.controlId} className={cn("font-display text-small font-medium", info && "min-w-0 flex-1")}>
+      {label}
+    </label>
+  );
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={ids.controlId} className="font-display text-small font-medium">
-        {label}
-      </label>
+      {info ? (
+        <div className="flex flex-wrap items-center gap-x-1">
+          {labelEl}
+          <InfoTip label={info.label} text={info.text} />
+        </div>
+      ) : (
+        labelEl
+      )}
       {hint ? (
         <p id={ids.hintId} className="text-fine text-navy-600">
           {hint}
@@ -58,10 +72,10 @@ function Shell({
 export type FieldProps = ShellProps & Omit<InputHTMLAttributes<HTMLInputElement>, "className">;
 
 /** Labelled text input with optional hint and error message. */
-export function Field({ label, hint, error, className, id, ...props }: FieldProps) {
+export function Field({ label, hint, error, className, id, info, ...props }: FieldProps) {
   const ids = useFieldIds(id, hint, error);
   return (
-    <Shell label={label} hint={hint} error={error} className={className} ids={ids}>
+    <Shell label={label} hint={hint} error={error} className={className} info={info} ids={ids}>
       <input
         id={ids.controlId}
         aria-describedby={ids.describedBy}
@@ -75,10 +89,10 @@ export function Field({ label, hint, error, className, id, ...props }: FieldProp
 
 export type TextareaFieldProps = ShellProps & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "className">;
 
-export function TextareaField({ label, hint, error, className, id, rows = 5, ...props }: TextareaFieldProps) {
+export function TextareaField({ label, hint, error, className, id, info, rows = 5, ...props }: TextareaFieldProps) {
   const ids = useFieldIds(id, hint, error);
   return (
-    <Shell label={label} hint={hint} error={error} className={className} ids={ids}>
+    <Shell label={label} hint={hint} error={error} className={className} info={info} ids={ids}>
       <textarea
         id={ids.controlId}
         rows={rows}
@@ -93,10 +107,10 @@ export function TextareaField({ label, hint, error, className, id, rows = 5, ...
 
 export type SelectFieldProps = ShellProps & Omit<SelectHTMLAttributes<HTMLSelectElement>, "className">;
 
-export function SelectField({ label, hint, error, className, id, children, ...props }: SelectFieldProps) {
+export function SelectField({ label, hint, error, className, id, info, children, ...props }: SelectFieldProps) {
   const ids = useFieldIds(id, hint, error);
   return (
-    <Shell label={label} hint={hint} error={error} className={className} ids={ids}>
+    <Shell label={label} hint={hint} error={error} className={className} info={info} ids={ids}>
       <select
         id={ids.controlId}
         aria-describedby={ids.describedBy}

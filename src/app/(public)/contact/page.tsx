@@ -8,7 +8,7 @@ import { SITE_NAME, telHref, whatsappHref } from "@/lib/site";
 
 export const metadata = pageMetadata(
   "Contact",
-  "Send Study Lab Co a message about GCSE Science lessons in Blackburn, or email directly. Replies usually within one working day.",
+  "Send Study Lab Co a message about KS3 and GCSE Science lessons in Blackburn, or email directly. Replies usually within one working day.",
   "/contact",
 );
 
@@ -57,7 +57,7 @@ export default async function ContactPage() {
             <dl className="flex flex-col gap-3 border-t border-sky-200 pt-5 text-small">
               <div>
                 <dt className="font-display font-semibold">Business</dt>
-                <dd>{SITE_NAME}, GCSE Science tuition (sole trader)</dd>
+                <dd>{SITE_NAME}, KS3 and GCSE Science tuition (sole trader)</dd>
                 {contact.ownerName ? <dd data-testid="owner-line">{runBy(contact.ownerName)}</dd> : null}
               </div>
               <div>

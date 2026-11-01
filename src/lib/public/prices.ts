@@ -10,7 +10,26 @@ export function lessonPrices(s: Settings) {
     group: s.priceGroupPence,
     sundayBundle: s.priceSundayBundlePence,
     travel: s.travelFeePence,
+    ks3Assessment: s.priceKs3AssessmentPence,
+    ks3AssessmentHome: s.priceKs3AssessmentPence + s.travelFeePence,
+    ks3OneToOne: s.priceKs3OneToOnePence,
+    ks3OneToOneHome: s.priceKs3OneToOnePence + s.travelFeePence,
+    ks3Group: s.priceKs3GroupPence,
   };
+}
+
+/** Who a group is for, everywhere on the public site (spec v2 §4). */
+export const GROUP_LEVEL_LABEL: Record<Level, string> = {
+  KS3: "KS3 only (Years 7–9)",
+  GCSE: "GCSE (Years 10–11; Year 9 GCSE students welcome)",
+};
+
+export const YEAR9_NOTE =
+  "Year 9? Choose KS3 or GCSE when you add your child. Every Year 9 student books the GCSE Assessment Lesson.";
+
+/** "a week" for 7 days, else "N days" (pass booking notice). */
+export function noticeDaysText(days: number): string {
+  return days === 7 ? "a week" : days === 1 ? "1 day" : `${days} days`;
 }
 
 export interface PassOffer {
@@ -51,4 +70,20 @@ export function groupTimesByDay(series: { weekday: number; startTime: string; ac
     if (!day.includes(t)) day.push(t);
   }
   return out;
+}
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/**
+ * Which level each group day is for, from the active series: "Saturday: KS3 only (Years 7–9). Sunday: GCSE (...)."
+ * Weekend days first (Saturday, then Sunday), then the weekdays.
+ */
+export function groupDaysByLevel(series: { weekday: number; active: boolean; level: Level }[]): string {
+  const order = [6, 0, 1, 2, 3, 4, 5];
+  return order
+    .flatMap((day) => {
+      const levels = (["KS3", "GCSE"] as const).filter((l) => series.some((x) => x.active && x.weekday === day && x.level === l));
+      return levels.length ? [`${DAY_NAMES[day]}: ${levels.map((l) => GROUP_LEVEL_LABEL[l]).join(" and ")}.`] : [];
+    })
+    .join(" ");
 }
