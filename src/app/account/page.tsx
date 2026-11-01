@@ -71,7 +71,7 @@ export default async function AccountPage({
             <InfoTip label="credit" text={CREDIT_INFO} />
           </div>
           <p data-testid="credit-refund" className="text-small">
-            Want it refunded to your card instead? Email{" "}
+            Want it refunded to your bank account instead? Email{" "}
             <a href={`mailto:${FALLBACK_EMAIL}`} className="font-semibold underline">
               {FALLBACK_EMAIL}
             </a>

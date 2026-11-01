@@ -6,6 +6,8 @@ import { TRUST_BADGES } from "@/lib/site";
 import { LabIllustration } from "./LabIllustration";
 
 export type HeroProps = {
+  /** Text of the main button, "Book an Assessment Lesson (from £X)". */
+  ctaLabel: string;
   /** GCSE (and every Year 9) Assessment Lesson price. */
   assessmentPence: number;
   /** KS3 (Years 7–8) Assessment Lesson price. */
@@ -19,7 +21,7 @@ export type HeroProps = {
  * Home hero on graph paper: the promise, the first step and the credentials,
  * with the flask drawing and a "first lesson" note pinned beside it.
  */
-export function Hero({ assessmentPence, ks3AssessmentPence, travelPence, bookHref }: HeroProps) {
+export function Hero({ ctaLabel, assessmentPence, ks3AssessmentPence, travelPence, bookHref }: HeroProps) {
   const price = formatPence(assessmentPence);
   return (
     <section aria-labelledby="hero-title" className="bg-graph border-b border-sky-200">
@@ -35,7 +37,7 @@ export function Hero({ assessmentPence, ks3AssessmentPence, travelPence, bookHre
           </p>
           <div className="flex flex-col gap-3 motion-safe:animate-rise [animation-delay:160ms] sm:flex-row sm:flex-wrap">
             <ButtonLink href={bookHref} size="lg" className="w-full sm:w-auto">
-              Book your {price} Assessment Lesson
+              {ctaLabel}
             </ButtonLink>
             <ButtonLink href="/lessons" size="lg" variant="secondary" className="w-full sm:w-auto">
               See lessons and prices

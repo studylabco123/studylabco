@@ -8,7 +8,7 @@ import { testimonials } from "@/content/testimonials";
 import { formatPence } from "@/lib/format";
 import { bookHref, loadGroupSeries, loadUpcomingGroups, publicSettings } from "@/lib/public/data";
 import { pageMetadata } from "@/lib/public/meta";
-import { groupDaysByLevel, lessonPrices } from "@/lib/public/prices";
+import { assessmentCtaLabel, groupDaysByLevel, lessonPrices } from "@/lib/public/prices";
 
 export const metadata = pageMetadata(
   null,
@@ -90,6 +90,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       ) : null}
 
       <Hero
+        ctaLabel={assessmentCtaLabel(settings)}
         assessmentPence={p.assessment}
         ks3AssessmentPence={p.ks3Assessment}
         travelPence={home ? p.travel : null}
@@ -122,7 +123,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <HowItWorks assessmentPence={p.assessment} ks3AssessmentPence={p.ks3Assessment} />
           <div className="mt-12 flex flex-col gap-3 sm:flex-row">
             <ButtonLink href={href} size="lg" className="w-full sm:w-auto">
-              Book your {formatPence(p.assessment)} Assessment Lesson
+              {assessmentCtaLabel(settings)}
             </ButtonLink>
           </div>
         </div>
@@ -227,7 +228,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             book more.
           </p>
           <ButtonLink href={href} size="lg">
-            Book your {formatPence(p.assessment)} Assessment Lesson
+            {assessmentCtaLabel(settings)}
           </ButtonLink>
         </div>
       </section>

@@ -50,7 +50,7 @@ export default async function RefundsPage() {
       "You cancel a group pass",
       "Within 14 days of buying it, the value of the sessions you have not used becomes account credit (or nothing is owed if you had not paid). After that, unused sessions aren't refunded unless the tutor decides otherwise.",
     ],
-    ["You have account credit and want the money back", `Email ${FALLBACK_EMAIL} and we will refund it to your card or bank account.`],
+    ["You have account credit and want the money back", `Email ${FALLBACK_EMAIL} and we will refund it to your bank account.`],
   ];
   return (
     <LegalPage
@@ -96,10 +96,10 @@ export default async function RefundsPage() {
           your credit on your account page.
         </li>
         <li>
-          Want it refunded to your card instead? Email <a href={`mailto:${FALLBACK_EMAIL}`}>{FALLBACK_EMAIL}</a>. This applies to
+          Want it refunded to your bank account instead? Email <a href={`mailto:${FALLBACK_EMAIL}`}>{FALLBACK_EMAIL}</a>. This applies to
           any credit, including credit from a group pass cancelled within 14 days of buying it.
         </li>
-        <li>Refunds are made to your card or bank account, or in cash if you paid in cash, normally within 14 days of asking.</li>
+        <li>Credit refunds are paid to your bank account, normally within 14 days of asking.</li>
         <li>Unused group pass sessions are not refunded as money, except as described above.</li>
         <li>
           Your 14-day cooling-off right is explained in our <Link href="/terms">Terms of Service</Link>.

@@ -40,7 +40,8 @@ describe("info texts", () => {
   it("credit can be refunded to the card by emailing", () => {
     expect(CREDIT_INFO).toContain("studylabco123@gmail.com");
     expect(CREDIT_INFO).toMatch(/refund/);
-    expect(CREDIT_INFO).toMatch(/card/);
+    expect(CREDIT_INFO).toMatch(/refund it to your bank account/);
+    expect(CREDIT_INFO).not.toMatch(/card/i);
   });
 
   it("group texts name the level; Year 9 sits the GCSE assessment", () => {

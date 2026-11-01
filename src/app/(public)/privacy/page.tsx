@@ -49,7 +49,7 @@ export default function PrivacyPage() {
       <h3>Bookings and payments</h3>
       <ul>
         <li>Lessons booked, attended, cancelled or missed, and any cooling-off acknowledgement.</li>
-        <li>Payment references, amounts, payment method (bank transfer or cash), refunds, credit and waived fees.</li>
+        <li>Payment references, amounts, payment method (bank transfer or cash), refunds, credit and fees we decided not to charge.</li>
         <li>A record of the emails we send you (which email, when and to which address).</li>
         <li>Private notes the tutor keeps to run lessons and the business.</li>
       </ul>
@@ -124,7 +124,7 @@ export default function PrivacyPage() {
           question or concern comes up, unless you delete your account sooner.
         </li>
         <li>
-          <strong>Financial records</strong> (payments, refunds, credits and waived fees): 6 years, as HMRC requires. When you delete your
+          <strong>Financial records</strong> (payments, refunds, credits and fees not charged): 6 years, as HMRC requires. When you delete your
           account these are kept in anonymised form, without your name or contact details.
         </li>
         <li>

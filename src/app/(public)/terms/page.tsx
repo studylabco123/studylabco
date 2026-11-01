@@ -91,7 +91,7 @@ export default async function TermsPage() {
           Pay by bank transfer in advance, or by cash or bank transfer before the lesson starts. Use the payment reference
           shown for your booking. We do not take card payments on the website.
         </li>
-        <li>If you owe money for a lesson, you can&apos;t make new bookings until it is paid or we agree to waive it.</li>
+        <li>If you owe money for a lesson, you can&apos;t make new bookings until it is paid or we decide not to charge it.</li>
         <li>We may change our prices. A change never affects a booking you have already made.</li>
       </ul>
 
@@ -148,7 +148,7 @@ export default async function TermsPage() {
         </li>
         <li>
           If you would rather have your credit back, email{" "}
-          <a href={`mailto:${FALLBACK_EMAIL}`}>{FALLBACK_EMAIL}</a> and we will refund it to your card or bank account.
+          <a href={`mailto:${FALLBACK_EMAIL}`}>{FALLBACK_EMAIL}</a> and we will refund it to your bank account.
         </li>
       </ul>
 

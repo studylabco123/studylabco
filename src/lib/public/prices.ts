@@ -1,3 +1,4 @@
+import { formatPence } from "@/lib/format";
 import type { Level, PassSessions, Settings } from "@/lib/types";
 
 /** Every public price, in pence, straight from settings. Home visits add the travel fee. */
@@ -16,6 +17,11 @@ export function lessonPrices(s: Settings) {
     ks3OneToOneHome: s.priceKs3OneToOnePence + s.travelFeePence,
     ks3Group: s.priceKs3GroupPence,
   };
+}
+
+/** The home and hero button: "Book an Assessment Lesson (from £7.50)", the lowest Assessment Lesson price in Settings. */
+export function assessmentCtaLabel(s: Settings): string {
+  return `Book an Assessment Lesson (from ${formatPence(Math.min(s.priceAssessmentPence, s.priceKs3AssessmentPence))})`;
 }
 
 /** Who a group is for, everywhere on the public site (spec v2 §4). */

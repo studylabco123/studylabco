@@ -184,7 +184,7 @@ describe("email copy shows the 50% fee amount", () => {
     expect(unpaid).toContain("SLC-1001");
     const paid = await html(def.component({ parentName: "Pat", session: line(), outcome: "late", wasPaid: true, creditPence: 1250 }));
     expect(paid).toContain("£12.50, is kept as credit");
-    expect(paid).not.toMatch(/\bfine\b|penalt|waiver/i);
+    expect(paid).not.toMatch(/\bfine\b|penalt|waiv/i);
   });
   it("the session cancellation line uses the Settings percentage", async () => {
     const out = await html(

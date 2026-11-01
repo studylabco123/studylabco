@@ -23,7 +23,7 @@
 ## 2. Credit
 
 - Credit is created automatically when a paid lesson is cancelled free (≥ 48 h, cooling-off, or by the tutor), and for the unused 50% of a paid late cancellation.
-- Parents see their credit balance on their dashboard with: "Want it refunded to your card instead? Email studylabco123@gmail.com." (applies to any credit).
+- Parents see their credit balance on their dashboard with: "Want it refunded to your bank account instead? Email studylabco123@gmail.com." (applies to any credit).
 - Admin can: **Pay from credit** (existing), **Refund credit** (records a refund, reduces the balance and turnover), and **Add / remove credit** manually with a reason (never income; balance cannot go below £0).
 - Account deletion is refused while the family has credit > £0 or an active group pass with unused sessions ("Please contact Study Lab Co first").
 
@@ -45,7 +45,7 @@
   - **≥ 48 h notice** (parent cancels on the website): the session goes back on the pass.
   - **< 48 h / no-show**: the session still goes back on the pass ("moved"), but the parent owes **50% of one session's pass value** (pass price ÷ sessions), waivable by the tutor.
   - Tutor cancels a session: goes back on the pass automatically.
-- **Refunds:** unused pass sessions are **not refunded as money by default**. If a parent cancels a pass within the legal 14-day cooling-off period (from the date it was bought), the value of the sessions not yet taken is turned into **account credit**; as with all credit, the parent may email to ask for it back to their card, and the tutor refunds it (this keeps us within the law). Outside the 14 days, unused sessions are not refundable unless the tutor decides otherwise (admin "Convert pass to credit" / "Refund credit" actions).
+- **Refunds:** unused pass sessions are **not refunded as money by default**. If a parent cancels a pass within the legal 14-day cooling-off period (from the date it was bought), the value of the sessions not yet taken is turned into **account credit**; as with all credit, the parent may email to ask for it back to their bank account (credit refunds go to the parent's bank account only), and the tutor refunds it (this keeps us within the law). Outside the 14 days, unused sessions are not refundable unless the tutor decides otherwise (admin "Convert pass to credit" / "Refund credit" actions).
 - The old fixed-week block booking flow is removed (no live data exists yet).
 
 ## 4. KS3 (Years 7–9)

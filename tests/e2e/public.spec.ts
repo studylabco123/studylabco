@@ -79,13 +79,13 @@ test("refund policy and FAQ state the 50% late cancellation fee", async ({ page 
   await expect(page.getByText(/late cancellation fee of 50% of the lesson price/)).toBeAttached();
 });
 
-test('home shows "Qualified Teacher (QTS)", "Enhanced DBS Checked", "All Exam Boards" and "Book your £10 Assessment Lesson"', async ({ page }) => {
+test('home shows "Qualified Teacher (QTS)", "Enhanced DBS Checked", "All Exam Boards" and "Book an Assessment Lesson (from £7.50)"', async ({ page }) => {
   await page.goto("/");
   const main = page.locator("main");
   for (const badge of ["Qualified Teacher (QTS)", "Enhanced DBS Checked", "All Exam Boards"]) {
     await expect(main.getByText(badge, { exact: true }).first()).toBeVisible();
   }
-  await expect(main.getByRole("link", { name: "Book your £10 Assessment Lesson" }).first()).toBeVisible();
+  await expect(main.getByRole("link", { name: "Book an Assessment Lesson (from £7.50)" }).first()).toBeVisible();
   await expect(main.getByRole("heading", { name: "How it works" })).toBeVisible();
 });
 
@@ -308,13 +308,26 @@ test.describe("v2 content (V8)", () => {
       const text = (await allText(page)).replace(/\s+/g, " ");
       expect(text, path).toMatch(/late cancellation fee (is|of) 50% of the lesson price/);
       expect(text, path).toMatch(/less than 48 hours[^.]*call or email/i);
-      expect(text, path).toMatch(/refund(ed)? (it )?to your card/i);
+      expect(text, path).toMatch(/refund(ed)? (it )?to your bank account/i);
       if (path === "/terms") expect(text, path).toMatch(/booked at least 7 days ahead/);
       expect(text, path).toMatch(/50% of one session's value/);
     }
     await page.goto("/refunds");
     // A no-show is the same 50%, not the full price.
     await expect(page.getByRole("row", { name: /no-show/i }).first()).toContainText("50%");
+  });
+
+  test("refund wording never mentions a card: credit is refunded to the bank account only", async ({ page }) => {
+    for (const path of ["/terms", "/refunds", "/faq", "/lessons"]) {
+      await page.goto(path);
+      if (path === "/faq") await page.locator("details").evaluateAll((els) => els.forEach((e) => ((e as HTMLDetailsElement).open = true)));
+      const text = (await allText(page)).replace(/\s+/g, " ");
+      const refundSentences = text.split(/(?<=[.?!])\s+/).filter((x) => /refund/i.test(x));
+      for (const sentence of refundSentences) expect(sentence, `${path}: ${sentence}`).not.toMatch(/\bcards?\b/i);
+      expect(text, path).not.toMatch(/card or bank account/i);
+    }
+    await page.goto("/refunds");
+    expect((await allText(page)).replace(/\s+/g, " ")).toMatch(/refunded to your bank account instead/);
   });
 
   test("Saturday group labelled KS3 only (Years 7–9)", async ({ page }) => {
@@ -336,12 +349,12 @@ test.describe("v2 content (V8)", () => {
     }
   });
 
-  test('no "fine"/"penalty"/"waiver"/online wording or gendered tutor pronouns on any public page', async ({ page }) => {
+  test('no "fine"/"penalty"/"waive"/online wording or gendered tutor pronouns on any public page', async ({ page }) => {
     test.setTimeout(90_000);
     for (const path of PAGES) {
       await page.goto(path);
       const text = await allText(page);
-      expect(text, path).not.toMatch(/\bfines?\b|penalt|waiver/i);
+      expect(text, path).not.toMatch(/\bfines?\b|penalt|waiv/i);
       expect(text, path).not.toMatch(/\bonline\b/i);
       expect(text, path).not.toMatch(/\b(he|she|him|her|his|hers|himself|herself)\b/i);
     }

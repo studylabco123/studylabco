@@ -254,7 +254,7 @@ export default async function FaqPage() {
         },
         {
           q: "Can I have my credit refunded instead?",
-          a: <>Yes, at any time. Email {mail} and we will refund it to your card or bank account, normally within 14 days.</>,
+          a: <>Yes, at any time. Email {mail} and we will refund it to your bank account, normally within 14 days.</>,
         },
       ],
     },

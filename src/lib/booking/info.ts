@@ -75,4 +75,4 @@ export function lateFeeInfo(s: Pick<InfoSettings, "lateFeePercent" | "cancellati
   return `Cancelling with at least ${s.cancellationNoticeHours} hours to go is free. With less than ${s.cancellationNoticeHours} hours to go, a late cancellation fee of ${s.lateFeePercent}% of the lesson price applies (never the home-visit travel fee). Cancelling inside your 14-day cooling-off period is always free.`;
 }
 
-export const CREDIT_INFO = `Credit is money we hold for you, for example when a lesson you had already paid for is cancelled for free, or when you cancel a group pass within 14 days of buying it (its unused sessions become credit). The tutor takes it off a future lesson. If you would rather have it back, email ${FALLBACK_EMAIL} and we will refund it to your card.`;
+export const CREDIT_INFO = `Credit is money we hold for you, for example when a lesson you had already paid for is cancelled for free, or when you cancel a group pass within 14 days of buying it (its unused sessions become credit). The tutor takes it off a future lesson. If you would rather have it back, email ${FALLBACK_EMAIL} and we will refund it to your bank account.`;

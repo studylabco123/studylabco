@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { bookingWindowText } from "@/lib/policy";
 import { coolingOffSummary, passSummary, priceInfo } from "@/lib/public/price-info";
-import { groupDaysByLevel, groupTimesByDay, lessonPrices, passOffers } from "@/lib/public/prices";
+import { assessmentCtaLabel, groupDaysByLevel, groupTimesByDay, lessonPrices, passOffers } from "@/lib/public/prices";
 import { SETTINGS } from "./fixtures";
 
 const fixtureSettings = () => structuredClone(SETTINGS);
+
+describe("assessmentCtaLabel", () => {
+  it("shows the lowest Assessment Lesson price from settings", () => {
+    const s = fixtureSettings();
+    expect(assessmentCtaLabel(s)).toBe("Book an Assessment Lesson (from £7.50)");
+    s.priceKs3AssessmentPence = 1200;
+    expect(assessmentCtaLabel(s)).toBe("Book an Assessment Lesson (from £10)");
+  });
+});
 
 describe("lessonPrices", () => {
   it("reads every price from settings, adding the travel fee for home visits", () => {
@@ -111,7 +120,7 @@ describe("plain-English explanations", () => {
       priceInfo.homeVisit(s),
       priceInfo.sundayBundle(s),
     ];
-    for (const t of texts) expect(t).not.toMatch(/\bfines?\b|penalt|waiver/i);
+    for (const t of texts) expect(t).not.toMatch(/\bfines?\b|penalt|waiv/i);
   });
 });
 
