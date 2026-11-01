@@ -9,6 +9,8 @@ const launchOptions = executablePath ? { executablePath } : {};
 
 export default defineConfig({
   testDir: "tests/e2e",
+  // A production build is much steadier than `next dev` (no on-demand compiles mid-test).
+  workers: 2,
   use: { baseURL: "http://localhost:3000", browserName: "chromium", launchOptions },
   projects: [
     {
@@ -22,10 +24,12 @@ export default defineConfig({
     { name: "windows", use: { viewport: { width: 1366, height: 768 } } },
   ],
   webServer: {
-    command: "npm run dev",
+    command: "npx next build && npx next start -p 3000",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    env: loadEnv(".env.test"),
+    timeout: 600_000,
+    // E2E_HARNESS turns on the test-only pages under /test-harness (404 otherwise, including in real production).
+    env: { ...loadEnv(".env.test"), E2E_HARNESS: "1" },
   },
 });
 

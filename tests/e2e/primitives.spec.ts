@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-// Uses the dev-only harness at /test-harness/primitives (notFound() in production).
+// Uses the test harness at /test-harness/primitives (notFound() unless E2E_HARNESS=1).
 const HARNESS = "/test-harness/primitives";
 
 test.describe("UI primitives", () => {
