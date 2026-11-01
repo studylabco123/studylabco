@@ -25,6 +25,16 @@ export interface SettingsFormInput {
   businessPhone: string;
   businessAddress: string;
   ownerName: string;
+  priceKs3Assessment: string;
+  priceKs3OneToOne: string;
+  priceKs3Group: string;
+  lateFeePercent: string;
+  passKs36: string;
+  passKs310: string;
+  passGcse6: string;
+  passGcse10: string;
+  passValidityMonths: string;
+  passMinNoticeDays: string;
   bankAccountName: string;
   bankSortCode: string;
   bankAccountNumber: string;
@@ -136,6 +146,16 @@ export function parseSettingsInput(input: SettingsFormInput): ParsedSettings {
     businessPhone: optional("businessPhone", "The business phone"),
     businessAddress: optional("businessAddress", "The business address"),
     ownerName: ownerName(),
+    priceKs3AssessmentPence: money("priceKs3Assessment", "The KS3 assessment price"),
+    priceKs3OneToOnePence: money("priceKs3OneToOne", "The KS3 1-to-1 price"),
+    priceKs3GroupPence: money("priceKs3Group", "The KS3 group price"),
+    lateFeePercent: whole("lateFeePercent", "The late cancellation fee", 0, 100),
+    passPrices: {
+      KS3: { "6": money("passKs36", "The KS3 6-session pass price"), "10": money("passKs310", "The KS3 10-session pass price") },
+      GCSE: { "6": money("passGcse6", "The GCSE 6-session pass price"), "10": money("passGcse10", "The GCSE 10-session pass price") },
+    },
+    passValidityMonths: whole("passValidityMonths", "Pass validity", 1, 24),
+    passMinNoticeDays: whole("passMinNoticeDays", "Pass booking notice", 0, 30),
   };
   const priv = {
     bankAccountName: optional("bankAccountName", "The account name"),
@@ -175,6 +195,16 @@ export function settingsToFormInput(s: Settings, p: PrivateSettings): SettingsFo
     businessPhone: s.businessPhone ?? "",
     businessAddress: s.businessAddress ?? "",
     ownerName: s.ownerName ?? "",
+    priceKs3Assessment: pounds(s.priceKs3AssessmentPence),
+    priceKs3OneToOne: pounds(s.priceKs3OneToOnePence),
+    priceKs3Group: pounds(s.priceKs3GroupPence),
+    lateFeePercent: String(s.lateFeePercent),
+    passKs36: pounds(s.passPrices.KS3["6"]),
+    passKs310: pounds(s.passPrices.KS3["10"]),
+    passGcse6: pounds(s.passPrices.GCSE["6"]),
+    passGcse10: pounds(s.passPrices.GCSE["10"]),
+    passValidityMonths: String(s.passValidityMonths),
+    passMinNoticeDays: String(s.passMinNoticeDays),
     bankAccountName: p.bankAccountName ?? "",
     bankSortCode: p.bankSortCode ?? "",
     bankAccountNumber: p.bankAccountNumber ?? "",

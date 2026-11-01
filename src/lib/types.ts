@@ -26,6 +26,12 @@ export type BlockWeeks = 6 | 10;
 /** settings.block_prices: explicit pence per product and block length. */
 export type BlockPrices = Record<GroupProduct, Record<BlockWeeks, number>>;
 
+/** Teaching level. KS3 = Years 7-9, GCSE = Years 9-11 (Year 9 is the parent's choice). */
+export type Level = "KS3" | "GCSE";
+export type PassSessions = 6 | 10;
+/** settings.pass_prices: explicit pence per level and pass size. */
+export type PassPrices = Record<Level, Record<"6" | "10", number>>;
+
 /** 0 = Sunday ... 6 = Saturday (London local). */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -51,6 +57,45 @@ export interface Settings {
   businessAddress: string | null;
   /** The person who runs Study Lab Co, shown in the footer and on Contact when set (R24). */
   ownerName: string | null;
+  priceKs3AssessmentPence: number;
+  priceKs3OneToOnePence: number;
+  priceKs3GroupPence: number;
+  /** Late cancellation / no-show fee as a percentage of the lesson price (excluding travel). */
+  lateFeePercent: number;
+  passPrices: PassPrices;
+  passValidityMonths: number;
+  passMinNoticeDays: number;
+}
+
+export interface Child {
+  id: string;
+  createdAt: Date;
+  parentId: string;
+  firstName: string;
+  lastName: string;
+  schoolYear: number;
+  level: Level;
+  /** Required when level is GCSE. */
+  examBoard: string | null;
+  tier: string | null;
+  subjects: string[];
+  targetGrade: string | null;
+}
+
+export type PassStatus = "awaiting_payment" | "active" | "expired" | "cancelled";
+
+export interface Pass {
+  id: string;
+  createdAt: Date;
+  parentId: string | null;
+  childId: string | null;
+  level: Level;
+  sessionsTotal: PassSessions;
+  pricePence: number;
+  paymentReference: string;
+  status: PassStatus;
+  paidAt: Date | null;
+  expiresAt: Date | null;
 }
 
 export interface PrivateSettings {
@@ -103,6 +148,7 @@ export interface BlockedRule {
 export interface GroupSession {
   id: string;
   seriesId: string | null;
+  level: Level;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -126,6 +172,9 @@ export interface Booking {
   busyUntil: Date;
   groupSessionId: string | null;
   blockBookingId: string | null;
+  passId: string | null;
+  /** Late fee owed for late_cancelled / no_show; null = use the legacy rule. */
+  feePence: number | null;
   bundleId: string | null;
   status: BookingStatus;
   pricePence: number;
@@ -144,6 +193,7 @@ export interface LedgerEntry {
   createdAt: Date;
   bookingId: string | null;
   blockBookingId: string | null;
+  passId: string | null;
   parentId: string | null;
   kind: LedgerKind;
   method: PaymentMethod | null;

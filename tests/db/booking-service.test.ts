@@ -267,7 +267,7 @@ describe("group bookings", () => {
     const [sat] = await sessions("2026-11-07");
     const r = await createGroupBooking(group({ sessionId: sat }), opts);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(await booking(r.bookingId)).toMatchObject({ kind: "group", status: "confirmed", price_pence: 1800 });
+    if (r.ok) expect(await booking(r.bookingId)).toMatchObject({ kind: "group", status: "confirmed", price_pence: 1400 });
     expect(await createGroupBooking(group({ sessionId: sat }), opts)).toEqual({ ok: false, reason: "already_booked" });
     expect(await count("consents where booking_id is not null")).toBe(1);
   });

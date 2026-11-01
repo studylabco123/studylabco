@@ -7,7 +7,7 @@ const day = 86400_000;
 const mk = (over: Partial<Booking> = {}): Booking => ({
   id: "b", createdAt: now, parentId: "p", childId: "c", kind: "one_to_one", location: "tutor_place",
   startsAt: new Date(now.getTime() - day), endsAt: new Date(now.getTime() - day + 3600_000),
-  busyUntil: new Date(now.getTime() - day + 3600_000), groupSessionId: null, blockBookingId: null, bundleId: null,
+  busyUntil: new Date(now.getTime() - day + 3600_000), groupSessionId: null, blockBookingId: null, passId: null, feePence: null, bundleId: null,
   status: "attended", pricePence: 2500, travelFeePence: 0, paymentReference: "R", paymentStatus: "unpaid",
   homeAddress: null, homePostcode: null, cancelledAt: null, cancelledBy: null, decidedAt: null, ...over,
 });

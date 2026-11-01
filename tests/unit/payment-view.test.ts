@@ -8,7 +8,7 @@ const day = 86400_000;
 const mk = (over: Partial<Booking> = {}): Booking => ({
   id: "b", createdAt: now, parentId: "p", childId: "c", kind: "one_to_one", location: "tutor_place",
   startsAt: new Date(now.getTime() + day), endsAt: new Date(now.getTime() + day + 3600_000),
-  busyUntil: new Date(now.getTime() + day + 3600_000), groupSessionId: null, blockBookingId: null, bundleId: null,
+  busyUntil: new Date(now.getTime() + day + 3600_000), groupSessionId: null, blockBookingId: null, passId: null, feePence: null, bundleId: null,
   status: "confirmed", pricePence: 2500, travelFeePence: 0, paymentReference: "R", paymentStatus: "unpaid",
   homeAddress: null, homePostcode: null, cancelledAt: null, cancelledBy: null, decidedAt: null, ...over,
 });
@@ -115,7 +115,7 @@ describe("bookingPaymentSummary (I1)", () => {
 
 describe("creditBalancePence (R23)", () => {
   const led = (kind: LedgerEntry["kind"], amountPence: number, parentId = "p"): LedgerEntry => ({
-    id: Math.random().toString(), createdAt: now, bookingId: null, blockBookingId: null, parentId, kind, method: null, amountPence, occurredOn: "2026-11-10", note: "",
+    id: Math.random().toString(), createdAt: now, bookingId: null, blockBookingId: null, passId: null, parentId, kind, method: null, amountPence, occurredOn: "2026-11-10", note: "",
   });
   it("is credit issued minus credit applied, ignoring payments, refunds and waivers", () => {
     const l = [led("credit", 2500), led("credit", 1700), led("credit_applied", 2500), led("payment", 9999), led("refund", 100), led("waiver", 300)];

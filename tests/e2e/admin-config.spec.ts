@@ -337,6 +337,9 @@ test.describe("settings", () => {
   });
 
   test("the owner's name set in Settings shows in the footer and on Contact; empty hides it (R24)", async ({ page }) => {
+    // The seed names the owner (Abdullah Chopdat); start from "not set", and restore it afterwards.
+    const seeded = (await service.from("settings").select("owner_name").single()).data?.owner_name ?? null;
+    await service.from("settings").update({ owner_name: null }).eq("id", 1);
     try {
       await page.goto("/contact");
       await expect(page.getByTestId("owner-line")).toHaveCount(0);
@@ -356,6 +359,7 @@ test.describe("settings", () => {
     }
     await page.goto("/contact");
     await expect(page.getByTestId("owner-line")).toHaveCount(0);
+    await service.from("settings").update({ owner_name: seeded }).eq("id", 1);
   });
 
   test("a bad sort code is refused with a message and nothing is saved", async ({ page }) => {

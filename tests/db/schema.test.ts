@@ -228,7 +228,7 @@ describe("seed", () => {
     expect(rows[6].ends_at.toISOString()).toBe("2027-05-18T23:00:00.000Z");
   });
 
-  test("seed: three group series at 1800 pence, capacity 15", async () => {
+  test("seed: three group series, capacity 15 (Saturday KS3 at 1400, Sundays GCSE at 1800)", async () => {
     const { rows } = await db.query(
       `select title, weekday, start_time::text as start, product, capacity, price_pence,
               year_group, starts_on::text, active
@@ -242,7 +242,7 @@ describe("seed", () => {
       active: true,
     };
     expect(rows).toEqual([
-      { title: "Saturday GCSE Science Group", weekday: 6, start: "08:15:00", product: "saturday", ...common },
+      { title: "Saturday KS3 Science Group", weekday: 6, start: "08:15:00", product: "saturday", ...common, price_pence: 1400, year_group: "Years 7–9" },
       { title: "Sunday Group — Session 1", weekday: 0, start: "08:15:00", product: "sunday_bundle", ...common },
       { title: "Sunday Group — Session 2", weekday: 0, start: "09:15:00", product: "sunday_bundle", ...common },
     ]);

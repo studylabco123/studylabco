@@ -8,6 +8,7 @@ function session(date: string, time: string, status: GroupSession["status"] = "s
   return {
     id: `${date}T${time}`,
     seriesId: null,
+    level: "GCSE",
     title: "Group",
     startsAt,
     endsAt: new Date(startsAt.getTime() + 3600_000),

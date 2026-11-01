@@ -152,9 +152,9 @@ test("groups lists upcoming sessions with seats left and a booking link", async 
   await expect(items.first()).toBeVisible();
   const first = items.first();
   await expect(first).toContainText(/\d+ seats? left|Full/);
-  await expect(first).toContainText("Years 10 & 11");
+  await expect(first).toContainText("Years 7–9");
   await expect(first).toContainText("Location confirmed on booking");
-  await expect(first).toContainText("£18");
+  await expect(first).toContainText("£14");
   await expect(first.getByRole("link", { name: /^Book a seat/ })).toHaveAttribute("href", /\/signup|\/account\/book/);
 });
 

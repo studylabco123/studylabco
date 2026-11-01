@@ -82,6 +82,8 @@ test.describe("site shell", () => {
       [...document.querySelectorAll("[data-reveal]")].every((el) => el.hasAttribute("data-revealed")),
     );
     await page.waitForFunction(() => document.getAnimations().length === 0);
+    // Back to the top so the sticky header does not sit over footer links (page height varies with the owner-name line).
+    await page.evaluate(() => window.scrollTo(0, 0));
     const results = await axe(page);
     expect(results.violations).toEqual([]);
   });

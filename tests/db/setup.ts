@@ -168,7 +168,7 @@ export async function resetData(): Promise<void> {
   await pool.query(`
     truncate table
       public.email_log, public.ledger, public.mileage, public.expenses,
-      public.bookings, public.block_bookings, public.group_sessions,
+      public.bookings, public.passes, public.block_bookings, public.group_sessions,
       public.tutor_notes, public.student_status, public.agreements,
       public.consents, public.children, public.profiles, public.blocked_rules
     cascade;

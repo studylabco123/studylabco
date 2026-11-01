@@ -20,6 +20,8 @@ function booking(hoursAway: number, over: Partial<Booking> = {}): Booking {
     busyUntil: new Date(startsAt.getTime() + H),
     groupSessionId: null,
     blockBookingId: null,
+    passId: null,
+    feePence: null,
     bundleId: null,
     status: "confirmed",
     pricePence: 2500,

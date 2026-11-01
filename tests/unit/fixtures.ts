@@ -34,6 +34,13 @@ export const SETTINGS: Settings = {
   businessPhone: null,
   businessAddress: null,
   ownerName: null,
+  priceKs3AssessmentPence: 750,
+  priceKs3OneToOnePence: 2000,
+  priceKs3GroupPence: 1400,
+  lateFeePercent: 50,
+  passPrices: { KS3: { "6": 7900, "10": 12600 }, GCSE: { "6": 10200, "10": 16200 } },
+  passValidityMonths: 6,
+  passMinNoticeDays: 7,
 };
 
 const KINDS: BookingKind[] = ["assessment", "one_to_one"];

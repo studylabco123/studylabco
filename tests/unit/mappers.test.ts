@@ -35,6 +35,13 @@ const row = {
   business_phone: null,
   business_address: null,
   owner_name: "Jane Smith",
+  price_ks3_assessment_pence: 750,
+  price_ks3_one_to_one_pence: 2000,
+  price_ks3_group_pence: 1400,
+  late_fee_percent: 50,
+  pass_prices: { KS3: { "6": 7900, "10": 12600 }, GCSE: { "6": 10200, "10": 16200 } },
+  pass_validity_months: 6,
+  pass_min_notice_days: 7,
 };
 
 describe("mapSettings", () => {
@@ -52,6 +59,21 @@ describe("mapSettings", () => {
   test("a missing owner name maps to null (R24)", () => {
     expect(mapSettings({ ...row, owner_name: null }).ownerName).toBeNull();
     expect(settingsPatchToRow({ ownerName: "Jane" })).toEqual({ owner_name: "Jane" });
+  });
+
+  test("maps the v2 KS3, late-fee and pass fields", () => {
+    const s = mapSettings(row);
+    expect(s.priceKs3AssessmentPence).toBe(750);
+    expect(s.priceKs3OneToOnePence).toBe(2000);
+    expect(s.priceKs3GroupPence).toBe(1400);
+    expect(s.lateFeePercent).toBe(50);
+    expect(s.passPrices.KS3[6]).toBe(7900);
+    expect(s.passPrices.KS3[10]).toBe(12600);
+    expect(s.passPrices.GCSE[6]).toBe(10200);
+    expect(s.passPrices.GCSE[10]).toBe(16200);
+    expect(s.passValidityMonths).toBe(6);
+    expect(s.passMinNoticeDays).toBe(7);
+    expect(settingsPatchToRow({ lateFeePercent: 25, passValidityMonths: 3 })).toEqual({ late_fee_percent: 25, pass_validity_months: 3 });
   });
 
   test("block prices get numeric week keys", () => {
@@ -115,6 +137,8 @@ describe("mapBooking", () => {
     busy_until: "2026-11-08T12:00:00+00:00",
     group_session_id: null,
     block_booking_id: null,
+    pass_id: null,
+    fee_pence: null,
     bundle_id: null,
     status: "pending" as const,
     price_pence: 1000,
@@ -158,6 +182,7 @@ describe("calendar mappers", () => {
     const g = mapGroupSession({
       id: "g1",
       series_id: "s1",
+      level: "KS3" as const,
       title: "Saturday",
       starts_at: "2026-11-07T08:15:00+00:00",
       ends_at: "2026-11-07T09:15:00+00:00",
@@ -167,7 +192,7 @@ describe("calendar mappers", () => {
       is_online: false,
       status: "scheduled",
     });
-    expect(g).toMatchObject({ id: "g1", seriesId: "s1", capacity: 15, pricePence: 1800, isOnline: false, status: "scheduled" });
+    expect(g).toMatchObject({ id: "g1", seriesId: "s1", level: "KS3", capacity: 15, pricePence: 1800, isOnline: false, status: "scheduled" });
     expect(g.startsAt.toISOString()).toBe("2026-11-07T08:15:00.000Z");
     expect(g.endsAt.toISOString()).toBe("2026-11-07T09:15:00.000Z");
   });

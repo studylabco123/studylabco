@@ -8,7 +8,7 @@ import type { Booking, Expense, LedgerEntry, MileageEntry } from "@/lib/types";
 
 const at = new Date("2026-11-01T00:00:00Z");
 const led = (o: Partial<LedgerEntry>): LedgerEntry => ({
-  id: Math.random().toString(36).slice(2), createdAt: at, bookingId: null, blockBookingId: null, parentId: null,
+  id: Math.random().toString(36).slice(2), createdAt: at, bookingId: null, blockBookingId: null, passId: null, parentId: null,
   kind: "payment", method: "cash", amountPence: 0, occurredOn: "2026-10-01", note: "", ...o,
 });
 const exp = (o: Partial<Expense>): Expense => ({
@@ -20,7 +20,7 @@ const mile = (o: Partial<MileageEntry>): MileageEntry => ({
 const booking = (o: Partial<Booking> = {}): Booking => ({
   id: "b1", createdAt: at, parentId: "p1", childId: "c", kind: "one_to_one", location: "tutor_place",
   startsAt: new Date("2027-03-01T10:00:00Z"), endsAt: new Date("2027-03-01T11:00:00Z"), busyUntil: new Date("2027-03-01T11:00:00Z"),
-  groupSessionId: null, blockBookingId: null, bundleId: null, status: "attended", pricePence: 2500, travelFeePence: 0,
+  groupSessionId: null, blockBookingId: null, passId: null, feePence: null, bundleId: null, status: "attended", pricePence: 2500, travelFeePence: 0,
   paymentReference: "R", paymentStatus: "unpaid", homeAddress: null, homePostcode: null, cancelledAt: null, cancelledBy: null,
   decidedAt: null, ...o,
 });

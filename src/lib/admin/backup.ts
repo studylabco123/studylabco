@@ -18,6 +18,7 @@ export const BACKUP_TABLES = [
   "group_sessions",
   "ledger",
   "mileage",
+  "passes",
   "profiles",
   "settings",
   "settings_private",

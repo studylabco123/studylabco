@@ -68,6 +68,21 @@ export function SettingsForm({ initial }: { initial: SettingsFormInput }) {
         {money("blockSunday10", "Sunday bundle, 10 weeks")}
       </Section>
 
+      <Section title="KS3 prices" note="Years 7 to 9 (KS3). Home visit travel is added on top.">
+        {money("priceKs3Assessment", "Assessment lesson, KS3")}
+        {money("priceKs3OneToOne", "1-to-1 lesson, KS3")}
+        {money("priceKs3Group", "Group session, KS3")}
+      </Section>
+
+      <Section title="Pass prices" note="What a parent pays for a pass of group sessions.">
+        {money("passKs36", "KS3 pass, 6 sessions")}
+        {money("passKs310", "KS3 pass, 10 sessions")}
+        {money("passGcse6", "GCSE pass, 6 sessions")}
+        {money("passGcse10", "GCSE pass, 10 sessions")}
+        {whole("passValidityMonths", "Pass valid for (months)", "From the date you mark it paid. 1 to 24.")}
+        {whole("passMinNoticeDays", "Book pass sessions at least (days) ahead", "0 to 30.")}
+      </Section>
+
       <Section title="Where lessons can happen" note="Turn a place off and parents can no longer choose it. Existing bookings are not changed.">
         <div className="flex flex-col gap-4 sm:col-span-2">
           {toggle("tutorPlaceEnabled", "Tutor's place", "Lessons at your teaching address.")}
@@ -82,6 +97,7 @@ export function SettingsForm({ initial }: { initial: SettingsFormInput }) {
         {whole("bookingWindowDays", "How far ahead parents can book (days)")}
         {whole("defaultGroupCapacity", "Default seats in a group")}
         {whole("homeVisitBufferMinutes", "Travel time around a home visit (minutes)")}
+        {whole("lateFeePercent", "Late cancellation fee (% of the lesson price)", "0 to 100. Travel is not included.")}
         {whole("flagThreshold", "Late cancellations or no-shows before a family is flagged")}
         {text("allowedPostcodeDistricts", "Home visit postcode districts", { hint: "For example BB1, BB2" })}
       </Section>

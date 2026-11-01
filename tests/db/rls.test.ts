@@ -66,7 +66,7 @@ describe("RLS coverage", () => {
         where n.nspname = 'public' and c.relkind in ('r', 'p')
         order by c.relname`,
     );
-    expect(rows.length).toBe(20);
+    expect(rows.length).toBe(21);
     expect(rows.filter((r) => !r.relrowsecurity).map((r) => r.relname)).toEqual([]);
   });
 

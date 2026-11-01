@@ -16,6 +16,12 @@ import type {
   Expense,
   GroupProduct,
   GroupSession,
+  Level,
+  Pass,
+  PassPrices,
+  PassSessions,
+  PassStatus,
+  Child,
   LedgerEntry,
   LocationKind,
   MileageEntry,
@@ -71,6 +77,19 @@ export interface SettingsRow {
   business_address: string | null;
   /** Added in 0007; null until the owner sets it. */
   owner_name?: string | null;
+  /** Added in 0011. */
+  price_ks3_assessment_pence: number;
+  price_ks3_one_to_one_pence: number;
+  price_ks3_group_pence: number;
+  late_fee_percent: number;
+  pass_prices: Record<string, Record<string, number>>;
+  pass_validity_months: number;
+  pass_min_notice_days: number;
+}
+
+function mapPassPrices(raw: SettingsRow["pass_prices"]): PassPrices {
+  const level = (l: Level) => ({ "6": raw[l]["6"], "10": raw[l]["10"] });
+  return { KS3: level("KS3"), GCSE: level("GCSE") };
 }
 
 function mapBlockPrices(raw: SettingsRow["block_prices"]): BlockPrices {
@@ -103,6 +122,13 @@ export function mapSettings(row: SettingsRow): Settings {
     businessPhone: row.business_phone,
     businessAddress: row.business_address,
     ownerName: row.owner_name ?? null,
+    priceKs3AssessmentPence: row.price_ks3_assessment_pence,
+    priceKs3OneToOnePence: row.price_ks3_one_to_one_pence,
+    priceKs3GroupPence: row.price_ks3_group_pence,
+    lateFeePercent: row.late_fee_percent,
+    passPrices: mapPassPrices(row.pass_prices),
+    passValidityMonths: row.pass_validity_months,
+    passMinNoticeDays: row.pass_min_notice_days,
   };
 }
 
@@ -127,6 +153,13 @@ const SETTINGS_COLUMNS: { [K in keyof Settings]: string } = {
   businessPhone: "business_phone",
   businessAddress: "business_address",
   ownerName: "owner_name",
+  priceKs3AssessmentPence: "price_ks3_assessment_pence",
+  priceKs3OneToOnePence: "price_ks3_one_to_one_pence",
+  priceKs3GroupPence: "price_ks3_group_pence",
+  lateFeePercent: "late_fee_percent",
+  passPrices: "pass_prices",
+  passValidityMonths: "pass_validity_months",
+  passMinNoticeDays: "pass_min_notice_days",
 };
 
 export function settingsPatchToRow(patch: Partial<Settings>): Record<string, unknown> {
@@ -178,6 +211,8 @@ export interface BookingRow {
   busy_until: string;
   group_session_id: string | null;
   block_booking_id: string | null;
+  pass_id: string | null;
+  fee_pence: number | null;
   bundle_id: string | null;
   status: BookingStatus;
   price_pence: number;
@@ -204,6 +239,8 @@ export function mapBooking(row: BookingRow): Booking {
     busyUntil: toDate(row.busy_until),
     groupSessionId: row.group_session_id,
     blockBookingId: row.block_booking_id,
+    passId: row.pass_id,
+    feePence: row.fee_pence,
     bundleId: row.bundle_id,
     status: row.status,
     pricePence: row.price_pence,
@@ -221,6 +258,7 @@ export function mapBooking(row: BookingRow): Booking {
 export interface GroupSessionRow {
   id: string;
   series_id: string | null;
+  level: Level;
   title: string;
   starts_at: string;
   ends_at: string;
@@ -235,6 +273,7 @@ export function mapGroupSession(row: GroupSessionRow): GroupSession {
   return {
     id: row.id,
     seriesId: row.series_id,
+    level: row.level,
     title: row.title,
     startsAt: toDate(row.starts_at),
     endsAt: toDate(row.ends_at),
@@ -324,6 +363,7 @@ export interface LedgerRow {
   created_at: string;
   booking_id: string | null;
   block_booking_id: string | null;
+  pass_id: string | null;
   parent_id: string | null;
   kind: LedgerEntry["kind"];
   method: LedgerEntry["method"];
@@ -338,6 +378,7 @@ export function mapLedger(row: LedgerRow): LedgerEntry {
     createdAt: toDate(row.created_at),
     bookingId: row.booking_id,
     blockBookingId: row.block_booking_id,
+    passId: row.pass_id,
     parentId: row.parent_id,
     kind: row.kind,
     method: row.method,
@@ -387,5 +428,65 @@ export function mapMileage(row: MileageRowDb): MileageEntry {
     tripOn: row.trip_on,
     miles: row.miles === null ? null : Number(row.miles),
     note: row.note,
+  };
+}
+
+export interface ChildRow {
+  id: string;
+  created_at: string;
+  parent_id: string;
+  first_name: string;
+  last_name: string;
+  school_year: number;
+  level: Level;
+  exam_board: string | null;
+  tier: string | null;
+  subjects: string[];
+  target_grade: string | null;
+}
+
+export function mapChild(row: ChildRow): Child {
+  return {
+    id: row.id,
+    createdAt: toDate(row.created_at),
+    parentId: row.parent_id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    schoolYear: row.school_year,
+    level: row.level,
+    examBoard: row.exam_board,
+    tier: row.tier,
+    subjects: row.subjects,
+    targetGrade: row.target_grade,
+  };
+}
+
+export interface PassRow {
+  id: string;
+  created_at: string;
+  parent_id: string | null;
+  child_id: string | null;
+  level: Level;
+  sessions_total: PassSessions;
+  price_pence: number;
+  payment_reference: string;
+  status: PassStatus;
+  paid_at: string | null;
+  expires_at: string | null;
+}
+
+export function mapPass(row: PassRow): Pass {
+  return {
+    id: row.id,
+    createdAt: toDate(row.created_at),
+    parentId: row.parent_id,
+    childId: row.child_id,
+    level: row.level,
+    sessionsTotal: row.sessions_total,
+    pricePence: row.price_pence,
+    paymentReference: row.payment_reference,
+    status: row.status,
+    paidAt: toDateOrNull(row.paid_at),
+    expiresAt: toDateOrNull(row.expires_at),
   };
 }

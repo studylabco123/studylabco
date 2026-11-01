@@ -90,4 +90,31 @@ describe("parseSettingsInput", () => {
     const res = parseSettingsInput({ ...base(), allowedPostcodeDistricts: "bb1 bb2,bb10" });
     expect(res.ok && res.settings.allowedPostcodeDistricts).toEqual(["BB1", "BB2", "BB10"]);
   });
+
+  test("parses the v2 fields in pence-safe pounds", () => {
+    const res = parseSettingsInput({ ...base(), priceKs3Assessment: "7.50", passKs36: "79", passGcse10: "162.00", lateFeePercent: "25", passValidityMonths: "12", passMinNoticeDays: "0" });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.settings.priceKs3AssessmentPence).toBe(750);
+      expect(res.settings.passPrices.KS3["6"]).toBe(7900);
+      expect(res.settings.passPrices.GCSE["10"]).toBe(16200);
+      expect(res.settings.lateFeePercent).toBe(25);
+      expect(res.settings.passValidityMonths).toBe(12);
+      expect(res.settings.passMinNoticeDays).toBe(0);
+    }
+  });
+
+  test.each([
+    ["lateFeePercent", "101"],
+    ["lateFeePercent", "-1"],
+    ["passValidityMonths", "0"],
+    ["passValidityMonths", "25"],
+    ["passMinNoticeDays", "31"],
+    ["priceKs3Group", "14.999"],
+    ["passKs310", "abc"],
+  ] as const)("rejects %s = %s", (key, value) => {
+    const res = parseSettingsInput({ ...base(), [key]: value });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.errors[key]).toBeTruthy();
+  });
 });

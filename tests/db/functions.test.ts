@@ -209,7 +209,7 @@ describe("ensure_group_sessions", () => {
         group by title order by title`,
     );
     expect(s).toEqual([
-      { title: "Saturday GCSE Science Group", n: 4 },
+      { title: "Saturday KS3 Science Group", n: 4 },
       { title: "Sunday Group — Session 1", n: 5 },
       { title: "Sunday Group — Session 2", n: 5 },
     ]);
@@ -240,7 +240,7 @@ describe("ensure_group_sessions", () => {
     await ensure("2027-04-03");
     const { rows } = await db.query<{ starts_at: Date }>(
       `select starts_at from group_sessions
-        where title = 'Saturday GCSE Science Group' and starts_at >= '2027-04-03' and starts_at < '2027-04-04'`,
+        where title = 'Saturday KS3 Science Group' and starts_at >= '2027-04-03' and starts_at < '2027-04-04'`,
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].starts_at.toISOString()).toBe("2027-04-03T07:15:00.000Z");
