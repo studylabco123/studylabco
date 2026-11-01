@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { normalisePhone, safeNextPath, signupSchema } from "@/lib/auth/validation";
+import { explicitNextPath, loginDestination, normalisePhone, safeNextPath, signupSchema } from "@/lib/auth/validation";
 
 const valid = {
   full_name: "Sam Parent",
@@ -63,5 +63,29 @@ describe("safeNextPath", () => {
     ["/a\nb", "/account"],
   ])("%s -> %s", (input, out) => {
     expect(safeNextPath(input as string | null | undefined)).toBe(out);
+  });
+});
+
+describe("loginDestination", () => {
+  test("an admin with no explicit next goes to /admin; a parent to /account", () => {
+    expect(loginDestination("", "admin")).toBe("/admin");
+    expect(loginDestination(null, "admin")).toBe("/admin");
+    expect(loginDestination("", "parent")).toBe("/account");
+    expect(loginDestination("", null)).toBe("/account");
+  });
+  test("an explicit safe next is honoured for everyone", () => {
+    expect(loginDestination("/account/bookings", "admin")).toBe("/account/bookings");
+    expect(loginDestination("/admin/families", "admin")).toBe("/admin/families");
+    expect(loginDestination("/account/book", "parent")).toBe("/account/book");
+  });
+  test("an unsafe next counts as not given", () => {
+    expect(loginDestination("//evil.com", "admin")).toBe("/admin");
+    expect(loginDestination("https://evil.com", "parent")).toBe("/account");
+  });
+  test("explicitNextPath only returns valid given paths", () => {
+    expect(explicitNextPath("/admin")).toBe("/admin");
+    expect(explicitNextPath("")).toBeNull();
+    expect(explicitNextPath("//x")).toBeNull();
+    expect(explicitNextPath(undefined)).toBeNull();
   });
 });

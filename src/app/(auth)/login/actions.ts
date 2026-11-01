@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { commonAuthMessage } from "@/lib/auth/errors";
-import { safeNextPath } from "@/lib/auth/validation";
+import { loginDestination } from "@/lib/auth/validation";
 import { turnstileToken } from "@/lib/auth/turnstile-token";
 import { createServerClient } from "@/lib/supabase/server";
 
@@ -14,7 +14,7 @@ export interface LoginState {
 export async function logIn(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  const next = safeNextPath(String(formData.get("next") ?? ""));
+  const next = String(formData.get("next") ?? "");
   if (!email || !password) return { error: "Enter your email and password.", email };
 
   const supabase = await createServerClient();
@@ -31,5 +31,13 @@ export async function logIn(_prev: LoginState, formData: FormData): Promise<Logi
     }
     return { error: "Email or password is incorrect.", email };
   }
-  redirect(next);
+
+  // Admins go to /admin (which asks for the 2-step code); an explicit safe `next` always wins.
+  let role: string | null = null;
+  const { data: auth } = await supabase.auth.getUser();
+  if (auth.user) {
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
+    role = (profile?.role as string | undefined) ?? null;
+  }
+  redirect(loginDestination(next, role));
 }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { safeNextPath } from "@/lib/auth/validation";
+import { explicitNextPath } from "@/lib/auth/validation";
 
 export const metadata: Metadata = { title: "Log in" };
 
@@ -19,7 +19,7 @@ export default async function LoginPage({
   const { next, notice } = await searchParams;
   return (
     <AuthCard title="Log in" intro={notice ? NOTICES[notice] : undefined}>
-      <LoginForm next={safeNextPath(next)} />
+      <LoginForm next={explicitNextPath(next) ?? ""} />
     </AuthCard>
   );
 }

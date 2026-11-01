@@ -35,3 +35,14 @@ export function safeNextPath(next: string | null | undefined): string {
   if (/[\\\u0000-\u001f]/.test(next)) return DEFAULT_NEXT;
   return next;
 }
+
+/** The `next` path when one was given and is safe; null when absent or unsafe. */
+export function explicitNextPath(next: string | null | undefined): string | null {
+  if (!next) return null;
+  return safeNextPath(next) === next ? next : null;
+}
+
+/** Where to send someone after logging in: their explicit `next`, else /admin for admins and /account for everyone else. */
+export function loginDestination(next: string | null | undefined, role: string | null | undefined): string {
+  return explicitNextPath(next) ?? (role === "admin" ? "/admin" : DEFAULT_NEXT);
+}

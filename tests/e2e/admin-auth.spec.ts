@@ -5,7 +5,8 @@ import { anonClient, createAdmin, createParent, login, serviceClient, totpCode, 
 /** Logs in and waits for the redirect, so the session cookie is set before the next navigation. */
 async function logInAs(page: import("@playwright/test").Page, email: string, password: string) {
   await login(page, email, password);
-  await expect(page).toHaveURL(/\/account$/);
+  // Admins land on /admin, which sends them on to the 2-step code screen.
+  await expect(page).toHaveURL(/\/admin\/mfa$/, { timeout: 20_000 });
 }
 
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
@@ -26,6 +27,18 @@ test.describe("admin access", () => {
     await createParent(page);
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/account$/);
+  });
+
+  test("admin login lands on the 2-step screen, and an explicit next still wins", async ({ page }) => {
+    const admin = await createAdmin();
+    await login(page, admin.email, admin.password);
+    await expect(page).toHaveURL(/\/admin\/mfa$/, { timeout: 20_000 });
+    await page.context().clearCookies();
+    await page.goto("/login?next=/account/settings");
+    await page.getByLabel("Email").fill(admin.email);
+    await page.getByLabel("Password").fill(admin.password);
+    await page.getByRole("button", { name: "Log in" }).click();
+    await expect(page).toHaveURL(/\/account\/settings$/);
   });
 
   test("admin without code is sent to /admin/mfa", async ({ page }) => {
