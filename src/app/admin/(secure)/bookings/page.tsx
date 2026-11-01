@@ -143,7 +143,7 @@ export default async function AdminBookingsPage({
                     started={b.startsAt.getTime() <= now.getTime()}
                     owedPence={i.owedPence}
                     bundle={Boolean(b.bundleId) && !b.blockBookingId}
-                    inBlock={Boolean(b.blockBookingId)}
+                    inBlock={Boolean(b.blockBookingId) && !i.blockReleased}
                   />
                 </Card>
               );

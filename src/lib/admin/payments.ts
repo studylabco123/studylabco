@@ -36,12 +36,20 @@ export async function markPaid(bookingId: string, method: PaymentMethod, opts: O
   const found = await loadBooking(bookingId);
   if ("error" in found) return found.error;
   const b = found.booking;
-  if (b.blockBookingId) return fail("This session is part of a block. Mark the block paid instead.");
+  let releasedBlockRow = false;
+  if (b.blockBookingId) {
+    const blk = await db().from("block_bookings").select("status").eq("id", b.blockBookingId).maybeSingle();
+    if (blk.error) return unexpected("load block", blk.error);
+    // A released block is no longer paid as a whole, but lessons already taught from it are still owed one by one.
+    if (blk.data?.status !== "released") return fail("This session is part of a block. Mark the block paid instead.");
+    releasedBlockRow = true;
+  }
   if (b.status === "cancelled" || b.status === "declined") return fail("Nothing is owed for a cancelled or declined booking.");
+  if (b.status === "pending" && b.location === "home_visit") return fail("Approve this home visit before recording payment.");
   if (b.paymentStatus !== "unpaid") return fail("This booking is not waiting for payment.");
 
   let rows: Booking[] = [b];
-  if (b.bundleId) {
+  if (b.bundleId && !releasedBlockRow) {
     const { data, error } = await db().from("bookings").select("*").eq("bundle_id", b.bundleId).order("starts_at");
     if (error) return unexpected("load bundle", error);
     rows = (data as BookingRow[])
@@ -135,6 +143,12 @@ export async function waiveFee(bookingId: string, opts: OpOptions = {}): Promise
   if ("error" in found) return found.error;
   const b = found.booking;
   if (b.paymentStatus !== "unpaid") return fail("There is no unpaid fee on this booking.");
+  const owed =
+    b.status === "late_cancelled" ||
+    b.status === "no_show" ||
+    b.status === "attended" ||
+    (b.status === "confirmed" && b.startsAt.getTime() <= (opts.now ?? new Date()).getTime());
+  if (!owed) return fail("Nothing is owed on this booking yet, so there is no fee to waive.");
 
   const flipped = await db()
     .from("bookings")

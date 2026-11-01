@@ -179,6 +179,7 @@ test.describe("admin operations", () => {
   });
 
   test("blocked parent sees \"Please contact Study Lab Co\" when booking", async ({ page, browser, baseURL }) => {
+    test.setTimeout(90_000); // includes a UI sign-up and two logins
     const ctx = await browser.newContext({ baseURL });
     const parentPage = await ctx.newPage();
     const parent = await createParent(parentPage, { fullName: `Fam${unique()} Blocked` });

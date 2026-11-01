@@ -209,6 +209,8 @@ export interface BookingItem {
   parentId: string | null;
   membership: string | null;
   owedPence: number;
+  /** Row of a block that was released: paid one by one. */
+  blockReleased: boolean;
 }
 
 export interface BlockItem {
@@ -279,6 +281,7 @@ export async function loadBookings(
   }
   const rows = toBookings(check("bookings", await query.limit(150)));
   const [profiles, kids] = await Promise.all([profilesById(rows.map((b) => b.parentId)), childrenById(rows.map((b) => b.childId))]);
+  const released = await releasedBlockIds(rows);
 
   const items = rows
     .map<BookingItem>((b) => ({
@@ -288,10 +291,18 @@ export async function loadBookings(
       parentId: b.parentId,
       membership: b.blockBookingId ? "Block" : b.bundleId ? "Sunday bundle" : null,
       owedPence: amountOwedPence([b], [], now),
+      blockReleased: released.has(b.blockBookingId ?? ""),
     }))
     // The unpaid view is about money owed now, which excludes lessons paid for through a block.
     .filter((i) => (filter === "unpaid" ? i.owedPence > 0 : true));
   return { items, blocks: await loadHeldBlocks(now, term) };
+}
+
+async function releasedBlockIds(rows: Booking[]): Promise<Set<string>> {
+  const ids = [...new Set(rows.map((b) => b.blockBookingId).filter((x): x is string => !!x))];
+  if (!ids.length) return new Set();
+  const res = check<{ id: string }[]>("blocks", await db().from("block_bookings").select("id").in("id", ids).eq("status", "released"));
+  return new Set(res.map((r) => r.id));
 }
 
 async function loadHeldBlocks(now: Date, q: string): Promise<BlockItem[]> {
@@ -482,6 +493,7 @@ export async function loadFamily(parentId: string, now: Date = new Date()): Prom
       parentId: p.id,
       membership: b.blockBookingId ? "Block" : b.bundleId ? "Sunday bundle" : null,
       owedPence: amountOwedPence([b], [], now),
+      blockReleased: false,
     })),
     owedPence: amountOwedPence(bookings, [], now),
     flagCount: bookings.filter((b) => (b.status === "late_cancelled" || b.status === "no_show") && b.startsAt.getTime() >= since).length,

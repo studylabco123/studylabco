@@ -151,6 +151,37 @@ describe("payments", () => {
     expect(await ledger()).toEqual([]);
   });
 
+  test("a taught session of a released block can be paid on its own, once", async () => {
+    const block = await heldBlock();
+    const taught = await insertBooking(-48, { block, status: "attended", price: 1700, travel: 0 });
+    await insertBooking(48, { block, price: 1700 });
+    expect(await releaseBlock(block)).toEqual({ ok: true });
+    expect(await markPaid(taught, "cash")).toEqual({ ok: true });
+    expect((await bookingRow(taught)).payment_status).toBe("paid");
+    expect(await ledger()).toMatchObject([{ kind: "payment", amount_pence: 1700, booking_id: taught, block_booking_id: null }]);
+    expect((await markPaid(taught, "cash")).ok).toBe(false);
+    expect(await ledger()).toHaveLength(1);
+  });
+
+  test("a pending home visit cannot be marked paid", async () => {
+    const id = await insertBooking(48, { status: "pending", location: "home_visit", address: "1 Road" });
+    expect((await markPaid(id, "cash")).ok).toBe(false);
+    expect(await ledger()).toEqual([]);
+  });
+
+  test("waiveFee refuses rows that are not owed", async () => {
+    const rows = [
+      await insertBooking(48, { status: "cancelled" }),
+      await insertBooking(100, { status: "declined" }),
+      await insertBooking(150, { status: "pending", location: "home_visit", address: "x" }),
+      await insertBooking(200, { status: "confirmed" }),
+    ];
+    for (const id of rows) expect((await waiveFee(id)).ok).toBe(false);
+    expect(await ledger()).toEqual([]);
+    const past = await insertBooking(-5, { status: "confirmed" });
+    expect(await waiveFee(past)).toEqual({ ok: true });
+  });
+
   test("waiveFee marks waived and writes a waiver for the amount owed", async () => {
     const id = await insertBooking(-5, { status: "late_cancelled", price: 2500, travel: 500 });
     expect(await waiveFee(id)).toEqual({ ok: true });
