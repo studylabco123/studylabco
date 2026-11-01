@@ -69,6 +69,8 @@ export interface SettingsRow {
   group_venue: string | null;
   business_phone: string | null;
   business_address: string | null;
+  /** Added in 0007; null until the owner sets it. */
+  owner_name?: string | null;
 }
 
 function mapBlockPrices(raw: SettingsRow["block_prices"]): BlockPrices {
@@ -100,6 +102,7 @@ export function mapSettings(row: SettingsRow): Settings {
     groupVenue: row.group_venue,
     businessPhone: row.business_phone,
     businessAddress: row.business_address,
+    ownerName: row.owner_name ?? null,
   };
 }
 
@@ -123,6 +126,7 @@ const SETTINGS_COLUMNS: { [K in keyof Settings]: string } = {
   groupVenue: "group_venue",
   businessPhone: "business_phone",
   businessAddress: "business_address",
+  ownerName: "owner_name",
 };
 
 export function settingsPatchToRow(patch: Partial<Settings>): Record<string, unknown> {

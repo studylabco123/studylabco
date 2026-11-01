@@ -34,7 +34,7 @@ const APPROACH: { title: string; body: string }[] = [
   },
   {
     title: "Keep you in the loop",
-    body: "You'll hear what we covered and what to focus on next. If something isn't working, we change the plan.",
+    body: "You're welcome to ask how lessons are going and what to focus on next. If something isn't working, we change the plan.",
   },
 ];
 

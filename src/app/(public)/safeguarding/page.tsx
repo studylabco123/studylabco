@@ -22,7 +22,7 @@ export default async function SafeguardingPage() {
       <ul>
         <li>Holds an enhanced DBS check, the level of check required for working with children.</li>
         <li>Is a qualified teacher, with a PGCE and Qualified Teacher Status (QTS).</li>
-        <li>Teaches every lesson personally. Lessons are never passed to anyone else.</li>
+        <li>Teaches the lessons personally.</li>
       </ul>
 
       <h2>Parents and guardians stay involved</h2>

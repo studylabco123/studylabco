@@ -94,7 +94,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               How it works
             </h2>
             <p className="max-w-prose text-navy-600 md:col-span-7">
-              Everything is booked through your account, so you can see free times and book without waiting for a reply.
+              Everything is booked through your account, where you can see the free times.{" "}
+              {settings.homeVisitsEnabled
+                ? "Lessons at the tutor's place are confirmed straight away; a home visit is confirmed once the tutor has approved it."
+                : "Lessons are confirmed straight away."}
             </p>
           </div>
           <HowItWorks assessmentPence={p.assessment} />
@@ -133,8 +136,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               Taught by a qualified science teacher
             </h2>
             <p className="text-navy-600">
-              Lessons are planned and taught by a trained secondary science teacher with Qualified Teacher Status, who
-              knows the GCSE specifications and what examiners look for.
+              Lessons are planned and taught by a trained secondary science teacher with Qualified Teacher Status, and
+              follow your child&apos;s exam board specification.
             </p>
             <p>
               <Link href="/about" className={standaloneLink}>

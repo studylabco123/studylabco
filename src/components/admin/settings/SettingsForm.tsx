@@ -87,6 +87,9 @@ export function SettingsForm({ initial }: { initial: SettingsFormInput }) {
       </Section>
 
       <Section title="Business details">
+        {text("ownerName", "Your name (shown on the website)", {
+          hint: "Shown in the footer and on Contact as \u201cStudy Lab Co is run by \u2026\u201d. Leave empty to hide it.",
+        })}
         {text("businessPhone", "Business phone", { type: "tel" })}
         {text("groupVenue", "Group venue")}
         <TextareaField

@@ -134,7 +134,6 @@ export default async function TermsPage() {
         </li>
         <li>
           We may end a lesson early, or stop providing lessons, if behaviour puts anyone at risk or seriously disrupts a group.
-          The lesson price is still due for a lesson ended for this reason.
         </li>
         <li>
           We follow the safeguarding approach in our <Link href="/safeguarding">Safeguarding</Link> statement and will act on any

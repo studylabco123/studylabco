@@ -20,7 +20,12 @@ export async function SiteShell({ children, area = "public" }: Readonly<{ childr
       <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
         {children}
       </main>
-      <Footer email={contact.email} phone={contact.phone ?? undefined} address={contact.address ?? undefined} />
+      <Footer
+        email={contact.email}
+        phone={contact.phone ?? undefined}
+        address={contact.address ?? undefined}
+        ownerName={contact.ownerName ?? undefined}
+      />
     </div>
   );
 }

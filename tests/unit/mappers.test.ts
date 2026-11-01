@@ -34,6 +34,7 @@ const row = {
   group_venue: null,
   business_phone: null,
   business_address: null,
+  owner_name: "Jane Smith",
 };
 
 describe("mapSettings", () => {
@@ -45,6 +46,12 @@ describe("mapSettings", () => {
     expect(s.allowedPostcodeDistricts).toEqual(["BB1", "BB2"]);
     expect(s.onlineEnabled).toBe(false);
     expect(s.groupVenue).toBeNull();
+    expect(s.ownerName).toBe("Jane Smith");
+  });
+
+  test("a missing owner name maps to null (R24)", () => {
+    expect(mapSettings({ ...row, owner_name: null }).ownerName).toBeNull();
+    expect(settingsPatchToRow({ ownerName: "Jane" })).toEqual({ owner_name: "Jane" });
   });
 
   test("block prices get numeric week keys", () => {

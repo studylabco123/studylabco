@@ -76,6 +76,16 @@ describe("parseSettingsInput", () => {
     expect(res.ok && res.settings.onlineEnabled).toBe(false);
   });
 
+  test("owner name: optional, trimmed, at most 80 characters (R24)", () => {
+    const empty = parseSettingsInput({ ...base(), ownerName: "  " });
+    expect(empty.ok && empty.settings.ownerName).toBeNull();
+    const named = parseSettingsInput({ ...base(), ownerName: "  Jane Smith " });
+    expect(named.ok && named.settings.ownerName).toBe("Jane Smith");
+    expect(parseSettingsInput({ ...base(), ownerName: "x".repeat(80) }).ok).toBe(true);
+    const long = parseSettingsInput({ ...base(), ownerName: "x".repeat(81) });
+    expect(long.ok).toBe(false);
+    if (!long.ok) expect(long.errors.ownerName).toBe("The owner's name is too long (80 characters at most).");
+  });
   test("districts are upper-cased and de-spaced", () => {
     const res = parseSettingsInput({ ...base(), allowedPostcodeDistricts: "bb1 bb2,bb10" });
     expect(res.ok && res.settings.allowedPostcodeDistricts).toEqual(["BB1", "BB2", "BB10"]);

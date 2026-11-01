@@ -16,16 +16,23 @@ export interface SiteContact {
   phone: string | null;
   /** The business (virtual office) address, only when the owner has set one. Never the teaching address. */
   address: string | null;
+  /** The owner's name, only when set in Settings (R24). */
+  ownerName: string | null;
 }
 
 /** Business contact details for the header, footer and contact page; falls back to the email alone. */
 export const siteContact = cache(async (): Promise<SiteContact> => {
   try {
     const s = await publicSettings();
-    return { email: FALLBACK_EMAIL, phone: s.businessPhone?.trim() || null, address: s.businessAddress?.trim() || null };
+    return {
+      email: FALLBACK_EMAIL,
+      phone: s.businessPhone?.trim() || null,
+      address: s.businessAddress?.trim() || null,
+      ownerName: s.ownerName?.trim() || null,
+    };
   } catch (err) {
     console.error("site contact: settings unavailable", err);
-    return { email: FALLBACK_EMAIL, phone: null, address: null };
+    return { email: FALLBACK_EMAIL, phone: null, address: null, ownerName: null };
   }
 });
 

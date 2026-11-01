@@ -10,7 +10,7 @@ export function HowItWorks({ assessmentPence }: { assessmentPence: number }) {
       steps={[
         {
           title: "Create an account",
-          body: <>Add your child and sign the parent/guardian agreement. It takes about five minutes.</>,
+          body: <>Add your child and sign the parent/guardian agreement.</>,
         },
         {
           title: `Book the ${formatPence(assessmentPence)} Assessment Lesson`,

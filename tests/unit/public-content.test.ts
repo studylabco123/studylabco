@@ -58,3 +58,30 @@ describe("bookingWindowText", () => {
     expect(BLOCK_HOLD_HOURS).toBe(72);
   });
 });
+
+import { readFileSync } from "node:fs";
+
+/** Ruling R24: unverified claims removed or softened until the owner confirms them. */
+describe("public copy makes no unverified claims", () => {
+  const files = [
+    "src/app/(public)/page.tsx",
+    "src/app/(public)/about/page.tsx",
+    "src/app/(public)/safeguarding/page.tsx",
+    "src/app/(public)/terms/page.tsx",
+    "src/app/(public)/privacy/page.tsx",
+    "src/components/site/HowItWorks.tsx",
+  ];
+  const all = files.map((f) => readFileSync(f, "utf8")).join("\n");
+  it.each([
+    "what examiners look for",
+    "without waiting for a reply",
+    "what we covered",
+    "never passed to anyone else",
+    "about five minutes",
+    "still due for a lesson ended",
+    "a reasonable period",
+  ])("does not say %j", (phrase) => expect(all).not.toContain(phrase));
+  it("gives a concrete period for keeping agreement forms", () => {
+    expect(all).toContain("up to 12 months after your child stops lessons");
+  });
+});

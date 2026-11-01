@@ -336,6 +336,28 @@ test.describe("settings", () => {
     }
   });
 
+  test("the owner's name set in Settings shows in the footer and on Contact; empty hides it (R24)", async ({ page }) => {
+    try {
+      await page.goto("/contact");
+      await expect(page.getByTestId("owner-line")).toHaveCount(0);
+      await adminLogin(page);
+      await page.goto("/admin/settings");
+      await page.getByLabel("Your name (shown on the website)").fill("x".repeat(81));
+      await page.getByRole("button", { name: "Save settings" }).click();
+      await expect(page.getByText("The owner's name is too long (80 characters at most).")).toBeVisible();
+      await page.getByLabel("Your name (shown on the website)").fill("Jane Smith");
+      await page.getByRole("button", { name: "Save settings" }).click();
+      await expect(page.getByRole("status").filter({ hasText: "Settings saved." })).toBeVisible();
+      await page.goto("/contact");
+      await expect(page.locator("main").getByTestId("owner-line")).toHaveText("Study Lab Co is run by Jane Smith.");
+      await expect(page.locator("footer").getByTestId("owner-line")).toHaveText("Study Lab Co is run by Jane Smith.");
+    } finally {
+      await service.from("settings").update({ owner_name: null }).eq("id", 1);
+    }
+    await page.goto("/contact");
+    await expect(page.getByTestId("owner-line")).toHaveCount(0);
+  });
+
   test("a bad sort code is refused with a message and nothing is saved", async ({ page }) => {
     await adminLogin(page);
     await page.goto("/admin/settings");

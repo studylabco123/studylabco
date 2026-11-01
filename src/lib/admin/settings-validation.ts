@@ -24,6 +24,7 @@ export interface SettingsFormInput {
   groupVenue: string;
   businessPhone: string;
   businessAddress: string;
+  ownerName: string;
   bankAccountName: string;
   bankSortCode: string;
   bankAccountNumber: string;
@@ -41,6 +42,7 @@ const SORT_CODE = /^\d{2}-?\d{2}-?\d{2}$/;
 const ACCOUNT_NUMBER = /^\d{8}$/;
 const DISTRICT = /^[A-Z]{1,2}\d[A-Z\d]?$/;
 const MAX_TEXT = 300;
+const MAX_OWNER_NAME = 80;
 
 /** "25", "25.5" or "25.50" -> pence, or null. No floating point. */
 export function poundsToPence(text: string): number | null {
@@ -73,6 +75,12 @@ export function parseSettingsInput(input: SettingsFormInput): ParsedSettings {
   const optional = (key: keyof SettingsFormInput, label: string): string | null => {
     const t = str(input[key]);
     if (t.length > MAX_TEXT) errors[key] = `${label} is too long (${MAX_TEXT} characters at most).`;
+    return t === "" ? null : t;
+  };
+
+  const ownerName = (): string | null => {
+    const t = str(input.ownerName).replace(/\s+/g, " ");
+    if (t.length > MAX_OWNER_NAME) errors.ownerName = `The owner's name is too long (${MAX_OWNER_NAME} characters at most).`;
     return t === "" ? null : t;
   };
 
@@ -127,6 +135,7 @@ export function parseSettingsInput(input: SettingsFormInput): ParsedSettings {
     groupVenue: optional("groupVenue", "The group venue"),
     businessPhone: optional("businessPhone", "The business phone"),
     businessAddress: optional("businessAddress", "The business address"),
+    ownerName: ownerName(),
   };
   const priv = {
     bankAccountName: optional("bankAccountName", "The account name"),
@@ -165,6 +174,7 @@ export function settingsToFormInput(s: Settings, p: PrivateSettings): SettingsFo
     groupVenue: s.groupVenue ?? "",
     businessPhone: s.businessPhone ?? "",
     businessAddress: s.businessAddress ?? "",
+    ownerName: s.ownerName ?? "",
     bankAccountName: p.bankAccountName ?? "",
     bankSortCode: p.bankSortCode ?? "",
     bankAccountNumber: p.bankAccountNumber ?? "",

@@ -120,11 +120,11 @@ export default function PrivacyPage() {
           <strong>Your account and your child&apos;s profile</strong>: until you delete your account.
         </li>
         <li>
-          <strong>Agreement forms</strong>: while your child is a student, and for a reasonable period afterwards in case a
+          <strong>Agreement forms</strong>: while your child is a student, and for up to 12 months after your child stops lessons in case a
           question or concern comes up, unless you delete your account sooner.
         </li>
         <li>
-          <strong>Financial records</strong> (payments, refunds and waived fees): 6 years, as HMRC requires. When you delete your
+          <strong>Financial records</strong> (payments, refunds, credits and waived fees): 6 years, as HMRC requires. When you delete your
           account these are kept in anonymised form, without your name or contact details.
         </li>
         <li>

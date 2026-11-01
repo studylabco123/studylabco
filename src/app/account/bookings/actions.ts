@@ -25,7 +25,7 @@ export async function cancelBooking(bookingId: string, confirmLate = false): Pro
     status: "error",
     message:
       res.reason === "not_cancellable"
-        ? "This booking can no longer be cancelled online. Please contact Study Lab Co."
+        ? "This booking can no longer be cancelled on the website. Please contact Study Lab Co."
         : res.reason === "not_found"
           ? "We could not find that booking."
           : "We could not cancel this booking. Please try again.",

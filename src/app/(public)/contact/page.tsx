@@ -1,4 +1,5 @@
 import { ContactForm } from "@/components/site/ContactForm";
+import { runBy } from "@/components/site/Footer";
 import { PageIntro } from "@/components/site/PageIntro";
 import { buttonClasses } from "@/components/ui/Button";
 import { siteContact } from "@/lib/public/data";
@@ -57,6 +58,7 @@ export default async function ContactPage() {
               <div>
                 <dt className="font-display font-semibold">Business</dt>
                 <dd>{SITE_NAME}, GCSE Science tuition (sole trader)</dd>
+                {contact.ownerName ? <dd data-testid="owner-line">{runBy(contact.ownerName)}</dd> : null}
               </div>
               <div>
                 <dt className="font-display font-semibold">Area</dt>

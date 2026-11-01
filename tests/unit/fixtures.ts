@@ -33,6 +33,7 @@ export const SETTINGS: Settings = {
   groupVenue: null,
   businessPhone: null,
   businessAddress: null,
+  ownerName: null,
 };
 
 const KINDS: BookingKind[] = ["assessment", "one_to_one"];

@@ -18,7 +18,7 @@ export type BookingStatus =
 export type PaymentStatus = "unpaid" | "paid" | "waived" | "credited" | "refunded";
 export type PeriodKind = "term" | "holiday";
 export type PaymentMethod = "bank_transfer" | "cash";
-export type LedgerKind = "payment" | "refund" | "credit" | "waiver";
+export type LedgerKind = "payment" | "refund" | "credit" | "waiver" | "credit_applied";
 
 /** Group block products (group_series.product, block_bookings.product). */
 export type GroupProduct = "saturday" | "sunday_bundle";
@@ -49,6 +49,8 @@ export interface Settings {
   groupVenue: string | null;
   businessPhone: string | null;
   businessAddress: string | null;
+  /** The person who runs Study Lab Co, shown in the footer and on Contact when set (R24). */
+  ownerName: string | null;
 }
 
 export interface PrivateSettings {

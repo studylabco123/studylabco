@@ -10,12 +10,14 @@ export type FooterProps = {
   phone?: string;
   /** Business (virtual office) address from settings; hidden when absent. Never the teaching address. */
   address?: string;
+  /** The owner's name from settings; the "run by" line is hidden when absent (R24). */
+  ownerName?: string;
 };
 
 const linkClass =
   "inline-flex min-h-11 items-center underline-offset-4 decoration-sky-300 hover:underline sm:min-h-9";
 
-export function Footer({ email = FALLBACK_EMAIL, phone, address }: FooterProps) {
+export function Footer({ email = FALLBACK_EMAIL, phone, address, ownerName }: FooterProps) {
   const year = new Date().getFullYear();
 
   return (
@@ -95,11 +97,17 @@ export function Footer({ email = FALLBACK_EMAIL, phone, address }: FooterProps) 
 
       <div className="relative border-t border-white/15">
         <p className="mx-auto max-w-content px-5 py-5 text-fine text-white/85 sm:px-8">
+          {ownerName ? <span data-testid="owner-line">{runBy(ownerName)} </span> : null}
           &copy; {year} {SITE_NAME}. All rights reserved.
         </p>
       </div>
     </footer>
   );
+}
+
+/** "Study Lab Co is run by Jane Smith." (Ruling R24; the Electronic Commerce Regulations ask for the trader's name.) */
+export function runBy(ownerName: string): string {
+  return `${SITE_NAME} is run by ${ownerName}.`;
 }
 
 /** The logo's lightbulb rays, large and faint in the footer corner. Decorative. */
