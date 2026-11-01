@@ -80,7 +80,9 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
       passId: r.pass_id,
       startsAt: new Date(r.starts_at),
     }));
-    unusedSessions = activePasses.some((p) => passRemaining(p, lite) > 0);
+    // Deletion would cancel future booked seats back onto the pass, so they still count as unused.
+    const consumed = lite.filter((r) => !((r.status === "pending" || r.status === "confirmed") && r.startsAt > now));
+    unusedSessions = activePasses.some((p) => passRemaining(p, consumed) > 0);
   }
   if (creditPence > 0 || unusedSessions) {
     return {

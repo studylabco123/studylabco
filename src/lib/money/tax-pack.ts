@@ -64,6 +64,8 @@ export interface TaxPack {
 
 /** Notes on ledger rows written by a tutor's credit adjustment start with this (V6); sheet 6 labels them. */
 export const ADJUSTMENT_NOTE = "Tutor adjustment";
+/** The note on the credit_applied row paired with a credit refund (refund_credit); sheet 6 labels it "Credit refunded". */
+export const CREDIT_REFUND_NOTE = "Credit refunded";
 
 /** The £1,000 trading allowance, in pence. */
 export const TRADING_ALLOWANCE_PENCE = 100_000;
@@ -117,7 +119,9 @@ export function buildTaxPack(
       .map<Row>((l) => ({
         date: l.occurredOn,
         label:
-          (l.kind === "credit" || l.kind === "credit_applied") && l.note.startsWith(ADJUSTMENT_NOTE)
+          l.kind === "credit_applied" && l.note === CREDIT_REFUND_NOTE
+            ? "Credit refunded"
+            : (l.kind === "credit" || l.kind === "credit_applied") && l.note.startsWith(ADJUSTMENT_NOTE)
             ? l.kind === "credit"
               ? "Credit added by tutor"
               : "Credit removed by tutor"

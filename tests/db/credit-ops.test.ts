@@ -98,6 +98,13 @@ describe("refundCredit", () => {
     expect(await ledger()).toHaveLength(1);
   });
 
+  test("the refund's paired credit_applied row reads 'Credit refunded' on sheet 6", async () => {
+    await adjustCredit(parentId, 300, "add", "Start", { now: NOW });
+    await refundCredit(parentId, 300, "cash", { now: NOW });
+    const pack = buildTaxPack(RANGE, await entries(), [], [], []);
+    expect(pack.refundsAndWaivers.map((r) => r.label).sort()).toEqual(["Credit added by tutor", "Credit refunded", "Refund"]);
+  });
+
   test("a refund reduces turnover", async () => {
     await db.query("insert into ledger (parent_id, kind, method, amount_pence, occurred_on) values ($1,'payment','cash',1000,'2026-11-01')", [parentId]);
     await adjustCredit(parentId, 300, "add", "Start", { now: NOW });

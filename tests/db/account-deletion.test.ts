@@ -143,6 +143,27 @@ describe("deleteAccount", () => {
     expect((await db.query("select 1 from ledger where kind = 'credit'")).rows).toEqual([]);
   });
 
+  test("an active paid pass whose sessions are all booked in the future still blocks deletion", async () => {
+    const pass = (
+      await db.query<{ id: string }>(
+        `insert into passes (parent_id, child_id, level, sessions_total, price_pence, status, paid_at, expires_at)
+         values ($1, $2, 'GCSE', 6, 10200, 'active', '2026-11-01T00:00:00Z', '2027-05-01T00:00:00Z') returning id`,
+        [parentId, childId],
+      )
+    ).rows[0].id;
+    for (let i = 0; i < 6; i++) {
+      await db.query(
+        `insert into bookings (parent_id, child_id, kind, location, starts_at, ends_at, busy_until, status, price_pence, payment_status, pass_id)
+         values ($1, $2, 'group', 'group_venue', $3::timestamptz, $3::timestamptz + interval '1 hour', $3::timestamptz + interval '1 hour', 'confirmed', 1700, 'paid', $4)`,
+        [parentId, childId, `2026-12-${String(5 + i).padStart(2, "0")}T08:15:00Z`, pass],
+      );
+    }
+    const res = await deleteAccount(parentId, { now: NOW });
+    expect(res).toMatchObject({ ok: false, reason: "has_credit_or_pass" });
+    expect((await db.query("select count(*)::int as n from bookings where pass_id = $1 and status = 'confirmed'", [pass])).rows[0].n).toBe(6);
+    expect((await db.query("select 1 from auth.users where id = $1", [parentId])).rowCount).toBe(1);
+  });
+
   test("refuses for a non-parent profile", async () => {
     await db.query("update profiles set role = 'admin' where id = $1", [parentId]);
     const res = await deleteAccount(parentId, { now: NOW });
