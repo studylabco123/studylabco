@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { childLevelLine } from "@/lib/children/summary";
 import { formatLondon } from "@/lib/format";
 import { createServerClient } from "@/lib/supabase/server";
+import type { Level } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Your children" };
 
@@ -15,7 +17,7 @@ export default async function ChildrenPage() {
   if (!auth.user) redirect("/login?next=%2Faccount%2Fchildren");
   const { data: children } = await supabase
     .from("children")
-    .select("id, first_name, last_name, school_year, exam_board, tier, subjects, agreements(signed_at)")
+    .select("id, first_name, last_name, school_year, level, exam_board, tier, subjects, agreements(signed_at)")
     .order("created_at");
 
   return (
@@ -31,7 +33,8 @@ export default async function ChildrenPage() {
                   {c.first_name} {c.last_name}
                 </h2>
                 <p>
-                  Year {c.school_year}, {c.exam_board} {c.tier}: {c.subjects.join(", ")}
+                  {childLevelLine({ schoolYear: c.school_year, level: c.level as Level, examBoard: c.exam_board, tier: c.tier })}:{" "}
+                  {c.subjects.join(", ")}
                 </p>
                 <div className="flex flex-wrap items-center gap-4">
                   {signedAt ? (
@@ -49,6 +52,13 @@ export default async function ChildrenPage() {
                       </ButtonLink>
                     </>
                   )}
+                  <Link
+                    href={`/account/children/${c.id}/level`}
+                    aria-label={`Change level for ${c.first_name} ${c.last_name}`}
+                    className="underline underline-offset-4"
+                  >
+                    Change level
+                  </Link>
                 </div>
               </Card>
             );

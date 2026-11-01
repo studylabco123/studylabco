@@ -238,6 +238,83 @@ describe("createBooking", () => {
   });
 });
 
+describe("KS3 levels (v2)", () => {
+  async function ks3Child(schoolYear: 7 | 8 | 9 = 8, approved = true) {
+    const id = await createChild(parentId, { firstName: "Kay", schoolYear, level: "KS3" });
+    await signAgreement(id);
+    if (approved) await approve(id);
+    return id;
+  }
+
+  test("KS3 one_to_one stored price 2000", async () => {
+    const ks3 = await ks3Child();
+    const r = await createBooking(assessmentAt(MON_17, { kind: "one_to_one", childId: ks3 }), opts);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(await booking(r.bookingId)).toMatchObject({ kind: "one_to_one", price_pence: 2000, travel_fee_pence: 0 });
+    const home = await createBooking(
+      assessmentAt(SUN_1030, { kind: "one_to_one", childId: ks3, location: "home_visit", homeAddress: "1 Road", postcode: "BB1 1AA" }),
+      opts,
+    );
+    expect(home.ok).toBe(true);
+    if (home.ok) expect(await booking(home.bookingId)).toMatchObject({ price_pence: 2000, travel_fee_pence: 500 });
+  });
+
+  test("Year 7-8 assessment is the KS3 price; Year 9 KS3 sits the GCSE assessment at 1000", async () => {
+    const y8 = await ks3Child(8, false);
+    const a = await createBooking(assessmentAt(MON_17, { childId: y8 }), opts);
+    expect(a.ok).toBe(true);
+    if (a.ok) expect(await booking(a.bookingId)).toMatchObject({ kind: "assessment", price_pence: 750 });
+    const y9 = await ks3Child(9, false);
+    const b = await createBooking(assessmentAt(new Date("2026-11-02T18:00:00Z"), { childId: y9 }), opts);
+    expect(b.ok).toBe(true);
+    if (b.ok) expect(await booking(b.bookingId)).toMatchObject({ kind: "assessment", price_pence: 1000 });
+  });
+
+  test("KS3 child cannot book a GCSE group session (level_mismatch)", async () => {
+    const ks3 = await ks3Child();
+    await db.query("select public.ensure_group_sessions('2027-03-31')");
+    const { rows } = await db.query<{ id: string }>(
+      `select id from group_sessions where level = 'GCSE' and (starts_at at time zone 'Europe/London')::date = '2026-11-08'
+        order by starts_at limit 1`,
+    );
+    expect(await createGroupBooking({ parentId, childId: ks3, coolingOff: true, sessionId: rows[0].id }, opts)).toEqual({
+      ok: false,
+      reason: "level_mismatch",
+    });
+    expect(await count("bookings where child_id = $1", [ks3])).toBe(0);
+  });
+
+  test("changing a Year 9 child's level keeps existing bookings; new bookings follow the new level", async () => {
+    const y9 = await ks3Child(9);
+    await db.query("select public.ensure_group_sessions('2027-03-31')");
+    const day = async (d: string) =>
+      (await db.query<{ id: string }>(
+        "select id from group_sessions where (starts_at at time zone 'Europe/London')::date = $1 order by starts_at limit 1",
+        [d],
+      )).rows[0].id;
+    const sat = await day("2026-11-07");
+    const sun = await day("2026-11-08");
+    const g = { parentId, childId: y9, coolingOff: true };
+    const kept = await createGroupBooking({ ...g, sessionId: sat }, opts);
+    expect(kept.ok).toBe(true);
+    const lesson = await createBooking(assessmentAt(MON_17, { kind: "one_to_one", childId: y9 }), opts);
+    expect(lesson.ok).toBe(true);
+
+    await db.query("update children set level = 'GCSE', exam_board = 'AQA', tier = 'Higher' where id = $1", [y9]);
+    if (kept.ok) expect(await booking(kept.bookingId)).toMatchObject({ status: "confirmed", price_pence: 1400 });
+    if (lesson.ok) expect(await booking(lesson.bookingId)).toMatchObject({ status: "confirmed", price_pence: 2000 });
+
+    const next = await createGroupBooking({ ...g, sessionId: await day("2026-11-14") }, opts);
+    expect(next).toEqual({ ok: false, reason: "level_mismatch" });
+    const gcse = await createGroupBooking({ ...g, sessionId: sun }, opts);
+    expect(gcse.ok).toBe(true);
+    if (gcse.ok) expect(await booking(gcse.bookingId)).toMatchObject({ price_pence: 1800 });
+    const later = await createBooking(assessmentAt(new Date("2026-11-02T18:00:00Z"), { kind: "one_to_one", childId: y9 }), opts);
+    expect(later.ok).toBe(true);
+    if (later.ok) expect(await booking(later.bookingId)).toMatchObject({ price_pence: 2500 });
+  });
+});
+
 describe("group bookings", () => {
   async function sessions(dateIso: string) {
     const { rows } = await db.query<{ id: string }>(

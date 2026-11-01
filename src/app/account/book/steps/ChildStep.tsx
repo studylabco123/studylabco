@@ -12,7 +12,9 @@ export function ChildStep({ items, onSelect }: { items: ChildOption[]; onSelect:
           <Choice
             key={c.id}
             title={c.name}
-            detail={c.approved ? "Ready for all lessons" : c.assessmentBooked ? "Assessment Lesson booked" : "Starts with an Assessment Lesson"}
+            detail={`Year ${c.schoolYear}, ${c.level} · ${
+              c.approved ? "Ready for all lessons" : c.assessmentBooked ? "Assessment Lesson booked" : "Starts with an Assessment Lesson"
+            }`}
             onSelect={() => onSelect(c.id)}
           />
         ))}

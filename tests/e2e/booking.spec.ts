@@ -22,9 +22,9 @@ test.afterEach(async () => {
   parent = undefined;
 });
 
-async function start(page: Page, opts: { approved?: boolean; firstName?: string; ks3?: boolean } = {}) {
+async function start(page: Page, opts: { approved?: boolean; firstName?: string; ks3?: boolean; schoolYear?: number } = {}) {
   parent = await createParent(page);
-  await seedChild(parent.id, { approved: opts.approved, firstName: opts.firstName ?? "Sam", ks3: opts.ks3 });
+  await seedChild(parent.id, { approved: opts.approved, firstName: opts.firstName ?? "Sam", ks3: opts.ks3, schoolYear: opts.schoolYear });
   await page.goto("/account/book");
   await page.getByRole("button", { name: new RegExp(`^${opts.firstName ?? "Sam"} Parent`) }).click();
 }
@@ -205,6 +205,90 @@ test.describe("booking", () => {
       .select("id", { count: "exact", head: true })
       .eq("parent_id", parent!.id);
     expect(count).toBe(0);
+  });
+
+  test("KS3 child wizard offers 1-to-1 at £20 and only KS3 groups", async ({ page }) => {
+    await start(page, { approved: true, ks3: true });
+    await expect(page.getByRole("button", { name: /^1-to-1 lesson.*£20 \(home visit £25\)/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Group session.*£14/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Sunday bundle/ })).toHaveCount(0);
+
+    await page.getByRole("button", { name: /^Group session/ }).click();
+    const sessions = page.getByRole("list", { name: "Group sessions" }).getByRole("button", { name: /^\w+day/ });
+    await expect(sessions.first()).toBeVisible();
+    for (const name of await sessions.allTextContents()) {
+      expect(name).toContain("KS3");
+      expect(name).toContain("£14");
+      expect(name).not.toContain("Sunday");
+    }
+    await page.getByRole("button", { name: "Back" }).click();
+
+    await page.getByRole("button", { name: /^1-to-1 lesson/ }).click();
+    await page.getByRole("button", { name: /^At the tutor's place/ }).click();
+    await pickSlot(page);
+    await expect(page.getByText("1-to-1 lesson: £20")).toBeVisible();
+    await expect(page.getByTestId("total")).toHaveText("£20");
+    await page.getByLabel(COOLING_OFF).check();
+    await page.getByRole("button", { name: "Confirm booking" }).click();
+    await expect(page).toHaveURL(/\/account\/bookings\/[0-9a-f-]{36}$/);
+    const { data } = await serviceClient().from("bookings").select("kind, price_pence").eq("parent_id", parent!.id).single();
+    expect(data).toEqual({ kind: "one_to_one", price_pence: 2000 });
+  });
+
+  test("Year 9 KS3 child's assessment costs £10", async ({ page }) => {
+    await start(page, { ks3: true, schoolYear: 9, firstName: "Nia" });
+    await expect(page.getByRole("button", { name: /^Assessment Lesson.*£10 \(home visit £15\)/ })).toBeVisible();
+    await page.getByRole("button", { name: /^Assessment Lesson/ }).click();
+    await page.getByRole("button", { name: /^At the tutor's place/ }).click();
+    await pickSlot(page);
+    await expect(page.getByTestId("total")).toHaveText("£10");
+
+    // A Year 8 (KS3) child's assessment is the KS3 price.
+    await seedChild(parent!.id, { ks3: true, firstName: "Kay" });
+    await page.goto("/account/book");
+    await page.getByRole("button", { name: /^Kay Parent/ }).click();
+    await expect(page.getByRole("button", { name: /^Assessment Lesson.*£7\.50 \(home visit £12\.50\)/ })).toBeVisible();
+  });
+
+  test("info icon opens and closes with keyboard", async ({ page }) => {
+    await start(page, { approved: true });
+    const tip = page.getByRole("button", { name: "More about Sunday bundle" });
+    await expect(tip).toHaveAttribute("aria-expanded", "false");
+    await tip.focus();
+    await page.keyboard.press("Enter");
+    await expect(tip).toHaveAttribute("aria-expanded", "true");
+    const panel = page.locator(`#${await tip.getAttribute("aria-controls")}`);
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText("Sunday");
+    await page.keyboard.press("Escape");
+    await expect(tip).toHaveAttribute("aria-expanded", "false");
+    await expect(panel).toHaveCount(0);
+    await expect(tip).toBeFocused();
+    await page.keyboard.press("Space");
+    await expect(tip).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("Space");
+    await expect(tip).toHaveAttribute("aria-expanded", "false");
+    // Every lesson type has one.
+    for (const t of ["1-to-1 lesson", "Group session", "Group block"]) {
+      await expect(page.getByRole("button", { name: `More about ${t}` })).toBeVisible();
+    }
+    // Locations, and the review step's cooling-off and late-fee lines.
+    await page.getByRole("button", { name: /^1-to-1 lesson/ }).click();
+    await expect(page.getByRole("button", { name: "More about At the tutor's place" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "More about Home visit" })).toBeVisible();
+    await page.getByRole("button", { name: /^At the tutor's place/ }).click();
+    await pickSlot(page);
+    const late = page.getByRole("button", { name: "More about the late cancellation fee" });
+    await late.click();
+    await expect(page.getByText(/50% of the lesson price/).first()).toBeVisible();
+    const cooling = page.getByRole("button", { name: "More about the cooling-off period" });
+    // Tapping another tip opens it and closes the first.
+    await cooling.click();
+    await expect(cooling).toHaveAttribute("aria-expanded", "true");
+    await expect(late).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator(`#${await cooling.getAttribute("aria-controls")}`)).toContainText("14 days");
+    const axe = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
+    expect(axe.violations).toEqual([]);
   });
 
   test("approved KS3 child books a 6-week Saturday block for £102", async ({ page }) => {

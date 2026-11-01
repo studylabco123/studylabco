@@ -65,16 +65,21 @@ export function BundleStep({ sessions, onSelect }: { sessions: SessionOption[]; 
 
 export function BlockStep({
   sessions,
+  products,
   settings,
   initial,
   onSelect,
 }: {
   sessions: SessionOption[];
+  /** The block products for the child's level. */
+  products: GroupProduct[];
   settings: WizardSettings;
   initial?: BlockChoice;
   onSelect: (b: BlockChoice) => void;
 }) {
-  const [product, setProduct] = useState<GroupProduct>(initial?.product ?? "saturday");
+  const [product, setProduct] = useState<GroupProduct>(
+    initial && products.includes(initial.product) ? initial.product : (products[0] ?? "saturday"),
+  );
   const [weeks, setWeeks] = useState<BlockWeeks>(initial?.weeks ?? 6);
   const starts =
     product === "saturday"
@@ -89,7 +94,7 @@ export function BlockStep({
       <StepHeading>Choose your group block</StepHeading>
       <fieldset className="flex flex-col gap-2">
         <legend className="font-display font-medium">Which group?</legend>
-        {(["saturday", "sunday_bundle"] as const).map((p) => (
+        {products.map((p) => (
           <label key={p} className="flex min-h-11 items-center gap-3">
             <input type="radio" name="product" className={radio} checked={product === p} onChange={() => setProduct(p)} />
             {PRODUCT_LABEL[p]}

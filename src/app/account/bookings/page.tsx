@@ -27,7 +27,7 @@ export default async function BookingsPage({
         </Link>
         <h1 className="text-h1">Your bookings</h1>
       </div>
-      <CancelNotice cancelled={cancelled} fee={fee} />
+      <CancelNotice cancelled={cancelled} fee={fee} lateFeePercent={overview.lateFeePercent} />
       <section aria-labelledby="upcoming" className="flex flex-col gap-4">
         <h2 id="upcoming" className="text-h2">
           Upcoming

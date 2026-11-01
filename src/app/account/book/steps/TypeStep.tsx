@@ -2,27 +2,10 @@
 
 import Link from "next/link";
 import { IneligibleMessage } from "@/lib/booking/eligibility";
-import { formatPence } from "@/lib/format";
+import { typeInfo } from "@/lib/booking/info";
 import type { ChildOption, SessionOption, WizardSettings, WizardType } from "../types";
-import { groupPriceText } from "./labels";
+import { approvedTypes, typeDetails } from "./options";
 import { Choice, ChoiceList, StepHeading, TYPE_LABEL } from "./shared";
-
-function details(s: WizardSettings, sessions: SessionOption[]): Record<WizardType, string> {
-  const groupPrice = groupPriceText(sessions);
-  const homeVisit = s.lessonLocations.includes("home_visit");
-  const fromBlock = Math.min(s.blockPrices.saturday[6], s.blockPrices.sunday_bundle[6]);
-  return {
-    assessment: `60 minutes in person, with a 15-minute talk with you. ${formatPence(s.priceAssessmentPence)}${
-      homeVisit ? ` (home visit ${formatPence(s.priceAssessmentPence + s.travelFeePence)})` : ""
-    }.`,
-    one_to_one: `60 minutes, ${formatPence(s.priceOneToOnePence)}${
-      homeVisit ? ` (home visit ${formatPence(s.priceOneToOnePence + s.travelFeePence)})` : ""
-    }.`,
-    group: groupPrice ? `One 60-minute group session, ${groupPrice}.` : "One 60-minute group session.",
-    sunday_bundle: `Both Sunday group sessions on one day, ${formatPence(s.priceSundayBundlePence)}.`,
-    block: `6 or 10 weeks of Saturday group or Sunday bundle sessions, from ${formatPence(fromBlock)}.`,
-  };
-}
 
 export function TypeStep({
   child,
@@ -33,12 +16,12 @@ export function TypeStep({
 }: {
   child: ChildOption;
   settings: WizardSettings;
-  /** Open group sessions: each has its own price, so the group card quotes the lowest. */
+  /** Open group sessions at the child's level: each has its own price, so the group card quotes the lowest. */
   sessions: SessionOption[];
   familyMessage: string | null;
   onSelect: (t: WizardType) => void;
 }) {
-  const d = details(settings, sessions);
+  const d = typeDetails(child, settings, sessions);
   let notice: React.ReactNode = null;
   let types: WizardType[] = [];
   if (familyMessage) notice = familyMessage;
@@ -51,7 +34,7 @@ export function TypeStep({
         </Link>
       </>
     );
-  else if (child.approved) types = ["one_to_one", "group", "sunday_bundle", "block"];
+  else if (child.approved) types = approvedTypes(child.level);
   else if (child.assessmentBooked)
     notice = `${IneligibleMessage.assessment_already_booked} ${IneligibleMessage.not_approved}`;
   else types = ["assessment"];
@@ -63,7 +46,13 @@ export function TypeStep({
       {types.length ? (
         <ChoiceList label="Lesson types">
           {types.map((t) => (
-            <Choice key={t} title={TYPE_LABEL[t]} detail={d[t]} onSelect={() => onSelect(t)} />
+            <Choice
+              key={t}
+              title={TYPE_LABEL[t]}
+              detail={d[t]}
+              onSelect={() => onSelect(t)}
+              info={{ label: TYPE_LABEL[t], text: typeInfo(t, child.level, settings) }}
+            />
           ))}
         </ChoiceList>
       ) : null}

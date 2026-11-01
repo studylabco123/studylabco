@@ -422,6 +422,20 @@ describe("calendar feed and backup", () => {
     expect(entries.filter((e) => e.uid.startsWith("booking-"))).toHaveLength(2);
   });
 
+  test("feed titles for a KS3 child (no exam board) say KS3", async () => {
+    const p = await createUser({ fullName: "Kay Parent" });
+    const c = await createChild(p.id, { firstName: "Kay", schoolYear: 8, level: "KS3" });
+    const start = new Date(Date.now() + 3 * DAY).toISOString();
+    await db.query(
+      `insert into bookings (parent_id, child_id, kind, location, starts_at, ends_at, busy_until, status, price_pence)
+       values ($1,$2,'one_to_one','tutor_place',$3::timestamptz,$3::timestamptz + interval '1 hour',$3::timestamptz + interval '1 hour','confirmed',2000)`,
+      [p.id, c, start],
+    );
+    const titles = (await loadFeedEntries()).map((e) => e.title);
+    expect(titles).toContain("1-to-1 — Kay (Y8, KS3 Comb Sci) — Tutor's place");
+    expect(titles.join(" ")).not.toContain("null");
+  });
+
   test("backup holds every public table and is named by London date", async () => {
     const tables = (await rows<{ table_name: string }>("select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE'")).map((t) => t.table_name).sort();
     expect([...BACKUP_TABLES].sort()).toEqual(tables);

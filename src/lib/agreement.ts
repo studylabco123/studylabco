@@ -16,7 +16,7 @@ export const AGREEMENT_TEXT = {
       heading: "Bookings, payment and the 48-hour cancellation policy",
       paragraphs: [
         "Lessons are booked and paid for through your account, as set out in our Terms and Refund Policy.",
-        "If you need to cancel or move a lesson, please let us know at least 48 hours before it starts and there is nothing to pay. If a lesson is cancelled with less than 48 hours' notice, or your child does not attend, a late cancellation fee applies, equal to the price of that lesson.",
+        "If you need to cancel or move a lesson, please let us know at least 48 hours before it starts and there is nothing to pay. If a lesson is cancelled with less than 48 hours' notice, or your child does not attend, a late cancellation fee of {lateFeePercent}% of the lesson price applies.",
       ],
     },
     {
@@ -54,6 +54,9 @@ export const AGREEMENT_TEXT = {
   ] satisfies AgreementSection[],
 };
 
-export function agreementSections(onlineEnabled: boolean): AgreementSection[] {
-  return AGREEMENT_TEXT.sections.filter((s) => !s.onlineOnly || onlineEnabled);
+/** The sections to show, with the late cancellation fee filled in from Settings. */
+export function agreementSections(s: { onlineEnabled: boolean; lateFeePercent: number }): AgreementSection[] {
+  return AGREEMENT_TEXT.sections
+    .filter((x) => !x.onlineOnly || s.onlineEnabled)
+    .map((x) => ({ ...x, paragraphs: x.paragraphs.map((p) => p.replaceAll("{lateFeePercent}", String(s.lateFeePercent))) }));
 }

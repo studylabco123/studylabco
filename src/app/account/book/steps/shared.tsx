@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { cn } from "@/lib/cn";
 
 export { LOCATION_LABEL, londonDay, londonTime, londonWhen, PRODUCT_LABEL, TYPE_LABEL } from "./labels";
@@ -25,6 +26,7 @@ export function Choice({
   onSelect,
   disabled,
   label,
+  info,
 }: {
   title: ReactNode;
   detail?: ReactNode;
@@ -32,16 +34,18 @@ export function Choice({
   disabled?: boolean;
   /** Accessible name when the visible title alone is ambiguous. */
   label?: string;
+  /** An "i" button beside the choice (outside it, so the choice's own name is unchanged). */
+  info?: { label: string; text: ReactNode };
 }) {
   return (
-    <li>
+    <li className="flex flex-wrap items-center gap-1">
       <button
         type="button"
         onClick={onSelect}
         disabled={disabled}
         aria-label={label}
         className={cn(
-          "group flex min-h-14 w-full items-center gap-4 rounded-card border-2 border-sky-200 bg-white px-5 py-4 text-left",
+          "group flex min-h-14 w-full min-w-0 flex-1 items-center gap-4 rounded-card border-2 border-sky-200 bg-white px-5 py-4 text-left",
           "transition-[border-color,background-color,transform] duration-150 ease-out hover:border-navy-900 hover:bg-sky-50",
           "motion-safe:active:scale-[0.99] motion-safe:active:duration-100",
           "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-sky-200 disabled:hover:bg-white",
@@ -65,6 +69,7 @@ export function Choice({
           <path d="M8 5l5 5-5 5" />
         </svg>
       </button>
+      {info ? <InfoTip label={info.label} text={info.text} /> : null}
     </li>
   );
 }

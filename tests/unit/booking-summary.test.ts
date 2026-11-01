@@ -42,7 +42,7 @@ describe("booking summary", () => {
   });
 
   test("a single group seat shows the session's own price (R17)", () => {
-    const session = { id: "s1", title: "Wed Group", startsAt: "2026-11-04T17:30:00.000Z", endsAt: "2026-11-04T18:30:00.000Z", seatsLeft: 5, pricePence: 1250, venue: null, product: null };
+    const session = { id: "s1", title: "Wed Group", startsAt: "2026-11-04T17:30:00.000Z", endsAt: "2026-11-04T18:30:00.000Z", seatsLeft: 5, pricePence: 1250, venue: null, product: null, level: "GCSE" as const };
     const s = summarise({ childId: "c1", type: "group", sessionId: "s1" }, { ...data, sessions: [session] });
     expect(s?.totalPence).toBe(1250);
     expect(s?.lines).toEqual([{ label: "Group session", pence: 1250 }]);
@@ -90,6 +90,7 @@ describe("groupPriceText", () => {
     pricePence,
     venue: null,
     product: "saturday" as const,
+    level: "KS3" as const,
   });
   test("quotes each session's own price, not the global default", () => {
     expect(groupPriceText([session(1250), session(1250)])).toBe("£12.50");

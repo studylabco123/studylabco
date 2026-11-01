@@ -4,14 +4,17 @@ import { useState, useTransition } from "react";
 import { FormError } from "@/components/auth/AuthCard";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { InfoTip } from "@/components/ui/InfoTip";
+import { COOLING_OFF_INFO, lateFeeInfo } from "@/lib/booking/info";
 import { COOLING_OFF_TEXT, BookingFailureMessage } from "@/lib/booking/results";
 import { formatPence } from "@/lib/format";
 import { confirmBooking } from "../actions";
-import type { ConfirmPayload } from "../types";
+import type { ConfirmPayload, WizardSettings } from "../types";
 import { londonWhen, StepHeading } from "./shared";
 import { cancellationTerms, type Summary } from "./summary";
 
-export function ReviewStep({ summary, noticeHours }: { summary: Summary; noticeHours: number }) {
+export function ReviewStep({ summary, settings }: { summary: Summary; settings: WizardSettings }) {
+  const noticeHours = settings.cancellationNoticeHours;
   const [coolingOff, setCoolingOff] = useState(false);
   const [tickError, setTickError] = useState<string>();
   const [error, setError] = useState<string>();
@@ -80,27 +83,34 @@ export function ReviewStep({ summary, noticeHours }: { summary: Summary; noticeH
       <div className="flex max-w-prose flex-col gap-2">
         <h3 className="text-h3">Cancellation</h3>
         <p>{terms.rule}</p>
-        {terms.deadline ? (
-          <p>
-            Free cancellation until {londonWhen(terms.deadline)}. After that a late cancellation fee of{" "}
-            {formatPence(summary.feePence)} applies.
-          </p>
-        ) : (
-          <p>{terms.coolingOffCovers}</p>
-        )}
+        <div className="flex flex-wrap items-start gap-1">
+          {terms.deadline ? (
+            <p className="flex-1 pt-2">
+              Free cancellation until {londonWhen(terms.deadline)}. After that a late cancellation fee of{" "}
+              {formatPence(summary.feePence)} applies.
+            </p>
+          ) : (
+            <p className="flex-1 pt-2">{terms.coolingOffCovers}</p>
+          )}
+          <InfoTip label="the late cancellation fee" text={lateFeeInfo(settings)} />
+        </div>
         {summary.pendingApproval ? (
           <p>Home visits are confirmed once the tutor approves them. We will email you either way.</p>
         ) : null}
         <p>You pay by bank transfer or cash before the lesson. We show the payment details after you confirm.</p>
       </div>
 
-      <Checkbox
-        name="cooling_off"
-        checked={coolingOff}
-        onChange={(e) => setCoolingOff(e.target.checked)}
-        error={tickError}
-        label={COOLING_OFF_TEXT}
-      />
+      <div className="flex max-w-prose flex-wrap items-start gap-1">
+        <Checkbox
+          name="cooling_off"
+          checked={coolingOff}
+          onChange={(e) => setCoolingOff(e.target.checked)}
+          error={tickError}
+          label={COOLING_OFF_TEXT}
+          className="flex-1 pt-2"
+        />
+        <InfoTip label="the cooling-off period" text={COOLING_OFF_INFO} />
+      </div>
       <div>
         <Button size="lg" onClick={confirm} disabled={pending} aria-disabled={pending}>
           {pending ? "Booking…" : "Confirm booking"}

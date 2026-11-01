@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { IneligibleMessage } from "@/lib/booking/eligibility";
+import { locationInfo } from "@/lib/booking/info";
 import { isAllowedPostcode } from "@/lib/booking/postcode";
 import { formatPence } from "@/lib/format";
 import type { LocationKind } from "@/lib/types";
@@ -52,6 +53,7 @@ export function LocationStep({
             key={l}
             title={LOCATION_LABEL[l]}
             detail={detail[l]}
+            info={{ label: LOCATION_LABEL[l] ?? l, text: locationInfo(l, settings) }}
             onSelect={() => (l === "home_visit" ? setHomeForm(true) : onDone({ location: l }))}
           />
         ))}

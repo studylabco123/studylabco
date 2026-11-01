@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { loadAccountOverview } from "@/lib/booking/account-data";
+import { CREDIT_INFO } from "@/lib/booking/info";
 import { formatLondon, formatPence } from "@/lib/format";
 import { createServerClient } from "@/lib/supabase/server";
 import { BookingList } from "./bookings/BookingList";
@@ -29,7 +31,7 @@ export default async function AccountPage({
   return (
     <div className="mx-auto flex max-w-content flex-col gap-8 px-5 py-12 sm:px-8">
       <h1 className="text-h1">Welcome, {name}</h1>
-      <CancelNotice cancelled={cancelled} fee={fee} />
+      <CancelNotice cancelled={cancelled} fee={fee} lateFeePercent={o.lateFeePercent} />
 
       <div>
         {o.isBlocked ? (
@@ -60,9 +62,12 @@ export default async function AccountPage({
       {o.creditPence > 0 ? (
         <Card tone="sky" className="flex flex-col gap-2">
           <h2 className="text-h2">Credit</h2>
-          <p data-testid="credit">
-            You have <strong>{formatPence(o.creditPence)}</strong> credit — the tutor will apply it to a future lesson.
-          </p>
+          <div className="flex flex-wrap items-start gap-1">
+            <p data-testid="credit" className="flex-1 pt-2">
+              You have <strong>{formatPence(o.creditPence)}</strong> credit — the tutor will apply it to a future lesson.
+            </p>
+            <InfoTip label="credit" text={CREDIT_INFO} />
+          </div>
         </Card>
       ) : null}
 
@@ -75,6 +80,7 @@ export default async function AccountPage({
             {o.children.map((ch) => (
               <Card as="li" key={ch.id} className="flex flex-wrap items-center gap-3">
                 <span className="text-h3">{ch.name}</span>
+                <span className="text-small text-navy-600">{ch.levelLine}</span>
                 {ch.hasAgreement ? (
                   <Badge tone="success">Agreement signed</Badge>
                 ) : (

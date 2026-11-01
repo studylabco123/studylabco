@@ -75,7 +75,7 @@ export const IneligibleMessage: Record<IneligibleReason, string> = {
   account_blocked: "Please contact Study Lab Co.",
   money_owed: "You have an unpaid balance. Please pay it before booking again.",
   agreement_missing: "Please read and accept the booking agreement first.",
-  assessment_required: "Each child starts with a £10 Assessment Lesson.",
+  assessment_required: "Each child starts with an Assessment Lesson.",
   not_approved: "Your child's Assessment Lesson needs to happen before booking this.",
   assessment_in_person_only: "The Assessment Lesson takes place in person.",
   online_disabled: "That lesson type isn't available right now.",

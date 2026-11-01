@@ -238,8 +238,10 @@ test.describe("admin operations", () => {
     await seedBooking(parent.id, childId, { daysAhead: -4, status: "no_show", price: 2500, travel: 500 });
     await adminLogin(page, await createAdmin());
 
+    await seedChild(parent.id, { firstName: `Young${parent.tag}`, ks3: true });
     await page.goto(`/admin/families/${parent.id}`);
-    await expect(page.getByText("Gran Parent")).toBeVisible();
+    await expect(page.getByTestId("child-level")).toHaveText(["Year 10, GCSE, AQA Higher", "Year 8, KS3"]);
+    await expect(page.getByText("Gran Parent").first()).toBeVisible();
     await expect(page.getByText(/inhaler in bag/)).toBeVisible();
     await expect(page.getByText("Dyslexia")).toBeVisible();
     await expect(page.getByTestId("owed")).toHaveText("£12.50");

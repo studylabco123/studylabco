@@ -25,6 +25,8 @@ export interface SessionOption {
   pricePence: number;
   venue: string | null;
   product: GroupProduct | null;
+  /** KS3 or GCSE: a child only sees sessions at their own level. */
+  level: Level;
 }
 
 /** The public settings the wizard needs (no secrets, no switched-off options). */

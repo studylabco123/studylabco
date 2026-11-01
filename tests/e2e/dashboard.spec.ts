@@ -77,6 +77,9 @@ test.describe("dashboard", () => {
     expect(credit).toEqual([{ kind: "credit", amount_pence: 3000 }]);
     await page.goto("/account");
     await expect(page.getByTestId("credit")).toHaveText("You have £30 credit — the tutor will apply it to a future lesson.");
+    const creditTip = page.getByRole("button", { name: "More about credit" });
+    await creditTip.click();
+    await expect(page.locator(`#${await creditTip.getAttribute("aria-controls")}`)).toContainText(/refund it to your card/);
     await page.goto("/account/bookings");
     await expect(page.getByText("Credited", { exact: true })).toBeVisible();
   });

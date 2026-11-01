@@ -1,8 +1,9 @@
 import "server-only";
+import { childLevelLine } from "@/lib/children/summary";
 import { getSettings } from "@/lib/settings";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
-import type { Booking, Settings } from "@/lib/types";
+import type { Booking, Level, Settings } from "@/lib/types";
 import { cancellationDecision, cancellationOutcome } from "./cancellation";
 import { lateFeeFor } from "./fees";
 import { amountOwedPence, creditBalancePence } from "./owed";
@@ -29,6 +30,8 @@ export interface BookingView {
 export interface ChildOverview {
   id: string;
   name: string;
+  /** "Year 8, KS3" or "Year 11, GCSE, AQA Higher". */
+  levelLine: string;
   hasAgreement: boolean;
   approved: boolean;
 }
@@ -49,6 +52,8 @@ export interface AccountOverview {
   /** Credit the tutor can apply to a future lesson (Ruling R23). */
   creditPence: number;
   children: ChildOverview[];
+  /** The late cancellation fee as a percentage of the lesson price (Settings). */
+  lateFeePercent: number;
 }
 
 const KIND_TITLE = { assessment: "Assessment Lesson", one_to_one: "1-to-1 lesson", group: "Group session" } as const;
@@ -62,7 +67,7 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
   const [profile, bookings, children, settings, credit] = await Promise.all([
     c.from("profiles").select("is_blocked").eq("id", parentId).single(),
     c.from("bookings").select("*").eq("parent_id", parentId).order("starts_at"),
-    c.from("children").select("id, first_name, last_name, agreements(id), student_status(approved_at)").eq("parent_id", parentId).order("created_at"),
+    c.from("children").select("id, first_name, last_name, school_year, level, exam_board, tier, agreements(id), student_status(approved_at)").eq("parent_id", parentId).order("created_at"),
     getSettings(),
     c.from("ledger").select("kind, amount_pence").eq("parent_id", parentId).in("kind", ["credit", "credit_applied"]),
   ]);
@@ -75,6 +80,10 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
       id: string;
       first_name: string;
       last_name: string;
+      school_year: number;
+      level: Level;
+      exam_board: string | null;
+      tier: string | null;
       agreements: { id: string }[] | { id: string } | null;
       student_status: { approved_at: string | null }[] | { approved_at: string | null } | null;
     };
@@ -83,6 +92,7 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
     return {
       id: row.id,
       name: `${row.first_name} ${row.last_name}`,
+      levelLine: childLevelLine({ schoolYear: row.school_year, level: row.level, examBoard: row.exam_board, tier: row.tier }),
       hasAgreement: Boolean(first(row.agreements)),
       approved: Boolean(first(row.student_status)?.approved_at),
     };
@@ -155,6 +165,7 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
       parentId,
     ),
     children: childList,
+    lateFeePercent: settings.lateFeePercent,
   };
 }
 

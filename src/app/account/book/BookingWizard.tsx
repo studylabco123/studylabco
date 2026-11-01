@@ -8,6 +8,7 @@ import { LocationStep } from "./steps/LocationStep";
 import { ReviewStep } from "./steps/ReviewStep";
 import { SlotStep } from "./steps/SlotStep";
 import { LOCATION_LABEL, TYPE_LABEL } from "./steps/labels";
+import { blockProducts, sessionsForLevel } from "./steps/options";
 import { summarise } from "./steps/summary";
 import { TypeStep } from "./steps/TypeStep";
 import type { Selection, WizardData } from "./types";
@@ -27,6 +28,8 @@ export function BookingWizard({ data }: { data: WizardData }) {
   const back = () => setHistory((h) => (h.length > 1 ? h.slice(0, -1) : h));
 
   const child = data.children.find((c) => c.id === sel.childId);
+  // A child only ever sees group sessions at their own level (KS3 or GCSE).
+  const sessions = child ? sessionsForLevel(data.sessions, child.level) : [];
   const lesson = sel.type === "assessment" || sel.type === "one_to_one" ? sel.type : null;
   const summary = step === "review" ? summarise(sel, data) : null;
   // What has been chosen on the steps before this one (the review step lists everything itself).
@@ -58,7 +61,7 @@ export function BookingWizard({ data }: { data: WizardData }) {
         <TypeStep
           child={child}
           settings={data.settings}
-          sessions={data.sessions}
+          sessions={sessions}
           familyMessage={data.familyMessage}
           onSelect={(type) =>
             go(type === "assessment" || type === "one_to_one" ? "location" : "session", {
@@ -86,14 +89,15 @@ export function BookingWizard({ data }: { data: WizardData }) {
       ) : null}
 
       {step === "session" && sel.type === "group" ? (
-        <GroupSessionStep sessions={data.sessions} onSelect={(sessionId) => go("review", { sessionId })} />
+        <GroupSessionStep sessions={sessions} onSelect={(sessionId) => go("review", { sessionId })} />
       ) : null}
       {step === "session" && sel.type === "sunday_bundle" ? (
-        <BundleStep sessions={data.sessions} onSelect={(bundleDate) => go("review", { bundleDate })} />
+        <BundleStep sessions={sessions} onSelect={(bundleDate) => go("review", { bundleDate })} />
       ) : null}
       {step === "session" && sel.type === "block" ? (
         <BlockStep
-          sessions={data.sessions}
+          sessions={sessions}
+          products={child ? blockProducts(sessions, child.level) : []}
           settings={data.settings}
           initial={sel.block}
           onSelect={(block) => go("review", { block })}
@@ -101,7 +105,7 @@ export function BookingWizard({ data }: { data: WizardData }) {
       ) : null}
 
       {step === "review" && summary ? (
-        <ReviewStep summary={summary} noticeHours={data.settings.cancellationNoticeHours} />
+        <ReviewStep summary={summary} settings={data.settings} />
       ) : null}
     </div>
   );

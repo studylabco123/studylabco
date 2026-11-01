@@ -58,6 +58,7 @@ async function groupSessions(settings: Settings, now: Date): Promise<SessionOpti
       pricePence: s.pricePence,
       venue: s.venue,
       product: s.seriesId ? (productOf.get(s.seriesId) ?? null) : null,
+      level: s.level,
     }));
 }
 

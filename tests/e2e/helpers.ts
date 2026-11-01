@@ -215,14 +215,14 @@ export async function createAdmin(): Promise<Admin> {
 }
 
 /** Year 10 GCSE (default) or Year 8 KS3 fields for a seeded child. */
-function childLevelFields(ks3?: boolean) {
+function childLevelFields(ks3?: boolean, schoolYear?: number) {
   return ks3
-    ? { school_year: 8, level: "KS3", exam_board: null, tier: null }
-    : { school_year: 10, level: "GCSE", exam_board: "AQA", tier: "Higher" };
+    ? { school_year: schoolYear ?? 8, level: "KS3", exam_board: null, tier: null }
+    : { school_year: schoolYear ?? 10, level: "GCSE", exam_board: "AQA", tier: "Higher" };
 }
 
 /** A Year 10 child for `parentId` whose assessment is done and who is approved for 1:1 / group lessons. */
-export async function seedApprovedChild(parentId: string, firstName = "Alex", ks3 = false): Promise<string> {
+export async function seedApprovedChild(parentId: string, firstName = "Alex", ks3 = false, schoolYear?: number): Promise<string> {
   const service = serviceClient();
   const child = await service
     .from("children")
@@ -230,7 +230,7 @@ export async function seedApprovedChild(parentId: string, firstName = "Alex", ks
       parent_id: parentId,
       first_name: firstName,
       last_name: "Parent",
-      ...childLevelFields(ks3),
+      ...childLevelFields(ks3, schoolYear),
       subjects: ["Combined Science"],
     })
     .select("id")
@@ -260,11 +260,11 @@ export async function consentsFor(profileId: string) {
  */
 export async function seedChild(
   parentId: string,
-  opts: { firstName?: string; approved?: boolean; agreement?: boolean; ks3?: boolean } = {},
+  opts: { firstName?: string; approved?: boolean; agreement?: boolean; ks3?: boolean; schoolYear?: number } = {},
 ): Promise<string> {
   const service = serviceClient();
   const childId = opts.approved
-    ? await seedApprovedChild(parentId, opts.firstName ?? "Sam", opts.ks3)
+    ? await seedApprovedChild(parentId, opts.firstName ?? "Sam", opts.ks3, opts.schoolYear)
     : await (async () => {
         const { data, error } = await service
           .from("children")
@@ -272,7 +272,7 @@ export async function seedChild(
             parent_id: parentId,
             first_name: opts.firstName ?? "Sam",
             last_name: "Parent",
-            ...childLevelFields(opts.ks3),
+            ...childLevelFields(opts.ks3, opts.schoolYear),
             subjects: ["Combined Science"],
           })
           .select("id")

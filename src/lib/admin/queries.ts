@@ -5,7 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
 import { addDays, londonDateOf, londonDateTime } from "@/lib/time";
-import type { Booking, LedgerEntry, Settings } from "@/lib/types";
+import type { Booking, LedgerEntry, Level, Settings } from "@/lib/types";
 
 /** Read side of the admin Today, Bookings and Families pages (service client; callers must have passed requireAdmin()). */
 
@@ -400,8 +400,10 @@ export interface FamilyChild {
   name: string;
   firstName: string;
   schoolYear: number;
-  examBoard: string;
-  tier: string;
+  level: Level;
+  /** Null for KS3 children. */
+  examBoard: string | null;
+  tier: string | null;
   subjects: string[];
   targetGrade: string | null;
   agreement: {
@@ -470,8 +472,9 @@ export async function loadFamily(parentId: string, now: Date = new Date()): Prom
       name: `${k.first_name} ${k.last_name}`,
       firstName: k.first_name as string,
       schoolYear: k.school_year as number,
-      examBoard: k.exam_board as string,
-      tier: k.tier as string,
+      level: k.level as Level,
+      examBoard: (k.exam_board as string | null) ?? null,
+      tier: (k.tier as string | null) ?? null,
       subjects: k.subjects as string[],
       targetGrade: (k.target_grade as string | null) ?? null,
       agreement: a

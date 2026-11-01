@@ -82,7 +82,8 @@ describe("checkEligibility", () => {
 describe("IneligibleMessage", () => {
   it("has exact copy and avoids banned words", () => {
     expect(IneligibleMessage.postcode_not_allowed).toBe("We only visit BB1 and BB2 postcodes.");
-    expect(IneligibleMessage.assessment_required).toBe("Each child starts with a £10 Assessment Lesson.");
+    expect(IneligibleMessage.assessment_required).toBe("Each child starts with an Assessment Lesson.");
+    expect(IneligibleMessage.assessment_required).not.toMatch(/£/); // KS3 (Years 7-8) and GCSE assessments differ in price
     expect(IneligibleMessage.money_owed).toBe("You have an unpaid balance. Please pay it before booking again.");
     expect(IneligibleMessage.account_blocked).toBe("Please contact Study Lab Co.");
     expect(IneligibleMessage.assessment_already_booked).toBe("This child already has an Assessment Lesson booked.");

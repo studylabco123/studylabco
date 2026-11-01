@@ -7,7 +7,8 @@ import { FormError } from "@/components/auth/AuthCard";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Field, SelectField } from "@/components/ui/Field";
-import { EXAM_BOARDS, SUBJECTS, TARGET_GRADES, TIERS } from "@/lib/children/validation";
+import { SUBJECTS, TARGET_GRADES } from "@/lib/children/validation";
+import { LevelFields } from "./LevelFields";
 
 export function ChildForm() {
   const [state, action, pending] = useActionState<ChildState, FormData>(addChild, {});
@@ -18,33 +19,7 @@ export function ChildForm() {
       {state.formError ? <FormError>{state.formError}</FormError> : null}
       <Field label="First name" name="first_name" defaultValue={v?.first_name} error={e.first_name} required />
       <Field label="Last name" name="last_name" defaultValue={v?.last_name} error={e.last_name} required />
-      <SelectField label="School year" name="school_year" defaultValue={v?.school_year ?? ""} error={e.school_year} required>
-        <option value="" disabled>
-          Choose a year
-        </option>
-        <option value="10">Year 10</option>
-        <option value="11">Year 11</option>
-      </SelectField>
-      <SelectField label="Exam board" name="exam_board" defaultValue={v?.exam_board ?? ""} error={e.exam_board} required>
-        <option value="" disabled>
-          Choose an exam board
-        </option>
-        {EXAM_BOARDS.map((b) => (
-          <option key={b} value={b}>
-            {b}
-          </option>
-        ))}
-      </SelectField>
-      <SelectField label="Tier" name="tier" defaultValue={v?.tier ?? ""} error={e.tier} required>
-        <option value="" disabled>
-          Choose a tier
-        </option>
-        {TIERS.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </SelectField>
+      <LevelFields initial={v} errors={e} />
       <fieldset className="flex flex-col gap-3" aria-describedby={e.subjects ? "subjects-error" : undefined}>
         <legend className="font-display text-small font-medium">Subjects</legend>
         {SUBJECTS.map((s) => (

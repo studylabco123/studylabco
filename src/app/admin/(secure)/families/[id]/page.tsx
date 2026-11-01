@@ -10,6 +10,7 @@ import { KIND_LABEL, LOCATION_LABEL, PAYMENT_LABEL, statusLabel } from "@/lib/ad
 import { mailtoHref, telHref, whatsappHref } from "@/lib/admin/phone";
 import { loadFamily, type FamilyChild } from "@/lib/admin/queries";
 import { seatDuePence, willBeOwed } from "@/lib/booking/payment-view";
+import { childLevelLine } from "@/lib/children/summary";
 import { formatLondon, formatPence } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Family" };
@@ -125,7 +126,7 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
                   <Badge tone={status.tone}>{status.text}</Badge>
                 </div>
                 <p>
-                  Year {c.schoolYear}, {c.examBoard} {c.tier}: {c.subjects.join(", ")}
+                  <span data-testid="child-level">{childLevelLine(c)}</span>: {c.subjects.join(", ")}
                   {c.targetGrade ? ` · target grade ${c.targetGrade}` : ""}
                 </p>
 

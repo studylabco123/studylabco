@@ -1,8 +1,10 @@
 import "server-only";
 import { LOCATION_LABEL, KIND_LABEL } from "@/lib/admin/labels";
 import type { CalendarEntry } from "@/lib/calendar/ics";
+import { childFeedLabel } from "@/lib/children/summary";
 import { getSettings } from "@/lib/settings";
 import { createServiceClient } from "@/lib/supabase/service";
+import type { Level } from "@/lib/types";
 
 /** What the private calendar feed lists: -30 .. +120 days around `now`. */
 export const FEED_PAST_DAYS = -30;
@@ -22,7 +24,7 @@ interface BookingRow {
   location: "tutor_place" | "home_visit" | "online" | "group_venue";
   starts_at: string;
   ends_at: string;
-  children: { first_name: string; school_year: number; exam_board: string; subjects: string[] } | null;
+  children: { first_name: string; school_year: number; level: Level; exam_board: string | null; subjects: string[] } | null;
 }
 
 interface SessionRow {
@@ -35,7 +37,7 @@ interface SessionRow {
 }
 
 /**
- * Titles carry first name, year, board and subject only. Medical and SEN
+ * Titles carry first name, year, board (or KS3) and subject only. Medical and SEN
  * information, and any home address, are deliberately never read here.
  */
 export async function loadFeedEntries(now: Date = new Date()): Promise<CalendarEntry[]> {
@@ -46,7 +48,7 @@ export async function loadFeedEntries(now: Date = new Date()): Promise<CalendarE
   const [bookings, sessions, settings] = await Promise.all([
     c
       .from("bookings")
-      .select("id, kind, location, starts_at, ends_at, children(first_name, school_year, exam_board, subjects)")
+      .select("id, kind, location, starts_at, ends_at, children(first_name, school_year, level, exam_board, subjects)")
       .neq("kind", "group")
       .in("status", ["pending", "confirmed", "attended", "no_show"])
       .gte("starts_at", from)
@@ -82,7 +84,7 @@ export async function loadFeedEntries(now: Date = new Date()): Promise<CalendarE
   for (const b of bookings.data as unknown as BookingRow[]) {
     const ch = b.children;
     const who = ch
-      ? `${ch.first_name} (Y${ch.school_year}, ${ch.exam_board} ${ch.subjects.map((s) => SUBJECT_SHORT[s] ?? s).join("/")})`
+      ? `${ch.first_name} (${childFeedLabel({ schoolYear: ch.school_year, level: ch.level, examBoard: ch.exam_board })} ${ch.subjects.map((s) => SUBJECT_SHORT[s] ?? s).join("/")})`
       : "Student";
     const where = LOCATION_LABEL[b.location];
     entries.push({

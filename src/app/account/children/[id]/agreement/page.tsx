@@ -36,7 +36,7 @@ export default async function AgreementPage({ params }: { params: Promise<{ id: 
         <p className="text-lead">For {childName}</p>
       </div>
       <p>{AGREEMENT_TEXT.intro}</p>
-      {agreementSections(settings.onlineEnabled).map((s) => (
+      {agreementSections(settings).map((s) => (
         <section key={s.id} className="flex max-w-prose flex-col gap-2">
           <h2 className="text-h3">{s.heading}</h2>
           {s.paragraphs.map((p) => (
