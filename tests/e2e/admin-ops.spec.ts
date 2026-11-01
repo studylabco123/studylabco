@@ -251,6 +251,28 @@ test.describe("admin operations", () => {
     await expect(page.getByRole("list", { name: "Booking history" }).getByText("No-show")).toBeVisible();
   });
 
+  test("family credit is shown and pays an upcoming lesson without a payment row (R23)", async ({ page }) => {
+    const parent = await seedParent();
+    cleanup.push(parent.id);
+    const childId = await seedChild(parent.id, { approved: true, firstName: `Kid${parent.tag}` });
+    const today = londonDateOf(new Date());
+    await serviceClient().from("ledger").insert({ parent_id: parent.id, kind: "credit", amount_pence: 2500, occurred_on: today, note: "test" });
+    const next = await seedBooking(parent.id, childId, { daysAhead: 9, price: 2500 });
+    await adminLogin(page, await createAdmin());
+
+    await page.goto(`/admin/families/${parent.id}`);
+    await expect(page.getByTestId("credit")).toHaveText("£25");
+    await page.getByRole("button", { name: `Pay from credit for ${next.payment_reference}` }).click();
+    await expect(page.getByTestId("credit")).toHaveText("£0");
+    const { data: b } = await serviceClient().from("bookings").select("payment_status").eq("id", next.id).single();
+    expect(b?.payment_status).toBe("paid");
+    const { data: led } = await serviceClient().from("ledger").select("kind, amount_pence").eq("parent_id", parent.id).order("created_at");
+    expect(led).toEqual([
+      { kind: "credit", amount_pence: 2500 },
+      { kind: "credit_applied", amount_pence: 2500 },
+    ]);
+  });
+
   test("tutor cancel with refund, and waive fee", async ({ page }) => {
     const parent = await seedParent();
     cleanup.push(parent.id);

@@ -9,9 +9,11 @@ import {
 } from "@/lib/email/notifications";
 import { blocksNeedingPaymentReminder, dueReminders, expiredBlockHolds, type BlockHoldRow } from "@/lib/email/reminders";
 import { sendEmail } from "@/lib/email/send";
+import { blockDuePence } from "@/lib/booking/payment-view";
 import { formatPence } from "@/lib/format";
 import { createServiceClient } from "@/lib/supabase/service";
 import { addDays, londonDateOf } from "@/lib/time";
+import type { BookingStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,7 @@ function authorised(request: Request): boolean {
 interface BlockRow extends BlockHoldRow {
   parentId: string | null;
   reference: string;
+  /** The block's amount due: its price less weeks cancelled for free. */
   pricePence: number;
   weeks: number;
 }
@@ -62,22 +65,22 @@ export async function GET(request: Request): Promise<Response> {
     }
   };
 
-  // Reminders: confirmed bookings starting in the next 96 hours.
+  // Reminders: confirmed bookings starting within the notice period (from settings) plus 48 hours.
   await guard("reminders", async () => {
+    const priv = await bankDetails();
     const { data, error } = await c
       .from("bookings")
       .select("id")
       .eq("status", "confirmed")
       .gt("starts_at", now.toISOString())
-      .lte("starts_at", new Date(now.getTime() + 96 * 3600_000).toISOString());
+      .lte("starts_at", new Date(now.getTime() + (Math.max(priv.noticeHours, 0) + 48) * 3600_000).toISOString());
     if (error) throw new Error(error.message);
     const bookings = await loadBookings(c, (data as { id: string }[]).map((r) => r.id));
-    const due = dueReminders(bookings, now);
+    const due = dueReminders(bookings, now, priv.noticeHours);
     if (due.length === 0) return;
     const byId = new Map(bookings.map((b) => [b.id, b]));
     const lines = await buildLines(c, bookings);
     const people = await loadPeople(c, bookings.map((b) => b.parentId));
-    const priv = await bankDetails();
     for (const r of due) {
       await guard(`${r.template} ${r.bookingId}`, async () => {
         const b = byId.get(r.bookingId)!;
@@ -106,6 +109,16 @@ export async function GET(request: Request): Promise<Response> {
       .select("id, status, created_at, hold_expires_at, parent_id, payment_reference, price_pence, weeks")
       .eq("status", "held");
     if (error) throw new Error(error.message);
+    // Weeks cancelled for free come off what a held block owes (review I3).
+    const ids = (data as { id: string }[]).map((r) => r.id);
+    const seats = ids.length
+      ? await c.from("bookings").select("block_booking_id, status, price_pence").in("block_booking_id", ids)
+      : { data: [], error: null };
+    if (seats.error) throw new Error(seats.error.message);
+    const seatsOf = (id: string) =>
+      (seats.data as { block_booking_id: string; status: string; price_pence: number }[])
+        .filter((r) => r.block_booking_id === id)
+        .map((r) => ({ status: r.status as BookingStatus, pricePence: r.price_pence }));
     const blocks: BlockRow[] = (
       data as {
         id: string;
@@ -124,7 +137,7 @@ export async function GET(request: Request): Promise<Response> {
       holdExpiresAt: r.hold_expires_at ? new Date(r.hold_expires_at) : null,
       parentId: r.parent_id,
       reference: r.payment_reference,
-      pricePence: r.price_pence,
+      pricePence: blockDuePence(r.price_pence, seatsOf(r.id)),
       weeks: r.weeks,
     }));
     const remind = blocksNeedingPaymentReminder(blocks, now);

@@ -9,6 +9,7 @@ import { getPrivateSettings, getSettings } from "@/lib/settings";
 import { mapBooking, mapGroupSession, type BookingRow, type GroupSessionRow } from "@/lib/supabase/mappers";
 import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { bookingPaymentSummary, paymentBadge } from "@/lib/booking/payment-view";
 import type { Booking, BookingStatus } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Your booking" };
@@ -46,11 +47,16 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
 
   // The other seats that belong with this one (Sunday bundle or block).
   let related: Booking[] = [booking];
-  let block: { payment_reference: string; price_pence: number; weeks: number; hold_expires_at: string | null } | null =
-    null;
+  let block: {
+    payment_reference: string;
+    price_pence: number;
+    weeks: number;
+    hold_expires_at: string | null;
+    status: "held" | "paid" | "released";
+  } | null = null;
   if (booking.blockBookingId) {
     const [b, seats] = await Promise.all([
-      c.from("block_bookings").select("payment_reference, price_pence, weeks, hold_expires_at").eq("id", booking.blockBookingId).single(),
+      c.from("block_bookings").select("payment_reference, price_pence, weeks, hold_expires_at, status").eq("id", booking.blockBookingId).single(),
       c.from("bookings").select("*").eq("block_booking_id", booking.blockBookingId).order("starts_at"),
     ]);
     block = b.data;
@@ -70,10 +76,20 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
   ]);
   const group = session?.data ? mapGroupSession(session.data as GroupSessionRow) : null;
 
-  const reference = block?.payment_reference ?? booking.paymentReference;
-  const total = block ? block.price_pence : related.reduce((sum, b) => sum + b.pricePence + b.travelFeePence, 0);
+  // A released block's lessons are paid one by one with their own reference (Ruling R16).
+  const reference = block && block.status !== "released" ? block.payment_reference : booking.paymentReference;
+  const money = bookingPaymentSummary(related, block ? { pricePence: block.price_pence, status: block.status } : null);
   const status = statusLabel(booking);
-  const live = booking.status !== "declined" && booking.status !== "cancelled";
+  const nowMs = new Date().getTime();
+  // Owed for a lesson that has happened or was cancelled late: no "before the lesson".
+  const afterTheLesson = related.some((b) => b.status === "late_cancelled" || b.startsAt.getTime() <= nowMs);
+  // A held block is paid as a whole, so an unpaid week's badge follows the block's amount due.
+  const payment =
+    block?.status === "held" && booking.paymentStatus === "unpaid"
+      ? money.showHowToPay
+        ? ({ text: "Unpaid", tone: "warning" } as const)
+        : null
+      : paymentBadge(booking);
   const confirmed = booking.status === "confirmed" || booking.status === "attended";
   const bank = priv.bankAccountName && priv.bankSortCode && priv.bankAccountNumber;
 
@@ -105,6 +121,11 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
       <Card className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <Badge tone={status.tone}>{status.text}</Badge>
+          {payment ? (
+            <Badge tone={payment.tone} data-testid="payment-badge">
+              {payment.text}
+            </Badge>
+          ) : null}
         </div>
         <dl className="grid gap-3 sm:grid-cols-[10rem_1fr]">
           <dt className="font-display font-medium">Reference</dt>
@@ -143,19 +164,24 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             </>
           ) : null}
           <dt className="font-display font-medium">Total</dt>
-          <dd data-testid="booking-total">{formatPence(total)}</dd>
+          <dd data-testid="booking-total">{formatPence(money.totalPence)}</dd>
         </dl>
-        {booking.status === "pending" && booking.location === "home_visit" ? (
-          <p>The tutor will confirm or decline this home visit soon. We will email you either way.</p>
+        {money.awaitingApproval ? (
+          <p>
+            The tutor will confirm or decline this home visit soon. We will email you either way. Please do not pay until it
+            is confirmed.
+          </p>
         ) : null}
       </Card>
 
-      {live ? (
+      {money.showHowToPay ? (
         <Card tone="sky" className="flex flex-col gap-3">
           <h2 className="text-h2">How to pay</h2>
           <p>
-            Pay {formatPence(total)} by bank transfer before the lesson, using your reference so we can match it.
-            {block?.hold_expires_at
+            Pay <span data-testid="to-pay">{formatPence(money.toPayPence)}</span>
+            {afterTheLesson ? " by bank transfer" : " by bank transfer before the lesson"}
+            , using your reference so we can match it.
+            {block?.status === "held" && block.hold_expires_at
               ? ` Seats are held until ${when(new Date(block.hold_expires_at))} while you pay.`
               : ""}
           </p>
@@ -175,7 +201,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
           ) : (
             <p>We will email you the bank details with your reference {reference}.</p>
           )}
-          <p>You can also pay in cash before the lesson starts.</p>
+          {afterTheLesson ? null : <p>You can also pay in cash before the lesson starts.</p>}
         </Card>
       ) : null}
 

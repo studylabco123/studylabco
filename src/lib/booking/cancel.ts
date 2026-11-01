@@ -2,6 +2,7 @@ import "server-only";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { getSettings } from "@/lib/settings";
 import { createServiceClient } from "@/lib/supabase/service";
+import { londonDateOf } from "@/lib/time";
 import { cancellationOutcome } from "./cancellation";
 import { onBookingCancelled } from "./notify";
 
@@ -22,8 +23,10 @@ export type CancelResult =
  *   (cooling-off, Ruling R20): for a block week the block's created_at counts.
  * - A pending home visit is always free, whatever the time: the tutor never
  *   confirmed it, so no fee can be due.
- * - Free cancel of a paid booking sets payment_status 'credited' (the tutor
- *   records any refund later).
+ * - Free cancel of a paid booking sets payment_status 'credited' and writes a
+ *   ledger 'credit' for what was paid for that row (price plus travel; a block
+ *   week's stored price), dated today in London, like the tutor path (Ruling
+ *   R23). The tutor can spend it with "Pay from credit" or refund it.
  * - The update is conditional on the status still being pending/confirmed, so
  *   two racing cancels cannot both succeed.
  */
@@ -76,6 +79,19 @@ export async function cancelBookingForParent(
     return { ok: false, reason: "error" };
   }
   if (!updated.data?.length) return { ok: false, reason: "not_cancellable" };
+
+  if (patch.payment_status === "credited") {
+    const entry = await c.from("ledger").insert({
+      booking_id: bookingId,
+      parent_id: parentId,
+      kind: "credit",
+      amount_pence: booking.pricePence + booking.travelFeePence,
+      occurred_on: londonDateOf(now),
+      note: "Cancelled by parent",
+    });
+    // The cancellation stands either way; the tutor can add the credit by hand.
+    if (entry.error) console.error("cancelBooking: credit ledger row failed", entry.error.message);
+  }
 
   await onBookingCancelled(bookingId, outcome);
   return { ok: true, outcome, feePence: outcome === "late" ? booking.pricePence : 0 };

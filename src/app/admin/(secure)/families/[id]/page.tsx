@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ApproveStudentButton, BlockToggle, ManualBookingForm, NoteForm } from "@/components/admin/FamilyControls";
+import { ApproveStudentButton, BlockToggle, ManualBookingForm, NoteForm, PayFromCreditButton } from "@/components/admin/FamilyControls";
 import { Badge } from "@/components/ui/Badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/admin-guard";
 import { KIND_LABEL, LOCATION_LABEL, PAYMENT_LABEL, statusLabel } from "@/lib/admin/labels";
 import { mailtoHref, telHref, whatsappHref } from "@/lib/admin/phone";
 import { loadFamily, type FamilyChild } from "@/lib/admin/queries";
+import { willBeOwed } from "@/lib/booking/payment-view";
 import { formatLondon, formatPence } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Family" };
@@ -73,7 +74,7 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
-      <section aria-labelledby="summary-h" className="grid gap-4 sm:grid-cols-2">
+      <section aria-labelledby="summary-h" className="grid gap-4 sm:grid-cols-3">
         <h2 id="summary-h" className="sr-only">
           Money and flags
         </h2>
@@ -82,6 +83,13 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
           <p className="font-display text-h2" data-testid="owed">
             {formatPence(f.owedPence)}
           </p>
+        </Card>
+        <Card tone="sky" className="p-4 sm:p-5">
+          <p className="text-small font-semibold text-navy-600">Credit</p>
+          <p className="font-display text-h2" data-testid="credit">
+            {formatPence(f.creditPence)}
+          </p>
+          <p className="text-small text-navy-600">From paid lessons cancelled for free. Use it with &ldquo;Pay from credit&rdquo;.</p>
         </Card>
         <Card tone="sky" className="p-4 sm:p-5">
           <p className="text-small font-semibold text-navy-600">Late cancellations and no-shows, last 12 months</p>
@@ -198,7 +206,15 @@ export default async function AdminFamilyPage({ params }: { params: Promise<{ id
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={status.tone}>{status.text}</Badge>
                     <Badge tone={pay.tone}>{pay.text}</Badge>
-                    <span className="text-small text-navy-600">{formatPence(b.pricePence + b.travelFeePence)}</span>
+                    <span className="text-small text-navy-600">
+                      {formatPence(b.status === "late_cancelled" ? b.pricePence : b.pricePence + b.travelFeePence)}
+                    </span>
+                    {f.creditPence > 0 && willBeOwed(b) ? (
+                      <PayFromCreditButton
+                        bookingId={b.id}
+                        label={`${b.blockBookingId ? "Pay block from credit" : "Pay from credit"} for ${b.paymentReference}`}
+                      />
+                    ) : null}
                     <Link
                       href={`/admin/bookings?filter=all&q=${b.paymentReference}`}
                       className="inline-flex min-h-11 items-center text-small underline underline-offset-4"

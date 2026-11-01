@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { formatPence } from "@/lib/format";
 import { createServiceClient } from "@/lib/supabase/service";
 import { londonDateOf } from "@/lib/time";
 import { checkReceipt, parseExpense, parseMiles, RECEIPT_PATH } from "@/lib/money/validation";
@@ -91,7 +92,9 @@ export async function setMiles(mileageId: string, miles: unknown): Promise<Admin
  * Records a refund of money already paid for a booking (ledger 'refund', today's
  * London date). It cannot exceed what was paid for that booking (its own
  * payments, its block's, or its Sunday bundle's) minus refunds already made.
- * A full refund of a single paid booking also marks it 'refunded'.
+ * A full refund of a single paid booking also marks it 'refunded'. Refunding
+ * a credited booking also uses up that much of the family's credit
+ * ('credit_applied', Ruling R23), and is refused beyond the credit left.
  */
 export async function recordRefund(bookingId: string, amountText: unknown, opts: OpOptions = {}): Promise<AdminResult> {
   const pence = typeof amountText === "string" ? poundsToPence(amountText) : null;
@@ -119,18 +122,50 @@ export async function recordRefund(bookingId: string, amountText: unknown, opts:
   if (paid <= 0) return fail("No payment has been recorded for this booking, so there is nothing to refund.");
   if (pence > paid) return fail("That is more than has been paid for this booking and not yet refunded.");
 
-  const entry = await db().from("ledger").insert({
-    booking_id: bookingId,
-    block_booking_id: b.data.block_booking_id,
-    parent_id: b.data.parent_id,
-    kind: "refund",
-    amount_pence: pence,
-    occurred_on: londonDateOf(opts.now ?? new Date()),
-    note: "Refund",
-  });
+  // A credited booking's money is held as family credit (Ruling R23): refunding it uses that credit up,
+  // so the same money cannot also pay a later lesson.
+  const credited = b.data.payment_status === "credited";
+  const on = londonDateOf(opts.now ?? new Date());
+  if (credited) {
+    if (!b.data.parent_id) return fail("This booking has no family account any more, so its credit cannot be refunded here.");
+    const bal = await db().rpc("credit_balance", { p_parent: b.data.parent_id });
+    if (bal.error) return unexpected("load credit", bal.error);
+    const balance = typeof bal.data === "number" ? bal.data : 0;
+    if (pence > balance) {
+      return fail(`This family has ${formatPence(balance)} of credit left, so at most that much of this credit can be refunded.`);
+    }
+  }
+
+  const entry = await db()
+    .from("ledger")
+    .insert({
+      booking_id: bookingId,
+      block_booking_id: b.data.block_booking_id,
+      parent_id: b.data.parent_id,
+      kind: "refund",
+      amount_pence: pence,
+      occurred_on: on,
+      note: "Refund",
+    })
+    .select("id")
+    .single();
   if (entry.error) return unexpected("write refund", entry.error);
-  if (pence === paid && ids.size === 1 && !b.data.block_booking_id && b.data.payment_status === "paid") {
-    await db().from("bookings").update({ payment_status: "refunded" }).eq("id", bookingId).eq("payment_status", "paid");
+  if (credited) {
+    const used = await db().rpc("apply_credit", {
+      p_parent: b.data.parent_id,
+      p_amount: pence,
+      p_booking: bookingId,
+      p_block: null,
+      p_on: on,
+      p_note: "Refunded instead of kept as credit",
+    });
+    if (used.error || typeof used.data !== "number" || used.data < 0) {
+      await db().from("ledger").delete().eq("id", entry.data.id as string);
+      return used.error ? unexpected("use credit for refund", used.error) : fail("This family's credit was just used. Please refresh and check.");
+    }
+  }
+  if (pence === paid && ids.size === 1 && !b.data.block_booking_id && (b.data.payment_status === "paid" || credited)) {
+    await db().from("bookings").update({ payment_status: "refunded" }).eq("id", bookingId).eq("payment_status", b.data.payment_status);
   }
   return OK;
 }

@@ -1,10 +1,11 @@
 import "server-only";
-import { amountOwedPence, isFlagged } from "@/lib/booking/owed";
+import { amountOwedPence, creditBalancePence, isFlagged } from "@/lib/booking/owed";
+import { blockDuePence } from "@/lib/booking/payment-view";
 import { getSettings } from "@/lib/settings";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
 import { addDays, londonDateOf, londonDateTime } from "@/lib/time";
-import type { Booking, Settings } from "@/lib/types";
+import type { Booking, LedgerEntry, Settings } from "@/lib/types";
 
 /** Read side of the admin Today, Bookings and Families pages (service client; callers must have passed requireAdmin()). */
 
@@ -309,7 +310,14 @@ async function loadHeldBlocks(now: Date, q: string): Promise<BlockItem[]> {
   const rows = check<
     { id: string; parent_id: string | null; child_id: string | null; product: string; weeks: number; price_pence: number; payment_reference: string; hold_expires_at: string | null }[]
   >("blocks", await db().from("block_bookings").select("id, parent_id, child_id, product, weeks, price_pence, payment_reference, hold_expires_at").eq("status", "held").order("created_at"));
-  const [profiles, kids] = await Promise.all([profilesById(rows.map((r) => r.parent_id)), childrenById(rows.map((r) => r.child_id))]);
+  const [profiles, kids, seatRes] = await Promise.all([
+    profilesById(rows.map((r) => r.parent_id)),
+    childrenById(rows.map((r) => r.child_id)),
+    rows.length
+      ? db().from("bookings").select("block_booking_id, status, price_pence").in("block_booking_id", rows.map((r) => r.id))
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const seats = check<{ block_booking_id: string; status: Booking["status"]; price_pence: number }[]>("block sessions", seatRes);
   const items = rows.map<BlockItem>((r) => ({
     id: r.id,
     reference: r.payment_reference,
@@ -318,7 +326,11 @@ async function loadHeldBlocks(now: Date, q: string): Promise<BlockItem[]> {
     childName: childName(kids.get(r.child_id ?? "")),
     product: r.product,
     weeks: r.weeks,
-    pricePence: r.price_pence,
+    // The amount due: the block price less weeks cancelled for free (review I3).
+    pricePence: blockDuePence(
+      r.price_pence,
+      seats.filter((x) => x.block_booking_id === r.id).map((x) => ({ status: x.status, pricePence: x.price_pence })),
+    ),
     holdExpiresAt: r.hold_expires_at ? new Date(r.hold_expires_at) : null,
     expired: r.hold_expires_at ? new Date(r.hold_expires_at).getTime() < now.getTime() : false,
   }));
@@ -418,6 +430,8 @@ export interface FamilyDetail {
   children: FamilyChild[];
   history: BookingItem[];
   owedPence: number;
+  /** Credit issued minus credit applied (Ruling R23). */
+  creditPence: number;
   flagCount: number;
   flagged: boolean;
   settings: Settings;
@@ -433,11 +447,13 @@ export async function loadFamily(parentId: string, now: Date = new Date()): Prom
   const p = prof.data as (ProfileLite & { created_at: string; role: string; blocked_reason: string | null }) | null;
   if (!p || p.role !== "parent") return null;
 
-  const [settings, kidsRes, bookingsRes] = await Promise.all([
+  const [settings, kidsRes, bookingsRes, creditRes] = await Promise.all([
     getSettings(),
     c.from("children").select("*, agreements(*), student_status(*), tutor_notes(id, created_at, body)").eq("parent_id", parentId).order("created_at"),
     c.from("bookings").select("*").eq("parent_id", parentId).order("starts_at", { ascending: false }),
+    c.from("ledger").select("kind, amount_pence, parent_id").eq("parent_id", parentId).in("kind", ["credit", "credit_applied"]),
   ]);
+  const creditRows = check<{ kind: LedgerEntry["kind"]; amount_pence: number; parent_id: string }[]>("credit", creditRes);
   const bookings = toBookings(check("bookings", bookingsRes));
   const kidRows = check<Record<string, unknown>[]>("children", kidsRes);
   const one = <T,>(v: unknown): T | null => ((Array.isArray(v) ? v[0] : v) as T | undefined) ?? null;
@@ -496,6 +512,10 @@ export async function loadFamily(parentId: string, now: Date = new Date()): Prom
       blockReleased: false,
     })),
     owedPence: amountOwedPence(bookings, [], now),
+    creditPence: creditBalancePence(
+      creditRows.map((r) => ({ kind: r.kind, amountPence: r.amount_pence, parentId: r.parent_id })),
+      p.id,
+    ),
     flagCount: bookings.filter((b) => (b.status === "late_cancelled" || b.status === "no_show") && b.startsAt.getTime() >= since).length,
     flagged: isFlagged(bookings, now, settings.flagThreshold),
     settings,

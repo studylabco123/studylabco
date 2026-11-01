@@ -66,7 +66,28 @@ describe("buildTaxPack", () => {
     const l = [...ledger, led({ kind: "credit", amountPence: 700, occurredOn: "2026-11-11" }), led({ kind: "waiver", amountPence: 300, occurredOn: "2026-11-12" })];
     const p = buildTaxPack(range, l, [], [], []);
     expect(p.summary.turnoverPence).toBe(3500);
-    expect(p.refundsAndWaivers.map((r) => r.label)).toEqual(["Refund", "Credit", "Waived fee"]);
+    expect(p.refundsAndWaivers.map((r) => r.label)).toEqual(["Refund", "Credit issued", "Waived fee"]);
+  });
+  test("credit issued and credit applied never change turnover; sheet 6 lists both (R23)", () => {
+    const l = [
+      ...ledger,
+      led({ kind: "credit", amountPence: 2500, occurredOn: "2026-11-11", parentId: "p1" }),
+      led({ kind: "credit_applied", amountPence: 2500, occurredOn: "2026-11-20", parentId: "p1", bookingId: "b9", note: "Paid from credit" }),
+    ];
+    const p = buildTaxPack(range, l, [], [], []);
+    expect(p.summary.turnoverPence).toBe(3500);
+    expect(p.income).toHaveLength(3);
+    expect(p.refundsAndWaivers.map((r) => [r.label, r.amountPence])).toEqual([
+      ["Refund", 1800],
+      ["Credit issued", 2500],
+      ["Credit applied", 2500],
+    ]);
+    expect(p.monthly.find((m) => m.month === "2026-11")?.turnoverPence).toBe(1000 - 1800);
+  });
+  test("a lesson paid from credit is not unpaid at year end", () => {
+    const b = booking({ id: "b9", startsAt: new Date("2026-12-01T10:00:00Z"), paymentStatus: "paid" });
+    const l = [led({ kind: "credit_applied", amountPence: 2500, occurredOn: "2026-11-20", bookingId: "b9" })];
+    expect(buildTaxPack(range, l, [b], [], []).unpaidAtEnd).toEqual([]);
   });
   test("monthly rows cover each month of the range", () => {
     expect(pack.monthly).toHaveLength(13);
@@ -151,7 +172,7 @@ describe("exports", () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buf as never);
     expect(wb.worksheets.map((w) => w.name)).toEqual([
-      "1. Summary", "2. Income", "3. Monthly", "4. Expenses", "5. Mileage", "6. Refunds & waived fees", "7. Unpaid at year end",
+      "1. Summary", "2. Income", "3. Monthly", "4. Expenses", "5. Mileage", "6. Refunds, credits & waivers", "7. Unpaid at year end",
     ]);
     const s = wb.getWorksheet("1. Summary")!;
     const cells: unknown[] = [];

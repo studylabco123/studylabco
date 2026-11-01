@@ -69,8 +69,8 @@ const byDate = <T extends { date: string }>(rows: T[]) => rows.sort((a, b) => (a
 
 /**
  * Builds the figures for a tax year or quarter. Cash basis: income is ledger
- * payments minus refunds dated (occurred_on) inside the range. Credits and
- * waivers are not income; they are listed with refunds. Everything is pence.
+ * payments minus refunds dated (occurred_on) inside the range. Credits issued,
+ * credits applied and waivers are not income; they are listed with refunds. Everything is pence.
  * `mileage` should hold the whole tax year so a quarter continues the
  * cumulative miles of the quarters before it.
  */
@@ -100,7 +100,9 @@ export function buildTaxPack(
     })),
   );
 
-  const LABELS = { refund: "Refund", credit: "Credit", waiver: "Waived fee" } as const;
+  // Credits (issued when a paid lesson is cancelled for free, applied when they pay a later one) are
+  // listed for the record but are never turnover: the money was counted when it was first paid (R23).
+  const LABELS = { refund: "Refund", credit: "Credit issued", credit_applied: "Credit applied", waiver: "Waived fee" } as const;
   const refundsAndWaivers = byDate(
     live
       .filter((l) => l.kind !== "payment")

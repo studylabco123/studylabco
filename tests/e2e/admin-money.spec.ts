@@ -90,7 +90,7 @@ test("expense with a private receipt, miles entry and the tax pack downloads", a
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load((await xlsx.body()) as never);
   expect(wb.worksheets.map((w) => w.name)).toEqual([
-    "1. Summary", "2. Income", "3. Monthly", "4. Expenses", "5. Mileage", "6. Refunds & waived fees", "7. Unpaid at year end",
+    "1. Summary", "2. Income", "3. Monthly", "4. Expenses", "5. Mileage", "6. Refunds, credits & waivers", "7. Unpaid at year end",
   ]);
   const pdf = await page.request.get(`/api/admin/tax-pack?year=${(await page.locator("h2").first().textContent())!.slice(0, 7)}&q=1&format=pdf`);
   expect(pdf.status()).toBe(200);

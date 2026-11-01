@@ -117,7 +117,8 @@ export async function loadMoney(now: Date = new Date()): Promise<MoneyData> {
     all<BookingRow>("bookings", (a, b) => c.from("bookings").select("*").eq("payment_status", "unpaid").order("starts_at").range(a, b)),
     c.from("expenses").select("*").order("spent_on", { ascending: false }).order("created_at", { ascending: false }).limit(30),
     c.from("mileage").select("*").order("trip_on", { ascending: false }).order("created_at", { ascending: false }).limit(60),
-    c.from("bookings").select("*").eq("payment_status", "paid").order("starts_at", { ascending: false }).limit(40),
+    // Paid bookings, and credited ones (refunding a credit uses it up, R23).
+    c.from("bookings").select("*").in("payment_status", ["paid", "credited"]).order("starts_at", { ascending: false }).limit(40),
   ]);
 
   const owed: Booking[] = unpaidRows.map(mapBooking).filter((b) => amountOwedPence([b], [], now) > 0);
@@ -154,7 +155,10 @@ export async function loadMoney(now: Date = new Date()): Promise<MoneyData> {
     income: { week: net(ledger, p.week.start, p.week.end), month: net(ledger, p.month.start, p.month.end), year: net(ledger, p.year.start, p.year.end) },
     expenses,
     trips: check<MileageRowDb[]>("mileage", tripRows).map(mapMileage),
-    refundable: paid.map((b) => ({ id: b.id, label: `${pName(b.parentId)} - ${cName(b.childId)} - ${londonDateOf(b.startsAt)}` })),
+    refundable: paid.map((b) => ({
+      id: b.id,
+      label: `${pName(b.parentId)} - ${cName(b.childId)} - ${londonDateOf(b.startsAt)}${b.paymentStatus === "credited" ? " (held as credit)" : ""}`,
+    })),
   };
 }
 

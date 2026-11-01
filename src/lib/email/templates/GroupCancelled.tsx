@@ -22,7 +22,7 @@ export function GroupCancelled({ parentName, session, credited, reason }: GroupC
       <SessionList sessions={[session]} showCancellation={false} />
       <P>
         {credited
-          ? "You will not be charged. The payment you made has been credited to your account and we will be in touch about it."
+          ? "You will not be charged. The payment you made is kept as credit on your account, and the tutor will apply it to a future lesson. If you would rather have a refund, please get in touch."
           : "You will not be charged for this session."}
       </P>
       <AccountLink label="Book another session" />

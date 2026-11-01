@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { GET } from "@/app/api/cron/daily/route";
 import { onBookingCancelled, onBookingCreated } from "@/lib/booking/notify";
-import { sendEmail } from "@/lib/email/send";
+import { sendEmail, testOutbox } from "@/lib/email/send";
 import { closeDb, createChild, createUser, db, resetData } from "./setup";
 
 let parent: { id: string; email: string };
@@ -33,6 +33,7 @@ beforeEach(async () => {
   process.env.EMAIL_TRANSPORT = "log";
   process.env.CRON_SECRET = "s3cret";
   out = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+  testOutbox.length = 0;
 });
 afterEach(() => {
   out.mockRestore();
@@ -43,15 +44,19 @@ afterAll(closeDb);
 const AN = { title: "New booking", lines: ["x"] };
 
 describe("sendEmail", () => {
-  test("is idempotent per booking and template, and writes the log transport to stdout", async () => {
+  test("is idempotent per booking and template; the log transport prints only the template and domain", async () => {
     const id = await insertBooking(100);
     const args = { to: "a@example.test", template: "admin_new_booking", props: AN, bookingId: id } as const;
     expect(await sendEmail(args)).toBe("sent");
     expect(await sendEmail(args)).toBe("skipped");
     expect(await sendEmail({ ...args, template: "admin_late_cancellation" })).toBe("sent");
     expect((await logged()).length).toBe(2);
-    const line = out.mock.calls.map((c) => String(c[0])).find((l) => l.includes('"subject":"New booking"'));
-    expect(JSON.parse(line!).email).toMatchObject({ to: "a@example.test", subject: "New booking", template: "admin_new_booking" });
+    const lines = out.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('"email"'));
+    expect(lines.map((l) => JSON.parse(l))).toContainEqual({ email: { template: "admin_new_booking", toDomain: "example.test" } });
+    // The body, subject and address never reach the log (review I4).
+    expect(lines.join("")).not.toContain("New booking");
+    expect(lines.join("")).not.toContain("a@example.test");
+    expect(testOutbox.find((e) => e.template === "admin_new_booking")).toMatchObject({ to: "a@example.test", subject: "New booking" });
   });
 
   test("block-level emails are idempotent too (R14)", async () => {
@@ -74,8 +79,7 @@ describe("sendEmail", () => {
     // Contact messages have no booking, so the same one twice is sent twice.
     expect(await sendEmail({ to: "inbox@example.test", template: "contact_message", props, replyTo: "lee@example.test" })).toBe("sent");
     expect((await logged()).filter((l) => l.template === "contact_message")).toHaveLength(2);
-    const line = out.mock.calls.map((c) => String(c[0])).find((l) => l.includes('"template":"contact_message"'));
-    const email = JSON.parse(line!).email as { subject: string; replyTo: string };
+    const email = testOutbox.find((e) => e.template === "contact_message")!;
     expect(email.subject).not.toMatch(/[\r\n]/);
     expect(email.subject.startsWith("Contact form: Lee Bcc: evil@example.test")).toBe(true);
     expect(email.subject.length).toBeLessThanOrEqual(150);
@@ -165,6 +169,36 @@ describe("daily cron", () => {
       "free_cancel_reminder",
       "lesson_reminder",
     ]);
+  });
+
+  test("uses the notice period from settings for the free-cancel reminder (R25)", async () => {
+    await db.query("update settings set cancellation_notice_hours = 72");
+    try {
+      const far = await insertBooking(100); // inside (72, 120]; outside the default (48, 96]
+      await insertBooking(60); // inside the default window, but already inside a 72-hour notice
+      const res = await cron();
+      expect(res).toMatchObject({ freeCancelReminders: 1, failed: 0 });
+      const { rows } = await db.query("select booking_id from email_log where template = 'free_cancel_reminder'");
+      expect(rows).toEqual([{ booking_id: far }]);
+    } finally {
+      await db.query("update settings set cancellation_notice_hours = 48");
+    }
+  });
+
+  test("the block payment reminder asks for the block price less weeks cancelled for free (I3)", async () => {
+    const { rows } = await db.query<{ id: string }>(
+      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, created_at, hold_expires_at)
+       values ($1, $2, 'saturday', 6, 10200, now() - interval '50 hours', now() + interval '22 hours') returning id`,
+      [parent.id, childId],
+    );
+    const block = rows[0].id;
+    const a = await insertBooking(200, { kind: "group" });
+    const b = await insertBooking(368, { kind: "group", status: "cancelled" });
+    await db.query("update bookings set block_booking_id = $1, price_pence = 1700 where id in ($2, $3)", [block, a, b]);
+    expect(await cron()).toMatchObject({ blockPaymentReminders: 1 });
+    const mail = testOutbox.find((e) => e.template === "block_payment_reminder")!;
+    expect(mail.text).toContain("£85");
+    expect(mail.text).not.toContain("£102");
   });
 
   test("rejects a wrong secret", async () => {

@@ -1,6 +1,8 @@
 import "server-only";
 import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
+import { blockDuePence } from "@/lib/booking/payment-view";
+import { formatPence } from "@/lib/format";
 import { londonDateOf } from "@/lib/time";
 import type { Booking, PaymentMethod } from "@/lib/types";
 import { fail, NOT_FOUND, OK, unexpected, type AdminResult, type Failure, type OpOptions } from "./result";
@@ -22,6 +24,47 @@ async function loadBooking(id: string): Promise<{ booking: Booking } | { error: 
   return { booking: mapBooking(data as BookingRow) };
 }
 
+/** How a booking or block is being settled: money received, or the family's credit (Ruling R23). */
+type Settlement = { by: "payment"; method: PaymentMethod } | { by: "credit" };
+
+/** A family's credit balance in pence: ledger 'credit' minus 'credit_applied' (Ruling R23). */
+export async function familyCreditPence(parentId: string): Promise<number> {
+  const { data, error } = await db().rpc("credit_balance", { p_parent: parentId });
+  if (error) throw new Error(`Could not load credit: ${error.message}`);
+  return typeof data === "number" ? data : 0;
+}
+
+const notEnough = (balance: number, due: number) =>
+  fail(`This family has ${formatPence(balance)} of credit, which does not cover ${formatPence(due)}.`);
+
+/**
+ * Writes the ledger side of a settlement. A payment is one 'payment' row
+ * (turnover). Credit is one 'credit_applied' row written by apply_credit,
+ * which locks the family's credit and refuses if the balance does not cover
+ * it; it is not turnover (the money was counted when first paid).
+ */
+async function recordSettlement(
+  how: Settlement,
+  row: { booking_id: string | null; block_booking_id: string | null; parent_id: string | null; amount_pence: number; occurred_on: string; note: string },
+): Promise<{ ok: true } | Failure> {
+  if (how.by === "payment") {
+    const entry = await db().from("ledger").insert({ ...row, kind: "payment", method: how.method });
+    return entry.error ? unexpected("write ledger payment", entry.error) : { ok: true };
+  }
+  if (!row.parent_id) return fail("This booking has no family account, so credit cannot be used.");
+  const res = await db().rpc("apply_credit", {
+    p_parent: row.parent_id,
+    p_amount: row.amount_pence,
+    p_booking: row.booking_id,
+    p_block: row.block_booking_id,
+    p_on: row.occurred_on,
+    p_note: row.note,
+  });
+  if (res.error) return unexpected("apply credit", res.error);
+  if (typeof res.data !== "number" || res.data < 0) return notEnough(await familyCreditPence(row.parent_id), row.amount_pence);
+  return { ok: true };
+}
+
 /**
  * Records that a booking was paid: payment_status 'paid' plus one ledger
  * payment (stored price + travel, or the price alone for a late cancellation),
@@ -33,6 +76,29 @@ async function loadBooking(id: string): Promise<{ booking: Booking } | { error: 
  * two payments; if the ledger insert fails the flip is undone.
  */
 export async function markPaid(bookingId: string, method: PaymentMethod, opts: OpOptions = {}): Promise<AdminResult> {
+  return settleBooking(bookingId, { by: "payment", method }, opts);
+}
+
+/**
+ * Pays an unpaid booking that is owed or upcoming from the same family's
+ * credit (Ruling R23): it becomes 'paid' with a 'credit_applied' ledger row
+ * and no 'payment' row, so turnover is not counted twice. A week of a held
+ * block pays the whole block at its amount due (I3). Refused when the
+ * family's balance does not cover the amount.
+ */
+export async function payFromCredit(bookingId: string, opts: OpOptions = {}): Promise<AdminResult> {
+  const found = await loadBooking(bookingId);
+  if ("error" in found) return found.error;
+  const b = found.booking;
+  if (b.blockBookingId) {
+    const blk = await db().from("block_bookings").select("status").eq("id", b.blockBookingId).maybeSingle();
+    if (blk.error) return unexpected("load block", blk.error);
+    if (blk.data?.status === "held") return settleBlock(b.blockBookingId, { by: "credit" }, opts);
+  }
+  return settleBooking(bookingId, { by: "credit" }, opts);
+}
+
+async function settleBooking(bookingId: string, how: Settlement, opts: OpOptions): Promise<AdminResult> {
   const found = await loadBooking(bookingId);
   if ("error" in found) return found.error;
   const b = found.booking;
@@ -41,7 +107,13 @@ export async function markPaid(bookingId: string, method: PaymentMethod, opts: O
     const blk = await db().from("block_bookings").select("status").eq("id", b.blockBookingId).maybeSingle();
     if (blk.error) return unexpected("load block", blk.error);
     // A released block is no longer paid as a whole, but lessons already taught from it are still owed one by one.
-    if (blk.data?.status !== "released") return fail("This session is part of a block. Mark the block paid instead.");
+    if (blk.data?.status !== "released") {
+      return fail(
+        blk.data?.status === "paid"
+          ? "This session is part of a block that is already paid."
+          : "This session is part of a block. Mark the block paid instead.",
+      );
+    }
     releasedBlockRow = true;
   }
   if (b.status === "cancelled" || b.status === "declined") return fail("Nothing is owed for a cancelled or declined booking.");
@@ -60,6 +132,12 @@ export async function markPaid(bookingId: string, method: PaymentMethod, opts: O
   const ids = rows.map((r) => r.id);
   const total = rows.reduce((n, r) => n + dueFor(r), 0);
 
+  if (how.by === "credit") {
+    if (!b.parentId) return fail("This booking has no family account, so credit cannot be used.");
+    const balance = await familyCreditPence(b.parentId);
+    if (balance < total) return notEnough(balance, total);
+  }
+
   const flipped = await db()
     .from("bookings")
     .update({ payment_status: "paid" })
@@ -74,24 +152,32 @@ export async function markPaid(bookingId: string, method: PaymentMethod, opts: O
     return fail("This booking was just updated. Please refresh and check.");
   }
 
-  const entry = await db().from("ledger").insert({
+  const bundleNote = rows.length > 1 ? `Sunday bundle (${rows.length} sessions)` : "";
+  const recorded = await recordSettlement(how, {
     booking_id: rows[0].id,
+    block_booking_id: null,
     parent_id: b.parentId,
-    kind: "payment",
-    method,
     amount_pence: total,
     occurred_on: londonDateOf(opts.now ?? new Date()),
-    note: rows.length > 1 ? `Sunday bundle (${rows.length} sessions)` : "",
+    note: how.by === "credit" ? ["Paid from credit", bundleNote].filter(Boolean).join(" · ") : bundleNote,
   });
-  if (entry.error) {
+  if (!recorded.ok) {
     await db().from("bookings").update({ payment_status: "unpaid" }).in("id", ids);
-    return unexpected("write ledger payment", entry.error);
+    return recorded;
   }
   return OK;
 }
 
-/** Marks a block paid: the block row, every unpaid live session in it, and one ledger payment of the block price. */
+/**
+ * Marks a block paid: the block row, every unpaid live session in it, and one
+ * ledger payment of the block's amount due: its price less the stored prices
+ * of weeks cancelled for free (review I3).
+ */
 export async function markBlockPaid(blockId: string, method: PaymentMethod, opts: OpOptions = {}): Promise<AdminResult> {
+  return settleBlock(blockId, { by: "payment", method }, opts);
+}
+
+async function settleBlock(blockId: string, how: Settlement, opts: OpOptions): Promise<AdminResult> {
   const block = await db()
     .from("block_bookings")
     .select("id, parent_id, price_pence, status")
@@ -102,6 +188,20 @@ export async function markBlockPaid(blockId: string, method: PaymentMethod, opts
   if (block.data.status === "paid") return fail("This block is already paid.");
   if (block.data.status === "released") return fail("This block was released, so it cannot be paid.");
 
+  const seats = await db().from("bookings").select("status, price_pence").eq("block_booking_id", blockId);
+  if (seats.error) return unexpected("load block sessions", seats.error);
+  const due = blockDuePence(
+    block.data.price_pence as number,
+    (seats.data as { status: Booking["status"]; price_pence: number }[]).map((r) => ({ status: r.status, pricePence: r.price_pence })),
+  );
+  if (due <= 0) return fail("Nothing is due on this block: every week was cancelled for free.");
+  const parentId = block.data.parent_id as string | null;
+  if (how.by === "credit") {
+    if (!parentId) return fail("This block has no family account, so credit cannot be used.");
+    const balance = await familyCreditPence(parentId);
+    if (balance < due) return notEnough(balance, due);
+  }
+
   const flipped = await db()
     .from("block_bookings")
     .update({ status: "paid" })
@@ -111,6 +211,10 @@ export async function markBlockPaid(blockId: string, method: PaymentMethod, opts
   if (flipped.error) return unexpected("mark block paid", flipped.error);
   if (!flipped.data?.length) return fail("This block was just updated. Please refresh and check.");
 
+  const undo = async (ids: string[]) => {
+    if (ids.length) await db().from("bookings").update({ payment_status: "unpaid" }).in("id", ids);
+    await db().from("block_bookings").update({ status: "held" }).eq("id", blockId);
+  };
   const rows = await db()
     .from("bookings")
     .update({ payment_status: "paid" })
@@ -118,21 +222,21 @@ export async function markBlockPaid(blockId: string, method: PaymentMethod, opts
     .eq("payment_status", "unpaid")
     .not("status", "in", "(cancelled,declined)")
     .select("id");
-  const entry = rows.error
-    ? { error: rows.error }
-    : await db().from("ledger").insert({
-        block_booking_id: blockId,
-        parent_id: block.data.parent_id,
-        kind: "payment",
-        method,
-        amount_pence: block.data.price_pence,
-        occurred_on: londonDateOf(opts.now ?? new Date()),
-        note: "Block booking",
-      });
-  if (entry.error) {
-    await db().from("bookings").update({ payment_status: "unpaid" }).in("id", (rows.data ?? []).map((r) => r.id as string));
-    await db().from("block_bookings").update({ status: "held" }).eq("id", blockId);
-    return unexpected("write block payment", entry.error);
+  if (rows.error) {
+    await undo([]);
+    return unexpected("mark block sessions paid", rows.error);
+  }
+  const recorded = await recordSettlement(how, {
+    booking_id: null,
+    block_booking_id: blockId,
+    parent_id: parentId,
+    amount_pence: due,
+    occurred_on: londonDateOf(opts.now ?? new Date()),
+    note: how.by === "credit" ? "Block booking paid from credit" : "Block booking",
+  });
+  if (!recorded.ok) {
+    await undo((rows.data ?? []).map((r) => r.id as string));
+    return recorded;
   }
   return OK;
 }

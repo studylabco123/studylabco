@@ -57,6 +57,15 @@ export default async function AccountPage({
         </Card>
       ) : null}
 
+      {o.creditPence > 0 ? (
+        <Card tone="sky" className="flex flex-col gap-2">
+          <h2 className="text-h2">Credit</h2>
+          <p data-testid="credit">
+            You have <strong>{formatPence(o.creditPence)}</strong> credit — the tutor will apply it to a future lesson.
+          </p>
+        </Card>
+      ) : null}
+
       <section aria-labelledby="children" className="flex flex-col gap-4">
         <h2 id="children" className="text-h2">
           Your children

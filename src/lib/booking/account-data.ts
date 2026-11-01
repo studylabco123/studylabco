@@ -4,7 +4,7 @@ import { mapBooking, type BookingRow } from "@/lib/supabase/mappers";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { Booking, Settings } from "@/lib/types";
 import { cancellationDecision, cancellationOutcome } from "./cancellation";
-import { amountOwedPence } from "./owed";
+import { amountOwedPence, creditBalancePence } from "./owed";
 
 export interface BookingView {
   booking: Booking;
@@ -42,6 +42,8 @@ export interface AccountOverview {
   past: BookingView[];
   owedPence: number;
   owedLines: OwedLine[];
+  /** Credit the tutor can apply to a future lesson (Ruling R23). */
+  creditPence: number;
   children: ChildOverview[];
 }
 
@@ -53,13 +55,14 @@ const KIND_TITLE = { assessment: "Assessment Lesson", one_to_one: "1-to-1 lesson
  */
 export async function loadAccountOverview(parentId: string, now: Date = new Date()): Promise<AccountOverview> {
   const c = createServiceClient();
-  const [profile, bookings, children, settings] = await Promise.all([
+  const [profile, bookings, children, settings, credit] = await Promise.all([
     c.from("profiles").select("is_blocked").eq("id", parentId).single(),
     c.from("bookings").select("*").eq("parent_id", parentId).order("starts_at"),
     c.from("children").select("id, first_name, last_name, agreements(id), student_status(approved_at)").eq("parent_id", parentId).order("created_at"),
     getSettings(),
+    c.from("ledger").select("kind, amount_pence").eq("parent_id", parentId).in("kind", ["credit", "credit_applied"]),
   ]);
-  for (const r of [profile, bookings, children]) if (r.error) throw new Error(`Could not load account: ${r.error.message}`);
+  for (const r of [profile, bookings, children, credit]) if (r.error) throw new Error(`Could not load account: ${r.error.message}`);
 
   const all = (bookings.data as BookingRow[]).map(mapBooking);
   const names = new Map<string, string>();
@@ -138,6 +141,14 @@ export async function loadAccountOverview(parentId: string, now: Date = new Date
     past: past.map(view),
     owedPence: amountOwedPence(all, [], now),
     owedLines,
+    creditPence: creditBalancePence(
+      (credit.data as { kind: "credit" | "credit_applied"; amount_pence: number }[]).map((r) => ({
+        kind: r.kind,
+        amountPence: r.amount_pence,
+        parentId,
+      })),
+      parentId,
+    ),
     children: childList,
   };
 }

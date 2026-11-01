@@ -109,6 +109,31 @@ describe("recordRefund", () => {
     expect((await recordRefund(s1, "0.01")).ok).toBe(false);
     expect((await db.query("select count(*)::int n from ledger where kind='refund' and block_booking_id = $1", [blk.rows[0].id])).rows[0].n).toBe(2);
   });
+  test("refunding a credited booking uses up that credit instead of leaving it to spend (R23)", async () => {
+    const id = await paidBooking(2500);
+    await db.query("update bookings set status = 'cancelled', payment_status = 'credited' where id = $1", [id]);
+    await db.query("insert into ledger (booking_id, parent_id, kind, amount_pence, occurred_on) values ($1, $2, 'credit', 2500, current_date)", [id, parentId]);
+    expect((await recordRefund(id, "25")).ok).toBe(true);
+    const kinds = (await db.query("select kind::text, amount_pence from ledger order by kind::text")).rows;
+    expect(kinds).toEqual([
+      { kind: "credit", amount_pence: 2500 },
+      { kind: "credit_applied", amount_pence: 2500 },
+      { kind: "payment", amount_pence: 2500 },
+      { kind: "refund", amount_pence: 2500 },
+    ]);
+    expect((await db.query("select credit_balance($1) as n", [parentId])).rows[0].n).toBe(0);
+    expect((await db.query("select payment_status::text from bookings")).rows[0].payment_status).toBe("refunded");
+  });
+  test("a credit already spent cannot also be refunded", async () => {
+    const id = await paidBooking(2500);
+    await db.query("update bookings set status = 'cancelled', payment_status = 'credited' where id = $1", [id]);
+    await db.query("insert into ledger (booking_id, parent_id, kind, amount_pence, occurred_on) values ($1, $2, 'credit', 2500, current_date)", [id, parentId]);
+    await db.query("insert into ledger (parent_id, kind, amount_pence, occurred_on) values ($1, 'credit_applied', 2000, current_date)", [parentId]);
+    const r = await recordRefund(id, "25");
+    expect(r.ok).toBe(false);
+    expect((await db.query("select 1 from ledger where kind = 'refund'")).rowCount).toBe(0);
+    expect((await recordRefund(id, "5")).ok).toBe(true);
+  });
   test("refuses an unpaid booking, bad amounts and unknown bookings", async () => {
     const { rows } = await db.query<{ id: string }>(
       `insert into bookings (parent_id, child_id, kind, location, starts_at, ends_at, busy_until, status, price_pence)

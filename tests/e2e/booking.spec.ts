@@ -86,6 +86,15 @@ test.describe("booking", () => {
       .single();
     expect(data).toMatchObject({ kind: "assessment", location: "tutor_place", status: "confirmed", price_pence: 1000 });
     expect(data?.payment_reference).toBe(reference);
+
+    // Unpaid: the badge says so and the page asks for £10. Once paid: "Paid", and no bank details (review I1).
+    await expect(page.getByTestId("payment-badge")).toHaveText("Unpaid");
+    await expect(page.getByTestId("to-pay")).toHaveText("£10");
+    await serviceClient().from("bookings").update({ payment_status: "paid" }).eq("parent_id", parent!.id);
+    await page.reload();
+    await expect(page.getByTestId("payment-badge")).toHaveText("Paid");
+    await expect(page.getByRole("heading", { name: "How to pay" })).toHaveCount(0);
+    await expect(page.getByLabel("Bank details")).toHaveCount(0);
     const { data: consents } = await serviceClient()
       .from("consents")
       .select("kind, booking_id")
@@ -157,6 +166,9 @@ test.describe("booking", () => {
     await page.getByRole("button", { name: "Confirm booking" }).click();
     await expect(page.getByText("Pending tutor approval")).toBeVisible();
     await expect(page.getByTestId("booking-total")).toHaveText("£15");
+    // Awaiting approval: nothing is asked for yet (review I1).
+    await expect(page.getByText(/Please do not pay until it is confirmed/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "How to pay" })).toHaveCount(0);
     // The teaching address is never shown for home visits.
     await expect(page.getByText(TEST_BANK.teachingAddress)).toHaveCount(0);
   });

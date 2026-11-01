@@ -33,3 +33,18 @@ export function isFlagged(bookings: Booking[], now: Date, threshold: number): bo
   ).length;
   return n >= threshold;
 }
+
+/**
+ * A family's credit (Ruling R23): credit issued (ledger 'credit', a paid
+ * booking cancelled for free) minus credit already spent (ledger
+ * 'credit_applied'). Payments, refunds and waivers do not count.
+ */
+export function creditBalancePence(ledger: Pick<LedgerEntry, "kind" | "amountPence" | "parentId">[], parentId: string): number {
+  let n = 0;
+  for (const l of ledger) {
+    if (l.parentId !== parentId) continue;
+    if (l.kind === "credit") n += l.amountPence;
+    else if (l.kind === "credit_applied") n -= l.amountPence;
+  }
+  return n;
+}

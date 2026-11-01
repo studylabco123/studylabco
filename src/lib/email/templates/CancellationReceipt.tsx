@@ -28,7 +28,7 @@ export function CancellationReceipt({ parentName, session, outcome, wasPaid, ref
           <P>
             {refunded
               ? "We will refund the payment you made. If you do not see it within a few days, please get in touch."
-              : "The payment you made has been credited to your account, and we will be in touch about it."}
+              : "The payment you made is kept as credit on your account, and the tutor will apply it to a future lesson. If you would rather have a refund, please get in touch."}
           </P>
         ) : (
           <P>Nothing is due.</P>
@@ -47,7 +47,7 @@ export function CancellationReceipt({ parentName, session, outcome, wasPaid, ref
       {outcome === "free" ? (
         <P>
           This was a free cancellation, so nothing is due.
-          {wasPaid ? " The payment you made has been credited to your account and we will be in touch about it." : ""}
+          {wasPaid ? " The payment you made is kept as credit on your account, and the tutor will apply it to a future lesson. If you would rather have a refund, please get in touch." : ""}
         </P>
       ) : (
         <P>

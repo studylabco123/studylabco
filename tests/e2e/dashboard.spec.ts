@@ -71,6 +71,14 @@ test.describe("dashboard", () => {
     expect(after.payment_status).toBe("credited");
     expect(after.cancelled_by).toBe("parent");
     expect(after.cancelled_at).not.toBeNull();
+
+    // The payment became family credit (Ruling R23): a ledger credit, shown on the account page.
+    const { data: credit } = await serviceClient().from("ledger").select("kind, amount_pence").eq("booking_id", b.id);
+    expect(credit).toEqual([{ kind: "credit", amount_pence: 3000 }]);
+    await page.goto("/account");
+    await expect(page.getByTestId("credit")).toHaveText("You have £30 credit — the tutor will apply it to a future lesson.");
+    await page.goto("/account/bookings");
+    await expect(page.getByText("Credited", { exact: true })).toBeVisible();
   });
 
   test("late cancellation shows fee dialog and records late_cancelled", async ({ page }) => {

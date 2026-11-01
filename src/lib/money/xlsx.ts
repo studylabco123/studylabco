@@ -87,7 +87,7 @@ export async function toXlsx(pack: TaxPack): Promise<Buffer> {
     [14, 10, 14, 50],
   );
   addTable(
-    wb.addWorksheet("6. Refunds & waived fees"),
+    wb.addWorksheet("6. Refunds, credits & waivers"),
     ["Date", "Type", "Family", "Amount"],
     pack.refundsAndWaivers.map((r) => [r.date, r.label, r.detail, pounds(r.amountPence)]),
     [4],

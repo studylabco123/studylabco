@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { payFromCredit } from "@/app/admin/(secure)/bookings/actions";
 import { addManualBooking, addNote, approveStudent, setBlocked } from "@/app/admin/(secure)/families/actions";
 import { Button } from "@/components/ui/Button";
 import { Field, SelectField, TextareaField } from "@/components/ui/Field";
@@ -15,6 +16,19 @@ export function ApproveStudentButton({ childId, name }: { childId: string; name:
       </Button>
       <ActionError message={error} />
     </div>
+  );
+}
+
+/** Pays one unpaid booking (or its held block) from the family's credit; the server checks the balance. */
+export function PayFromCreditButton({ bookingId, label }: { bookingId: string; label: string }) {
+  const { run, pending, error } = useAdminAction();
+  return (
+    <>
+      <Button variant="secondary" disabled={pending} aria-label={label} onClick={() => run(() => payFromCredit(bookingId))}>
+        {label.startsWith("Pay block") ? "Pay block from credit" : "Pay from credit"}
+      </Button>
+      <ActionError message={error} />
+    </>
   );
 }
 

@@ -38,6 +38,7 @@ const ENTRY_POINTS = [
   "src/app/admin/(secure)/settings/terms/page.tsx",
   "src/app/admin/(secure)/money/page.tsx",
   "src/app/admin/(secure)/money/tax/page.tsx",
+  "src/app/admin/(secure)/families/[id]/page.tsx",
   "src/app/api/admin/backup/route.ts",
   "src/app/api/admin/tax-pack/route.ts",
 ];
@@ -47,5 +48,13 @@ describe.each(ENTRY_POINTS)("%s", (file) => {
     const src = readFileSync(file, "utf8");
     const m = /export default async function \w+\([^)]*\)[^{]*\{\n([^\n]*)|export async function GET\([^)]*\)\s*\{\n([^\n]*)/.exec(src);
     expect((m?.[1] ?? m?.[2] ?? "").trim()).toBe("await requireAdmin();");
+  });
+});
+
+/** Money actions added in the final fix wave are covered by the checks above; make sure they exist where expected. */
+describe("pay from credit (Ruling R23)", () => {
+  test("is a guarded booking action", () => {
+    const src = readFileSync("src/app/admin/(secure)/bookings/actions.ts", "utf8");
+    expect(src).toMatch(/export async function payFromCredit\(bookingId: string\): Promise<AdminResult> \{\n  await requireAdmin\(\);/);
   });
 });

@@ -116,4 +116,41 @@ describe("cancelBookingForParent", () => {
     const id = await insertBooking({ starts: "2026-11-11T08:00:00Z", createdAt: "2026-10-01T12:00:00Z", block: rows[0].id });
     expect(await cancelBookingForParent(parentId, id, { now: NOW })).toMatchObject({ ok: true, outcome: "free" });
   });
+
+  test("free cancel of a paid booking writes a ledger credit for what was paid (R23)", async () => {
+    const id = await insertBooking({ starts: "2026-11-20T10:00:00Z" });
+    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toMatchObject({ ok: true, outcome: "free" });
+    const { rows } = await db.query(
+      "select kind::text, amount_pence, booking_id, parent_id, occurred_on::text from ledger",
+    );
+    expect(rows).toEqual([{ kind: "credit", amount_pence: 3500, booking_id: id, parent_id: parentId, occurred_on: "2026-11-10" }]);
+  });
+
+  test("free cancel of an unpaid booking and a late cancel write no ledger row", async () => {
+    const unpaid = await insertBooking({ starts: "2026-11-20T10:00:00Z", paymentStatus: "unpaid" });
+    expect(await cancelBookingForParent(parentId, unpaid, { now: NOW })).toMatchObject({ ok: true, outcome: "free" });
+    const late = await insertBooking({ starts: "2026-11-11T10:00:00Z" });
+    expect(await cancelBookingForParent(parentId, late, { now: NOW, confirmLate: true })).toMatchObject({ ok: true, outcome: "late" });
+    expect((await db.query("select 1 from ledger")).rows).toEqual([]);
+    expect((await get(late)).payment_status).toBe("paid");
+  });
+
+  test("a free-cancelled week of a paid block is credited at that week's stored price", async () => {
+    const { rows } = await db.query<{ id: string }>(
+      `insert into block_bookings (parent_id, child_id, product, weeks, price_pence, status, created_at)
+       values ($1, $2, 'saturday', 6, 10200, 'paid', '2026-10-01T12:00:00Z') returning id`,
+      [parentId, childId],
+    );
+    const id = await insertBooking({ starts: "2026-11-20T10:00:00Z", block: rows[0].id });
+    await db.query("update bookings set price_pence = 1700, travel_fee_pence = 0 where id = $1", [id]);
+    expect(await cancelBookingForParent(parentId, id, { now: NOW })).toMatchObject({ ok: true, outcome: "free" });
+    expect((await db.query("select kind::text, amount_pence from ledger")).rows).toEqual([{ kind: "credit", amount_pence: 1700 }]);
+  });
+
+  test("the London date is used for the credit (just after midnight in summer time)", async () => {
+    const id = await insertBooking({ starts: "2026-07-20T10:00:00Z", createdAt: "2026-06-01T12:00:00Z" });
+    const summerNight = new Date("2026-06-30T23:30:00Z"); // 00:30 on 1 July in London
+    expect(await cancelBookingForParent(parentId, id, { now: summerNight })).toMatchObject({ ok: true });
+    expect((await db.query("select occurred_on::text from ledger")).rows).toEqual([{ occurred_on: "2026-07-01" }]);
+  });
 });

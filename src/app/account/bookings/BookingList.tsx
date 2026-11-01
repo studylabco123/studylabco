@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import type { BookingView } from "@/lib/booking/account-data";
+import { paymentBadge, seatDuePence } from "@/lib/booking/payment-view";
 import { formatLondon, formatPence } from "@/lib/format";
 import type { Booking, BookingStatus } from "@/lib/types";
 import { CancelBooking } from "./CancelBooking";
@@ -26,11 +27,14 @@ export function BookingList({ items, empty }: { items: BookingView[]; empty: str
       {items.map((v) => {
         const b = v.booking;
         const status = statusLabel(b);
+        const payment = paymentBadge(b);
+        const amount = seatDuePence(b);
         return (
           <Card as="li" key={b.id} className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-h3">{v.title}</h3>
               <Badge tone={status.tone}>{status.text}</Badge>
+              {payment ? <Badge tone={payment.tone}>{payment.text}</Badge> : null}
               {v.membership ? <Badge tone="sky">{v.membership}</Badge> : null}
             </div>
             <p>
@@ -38,7 +42,7 @@ export function BookingList({ items, empty }: { items: BookingView[]; empty: str
               {v.childName ? ` for ${v.childName}` : ""}
             </p>
             <p className="text-small text-navy-600">
-              {formatPence(b.pricePence + b.travelFeePence)} · Reference {v.reference}
+              {amount > 0 ? `${formatPence(amount)} · ` : ""}Reference {v.reference}
             </p>
             <div className="flex flex-wrap items-center gap-4">
               <Link href={`/account/bookings/${b.id}`} className="underline underline-offset-4">

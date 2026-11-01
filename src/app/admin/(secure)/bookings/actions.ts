@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-guard";
 import { decideHomeVisit as decide, markAttended as attended, markNoShow as noShow, releaseBlock as release, tutorCancel as cancel } from "@/lib/admin/lifecycle";
-import { markBlockPaid as blockPaid, markPaid as paid, waiveFee as waive } from "@/lib/admin/payments";
+import { markBlockPaid as blockPaid, markPaid as paid, payFromCredit as fromCredit, waiveFee as waive } from "@/lib/admin/payments";
 import { fail, type AdminResult } from "@/lib/admin/result";
 import type { PaymentMethod } from "@/lib/types";
 
@@ -30,6 +30,13 @@ export async function markBlockPaid(blockId: string, method: PaymentMethod): Pro
   await requireAdmin();
   if (!isId(blockId) || !METHODS.includes(method)) return fail("Something was missing. Please refresh and try again.");
   return done(await blockPaid(blockId, method));
+}
+
+/** Pays an unpaid booking (or the held block it belongs to) from the family's credit (Ruling R23). */
+export async function payFromCredit(bookingId: string): Promise<AdminResult> {
+  await requireAdmin();
+  if (!isId(bookingId)) return fail("Something was missing. Please refresh and try again.");
+  return done(await fromCredit(bookingId));
 }
 
 export async function markAttended(bookingId: string): Promise<AdminResult> {
