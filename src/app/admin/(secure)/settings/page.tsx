@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { FeedLink } from "@/components/admin/settings/FeedLink";
 import { SettingsForm } from "@/components/admin/settings/SettingsForm";
-import { buttonClasses } from "@/components/ui/Button";
+import { buttonClasses, ButtonLink } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { requireAdmin } from "@/lib/admin-guard";
 import { settingsToFormInput } from "@/lib/admin/settings-validation";
@@ -18,6 +18,21 @@ export default async function AdminSettingsPage() {
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-h1">Settings</h1>
+      <Card as="section" aria-labelledby="hours-h" className="flex flex-col gap-4 p-4 sm:p-6">
+        <h2 id="hours-h" className="text-h2">
+          Teaching hours and term dates
+        </h2>
+        <p>Set the weekly times lessons can be booked, and which dates count as term time.</p>
+        <div className="flex flex-wrap gap-3">
+          <ButtonLink href="/admin/settings/hours" variant="secondary">
+            Teaching hours
+          </ButtonLink>
+          <ButtonLink href="/admin/settings/terms" variant="secondary">
+            Term dates
+          </ButtonLink>
+        </div>
+      </Card>
+
       <SettingsForm initial={settingsToFormInput(settings, priv)} />
 
       <Card as="section" aria-labelledby="feed-h" className="flex flex-col gap-4 p-4 sm:p-6">

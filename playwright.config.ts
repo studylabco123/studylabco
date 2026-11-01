@@ -15,20 +15,27 @@ export default defineConfig({
   projects: [
     {
       name: "iphone",
-      testIgnore: /admin-config\.spec\.ts/,
+      testIgnore: /admin-(config|hours-terms)\.spec\.ts/,
       use: {
         viewport: { width: 393, height: 852 },
         isMobile: true,
         hasTouch: true,
       },
     },
-    { name: "windows", testIgnore: /admin-config\.spec\.ts/, use: { viewport: { width: 1366, height: 768 } } },
+    { name: "windows", testIgnore: /admin-(config|hours-terms)\.spec\.ts/, use: { viewport: { width: 1366, height: 768 } } },
     // Changes shared settings (closed days, online switch, prices, feed token), so it runs alone,
     // after the other projects. `--no-deps` runs just this one.
     {
       name: "config",
       testMatch: /admin-config\.spec\.ts/,
       dependencies: ["iphone", "windows"],
+      use: { viewport: { width: 1366, height: 768 } },
+    },
+    // Also changes shared rows (teaching hours, term dates), so it waits for "config" instead of running beside it.
+    {
+      name: "config-hours",
+      testMatch: /admin-hours-terms\.spec\.ts/,
+      dependencies: ["config"],
       use: { viewport: { width: 1366, height: 768 } },
     },
   ],

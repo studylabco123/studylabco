@@ -8,6 +8,8 @@ const FILES = [
   "src/app/admin/(secure)/calendar/actions.ts",
   "src/app/admin/(secure)/groups/actions.ts",
   "src/app/admin/(secure)/settings/actions.ts",
+  "src/app/admin/(secure)/settings/hours/actions.ts",
+  "src/app/admin/(secure)/settings/terms/actions.ts",
 ];
 
 describe.each(FILES)("%s", (file) => {
@@ -31,6 +33,8 @@ const ENTRY_POINTS = [
   "src/app/admin/(secure)/calendar/page.tsx",
   "src/app/admin/(secure)/groups/page.tsx",
   "src/app/admin/(secure)/settings/page.tsx",
+  "src/app/admin/(secure)/settings/hours/page.tsx",
+  "src/app/admin/(secure)/settings/terms/page.tsx",
   "src/app/api/admin/backup/route.ts",
 ];
 
