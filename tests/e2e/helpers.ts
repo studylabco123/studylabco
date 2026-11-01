@@ -99,8 +99,12 @@ export async function fillSignup(
   if (d.marketing) await page.getByLabel(/send me/i).check();
 }
 
-/** Newest link containing `needle` in the latest Mailpit message sent to `email`. */
-export async function mailLink(email: string, needle = "/auth/v1/verify", timeoutMs = 15_000): Promise<string> {
+/**
+ * Newest link containing `needle` in the latest Mailpit message sent to `email`.
+ * The site's templates (supabase/templates) send token_hash links to /auth/callback:
+ * `type=signup` for confirmation, `type=recovery` for a password reset.
+ */
+export async function mailLink(email: string, needle = "type=signup", timeoutMs = 15_000): Promise<string> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const search = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`);

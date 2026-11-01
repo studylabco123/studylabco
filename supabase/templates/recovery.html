@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en-GB">
+  <body style="font-family: Arial, Helvetica, sans-serif; color: #0b1f3a; line-height: 1.5">
+    <h2>Choose a new password</h2>
+    <p>We received a request to reset the password for your Study Lab Co account.</p>
+    <p>
+      <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=%2Freset%3Fmode%3Dupdate">Choose a new password</a>
+    </p>
+    <p>The link works on any device and expires in one hour. If you did not ask for this, you can ignore this email: your password will not change.</p>
+    <p>Study Lab Co</p>
+  </body>
+</html>

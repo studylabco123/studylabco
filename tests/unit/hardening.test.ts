@@ -23,7 +23,16 @@ describe("verifyTurnstile without a secret key (Ruling R21)", () => {
     vi.stubEnv("TURNSTILE_SECRET_KEY", "");
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("E2E_HARNESS", "1");
+    vi.stubEnv("VERCEL", "");
     expect(await verifyTurnstile(null)).toBe(true);
+  });
+  it("E2E_HARNESS cannot switch Turnstile off on Vercel (R25)", async () => {
+    vi.stubEnv("TURNSTILE_SECRET_KEY", "");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("E2E_HARNESS", "1");
+    vi.stubEnv("VERCEL", "1");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await verifyTurnstile(null)).toBe(false);
   });
 });
 

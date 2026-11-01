@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Log in" };
 
 const NOTICES: Record<string, string> = {
   "confirm-failed":
-    "If you have already confirmed your email, log in below. Otherwise open the link from the same device and browser you signed up on.",
+    "That link has expired or has already been used. If you have already confirmed your email, log in below.",
   "password-updated": "Your password has been changed. Log in with the new one.",
 };
 

@@ -89,3 +89,18 @@ describe("loginDestination", () => {
     expect(explicitNextPath(undefined)).toBeNull();
   });
 });
+
+import { emailOtpType } from "@/lib/auth/validation";
+
+describe("emailOtpType (review I5)", () => {
+  test("accepts only the email link types the site sends", () => {
+    expect(emailOtpType("signup")).toBe("signup");
+    expect(emailOtpType("email")).toBe("email");
+    expect(emailOtpType("recovery")).toBe("recovery");
+  });
+  test("refuses anything else", () => {
+    for (const t of ["magiclink", "invite", "email_change", "sms", "phone_change", "", null, "RECOVERY", "recovery "]) {
+      expect(emailOtpType(t)).toBeNull();
+    }
+  });
+});

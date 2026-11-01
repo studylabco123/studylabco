@@ -5,6 +5,7 @@ import {
   createAdmin,
   createParent,
   fillSignup,
+  mailLink,
   parentDetails,
   seedApprovedChild,
   serviceClient,
@@ -136,8 +137,7 @@ test.describe("parent authentication", () => {
     await page.getByLabel("Email").fill(parent.email);
     await page.getByRole("button", { name: "Send reset link" }).click();
     await expect(page.getByText(/we.ve sent a link/i)).toBeVisible();
-    const { mailLink } = await import("./helpers");
-    await page.goto(await mailLink(parent.email, "/auth/v1/verify"));
+    await page.goto(await mailLink(parent.email, "type=recovery"));
     await expect(page.getByRole("heading", { name: "Choose a new password" })).toBeVisible();
     await page.getByLabel("New password").fill("a-brand-new-password");
     await page.getByRole("button", { name: "Save new password" }).click();
@@ -146,6 +146,57 @@ test.describe("parent authentication", () => {
     const { login } = await import("./helpers");
     await login(page, parent.email, "a-brand-new-password");
     await expect(page).toHaveURL(/\/account/);
+  });
+
+  test("a sign-up link opened in another browser confirms and signs in (token_hash, review I5)", async ({ page, browser }) => {
+    const d = parentDetails({ fullName: "Casey Crossdevice" });
+    await fillSignup(page, d);
+    await page.getByRole("button", { name: "Create account" }).click();
+    await expect(page).toHaveURL(/\/verify/);
+    const link = await mailLink(d.email, "type=signup");
+    expect(link).toContain("/auth/callback?token_hash=");
+    // A fresh context shares no cookies or PKCE verifier with the browser that signed up: another device.
+    const phone = await browser.newContext();
+    try {
+      const other = await phone.newPage();
+      await other.goto(link);
+      await expect(other).toHaveURL(/\/account/);
+      await expect(other.getByRole("heading", { name: "Welcome, Casey Crossdevice" })).toBeVisible();
+    } finally {
+      await phone.close();
+    }
+  });
+
+  test("a reset link opened in another browser lets the parent choose a new password", async ({ page, browser }) => {
+    const parent = await createParent(page);
+    await page.context().clearCookies();
+    await page.goto("/reset");
+    await page.getByLabel("Email").fill(parent.email);
+    await page.getByRole("button", { name: "Send reset link" }).click();
+    await expect(page.getByText(/we.ve sent a link/i)).toBeVisible();
+    const link = await mailLink(parent.email, "type=recovery");
+    expect(link).toContain("token_hash=");
+    const phone = await browser.newContext();
+    try {
+      const other = await phone.newPage();
+      await other.goto(link);
+      await expect(other.getByRole("heading", { name: "Choose a new password" })).toBeVisible();
+      await other.getByLabel("New password").fill("another-new-password");
+      await other.getByRole("button", { name: "Save new password" }).click();
+      await expect(other).toHaveURL(/\/account/);
+    } finally {
+      await phone.close();
+    }
+    const { login } = await import("./helpers");
+    await login(page, parent.email, "another-new-password");
+    await expect(page).toHaveURL(/\/account/);
+  });
+
+  test("an email link with an unexpected type is refused", async ({ page }) => {
+    await page.goto("/auth/callback?token_hash=abc123&type=magiclink");
+    await expect(page).toHaveURL(/\/login\?notice=confirm-failed/);
+    await page.goto("/auth/callback?token_hash=abc123&type=invite&next=/account");
+    await expect(page).toHaveURL(/\/login\?notice=confirm-failed/);
   });
 
   for (const path of ["/signup", "/login", "/reset", "/verify?email=a%40example.test"]) {

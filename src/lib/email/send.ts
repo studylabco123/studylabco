@@ -2,6 +2,7 @@ import "server-only";
 import { render } from "@react-email/components";
 import { createElement } from "react";
 import { Resend } from "resend";
+import { isRealProduction } from "@/lib/env";
 import { createServiceClient } from "@/lib/supabase/service";
 import { TEMPLATES, type TemplateName, type TemplateProps } from "./registry";
 
@@ -27,11 +28,47 @@ export function cleanSubject(raw: string): string {
 
 type Transport = "resend" | "log";
 
-function transport(): Transport {
+/**
+ * Which transport sends email (review I4).
+ * - Real production (see isRealProduction): always Resend. A missing
+ *   RESEND_API_KEY or EMAIL_FROM throws, so nothing is silently "sent" to the
+ *   logs and the caller's catch reports it; EMAIL_TRANSPORT=log is ignored.
+ * - Elsewhere (development, tests, the local e2e production build):
+ *   EMAIL_TRANSPORT if set, else Resend when a key is present, else the log.
+ */
+export function emailTransport(): Transport {
+  if (isRealProduction()) {
+    const missing = ["RESEND_API_KEY", "EMAIL_FROM"].filter((k) => !process.env[k]);
+    if (missing.length) {
+      throw new Error(`Email is not configured: set ${missing.join(" and ")} in the production environment`);
+    }
+    return "resend";
+  }
   const t = process.env.EMAIL_TRANSPORT;
   if (t === "resend" || t === "log") return t;
   return process.env.RESEND_API_KEY ? "resend" : "log";
 }
+
+/** The log transport's one line: the template and the recipient's domain only, never the body, subject or address. */
+export function logLine(to: string, template: string): string {
+  const at = to.lastIndexOf("@");
+  return `${JSON.stringify({ email: { template, toDomain: at >= 0 ? to.slice(at + 1) : "" } })}\n`;
+}
+
+export interface CapturedEmail {
+  to: string;
+  template: string;
+  subject: string;
+  text: string;
+  replyTo?: string;
+}
+
+/**
+ * Emails the log transport would have sent, kept in memory under Vitest only
+ * (so tests can check content without the body ever being printed). Always
+ * empty in the app.
+ */
+export const testOutbox: CapturedEmail[] = [];
 
 /**
  * Records the email in email_log first, then sends it. A unique conflict
@@ -40,6 +77,8 @@ function transport(): Transport {
  * rethrown: callers on a user action catch and log it.
  */
 export async function sendEmail<T extends TemplateName>(args: SendEmailArgs<T>): Promise<"sent" | "skipped"> {
+  // Decide (and fail on missing configuration) before anything is logged as sent.
+  const via = emailTransport();
   const c = createServiceClient();
   const inserted = await c
     .from("email_log")
@@ -67,8 +106,9 @@ export async function sendEmail<T extends TemplateName>(args: SendEmailArgs<T>):
     const subject = cleanSubject(def.subject(args.props));
     const replyTo = args.replyTo?.replace(/[\r\n]/g, "") || undefined;
 
-    if (transport() === "log") {
-      process.stdout.write(`${JSON.stringify({ email: { to: args.to, subject, template: args.template, replyTo, text } })}\n`);
+    if (via === "log") {
+      process.stdout.write(logLine(args.to, args.template));
+      if (process.env.VITEST) testOutbox.push({ to: args.to, template: args.template, subject, text, replyTo });
     } else {
       const key = process.env.RESEND_API_KEY;
       const from = process.env.EMAIL_FROM;

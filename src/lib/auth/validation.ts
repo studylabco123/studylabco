@@ -46,3 +46,12 @@ export function explicitNextPath(next: string | null | undefined): string | null
 export function loginDestination(next: string | null | undefined, role: string | null | undefined): string {
   return explicitNextPath(next) ?? (role === "admin" ? "/admin" : DEFAULT_NEXT);
 }
+
+/** The email-link types the auth callback accepts (review I5): sign-up confirmation and password reset. */
+const EMAIL_OTP_TYPES = ["signup", "email", "recovery"] as const;
+export type AllowedEmailOtpType = (typeof EMAIL_OTP_TYPES)[number];
+
+/** `type` from an email link when it is one the site sends; null otherwise (the link is refused). */
+export function emailOtpType(raw: string | null | undefined): AllowedEmailOtpType | null {
+  return (EMAIL_OTP_TYPES as readonly string[]).includes(raw ?? "") ? (raw as AllowedEmailOtpType) : null;
+}

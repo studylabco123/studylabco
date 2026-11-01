@@ -5,6 +5,7 @@ import { cancelSession, createOneOff, createSeries, emailGroup, endSeries, updat
 import { regenerateFeedToken, saveSettings } from "@/lib/admin/settings-ops";
 import { settingsToFormInput } from "@/lib/admin/settings-validation";
 import { loadFeedEntries } from "@/lib/calendar/feed";
+import { testOutbox } from "@/lib/email/send";
 import { getPrivateSettings, getSettings } from "@/lib/settings";
 import { londonDateOf, londonDateTime } from "@/lib/time";
 import { closeDb, createChild, createUser, db, resetData } from "./setup";
@@ -29,6 +30,7 @@ async function cleanup() {
 beforeEach(async () => {
   await cleanup();
   stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true) as unknown as typeof stdout;
+  testOutbox.length = 0;
 });
 afterEach(() => stdout.mockRestore());
 afterAll(async () => {
@@ -323,7 +325,7 @@ describe("group series", () => {
     await book(a.id, 1, { status: "cancelled" });
     const res = await emailGroup(a.id, `Venue change\r\nBcc: evil@example.test ${"x".repeat(200)}`, "We are in the hall.\nSee you there.");
     expect(res).toEqual({ ok: true, sent: 2 });
-    const lines = stdout.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('"email"')).map((l) => JSON.parse(l).email as { to: string; subject: string });
+    const lines = testOutbox.filter((e) => e.template === "group_message");
     expect(lines).toHaveLength(2);
     for (const l of lines) {
       expect(l.subject).not.toMatch(/[\r\n]/);

@@ -246,6 +246,16 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Sign-up confirmation and password reset use token_hash links to /auth/callback, so they work on
+# any device (review I5). The hosted project needs the same templates: see docs/launch-checklist.md.
+[auth.email.template.confirmation]
+subject = "Confirm your Study Lab Co account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Study Lab Co password"
+content_path = "./supabase/templates/recovery.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
