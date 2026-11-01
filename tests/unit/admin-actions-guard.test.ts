@@ -10,6 +10,7 @@ const FILES = [
   "src/app/admin/(secure)/settings/actions.ts",
   "src/app/admin/(secure)/settings/hours/actions.ts",
   "src/app/admin/(secure)/settings/terms/actions.ts",
+  "src/app/admin/(secure)/money/actions.ts",
 ];
 
 describe.each(FILES)("%s", (file) => {
@@ -35,13 +36,16 @@ const ENTRY_POINTS = [
   "src/app/admin/(secure)/settings/page.tsx",
   "src/app/admin/(secure)/settings/hours/page.tsx",
   "src/app/admin/(secure)/settings/terms/page.tsx",
+  "src/app/admin/(secure)/money/page.tsx",
+  "src/app/admin/(secure)/money/tax/page.tsx",
   "src/app/api/admin/backup/route.ts",
+  "src/app/api/admin/tax-pack/route.ts",
 ];
 
 describe.each(ENTRY_POINTS)("%s", (file) => {
   test("calls requireAdmin() before anything else", () => {
     const src = readFileSync(file, "utf8");
-    const m = /export default async function \w+\([^)]*\)[^{]*\{\n([^\n]*)|export async function GET\(\)\s*\{\n([^\n]*)/.exec(src);
+    const m = /export default async function \w+\([^)]*\)[^{]*\{\n([^\n]*)|export async function GET\([^)]*\)\s*\{\n([^\n]*)/.exec(src);
     expect((m?.[1] ?? m?.[2] ?? "").trim()).toBe("await requireAdmin();");
   });
 });

@@ -13,9 +13,12 @@ import type {
   Booking,
   BookingKind,
   BookingStatus,
+  Expense,
   GroupProduct,
   GroupSession,
+  LedgerEntry,
   LocationKind,
+  MileageEntry,
   PaymentStatus,
   PeriodKind,
   PrivateSettings,
@@ -309,5 +312,76 @@ export function mapBlockedRule(row: BlockedRuleRow): BlockedRule {
     validFrom: row.valid_from,
     validTo: row.valid_to,
     reason: row.reason,
+  };
+}
+
+export interface LedgerRow {
+  id: string;
+  created_at: string;
+  booking_id: string | null;
+  block_booking_id: string | null;
+  parent_id: string | null;
+  kind: LedgerEntry["kind"];
+  method: LedgerEntry["method"];
+  amount_pence: number;
+  occurred_on: string;
+  note: string;
+}
+
+export function mapLedger(row: LedgerRow): LedgerEntry {
+  return {
+    id: row.id,
+    createdAt: toDate(row.created_at),
+    bookingId: row.booking_id,
+    blockBookingId: row.block_booking_id,
+    parentId: row.parent_id,
+    kind: row.kind,
+    method: row.method,
+    amountPence: row.amount_pence,
+    occurredOn: row.occurred_on,
+    note: row.note,
+  };
+}
+
+export interface ExpenseRowDb {
+  id: string;
+  created_at: string;
+  spent_on: string;
+  category: string;
+  description: string;
+  amount_pence: number;
+  receipt_path: string | null;
+}
+
+export function mapExpense(row: ExpenseRowDb): Expense {
+  return {
+    id: row.id,
+    createdAt: toDate(row.created_at),
+    spentOn: row.spent_on,
+    category: row.category,
+    description: row.description,
+    amountPence: row.amount_pence,
+    receiptPath: row.receipt_path,
+  };
+}
+
+export interface MileageRowDb {
+  id: string;
+  created_at: string;
+  booking_id: string | null;
+  trip_on: string;
+  /** numeric(6,1): PostgREST returns a JSON number. */
+  miles: number | string | null;
+  note: string;
+}
+
+export function mapMileage(row: MileageRowDb): MileageEntry {
+  return {
+    id: row.id,
+    createdAt: toDate(row.created_at),
+    bookingId: row.booking_id,
+    tripOn: row.trip_on,
+    miles: row.miles === null ? null : Number(row.miles),
+    note: row.note,
   };
 }
