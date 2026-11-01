@@ -20,7 +20,7 @@ export type DeleteAccountResult =
  * Refuses for non-parent profiles (R13), while money is owed, and while a
  * pending/confirmed lesson starts inside the cancellation notice window (R12).
  * Otherwise, in this order: cancel every future pending/confirmed booking (free,
- * paid -> credited, so slots and seats are released; a group-pass seat just goes back on the pass),
+ * so slots and seats are released; a group-pass seat just goes back on the pass; a future paid lesson not on a pass refuses deletion first),
  * delete email_log rows and free-text notes tied to the parent's bookings and passes, detach bookings
  * (parent, child, home address and postcode set to null; price, travel fee,
  * status, dates and the ledger are kept), delete consents, delete children
@@ -91,7 +91,6 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
       message: `You have ${formatPence(creditPence)} credit or unused group-pass sessions. Please contact Study Lab Co before deleting your account.`,
     };
   }
-
   const soon = now.getTime() + settings.cancellationNoticeHours * 3600_000;
   const mine = (bookings.data as BookingRow[]).map(mapBooking);
   if (
@@ -107,10 +106,22 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
     };
   }
 
+  // A future lesson paid for in cash or by transfer (not with a pass) is money the family is owed: cancelling it would lose it (I2).
+  const paidFuture = (bookings.data as BookingRow[]).map(mapBooking).some(
+    (b) => (b.status === "pending" || b.status === "confirmed") && b.startsAt > now && b.paymentStatus === "paid" && !b.passId,
+  );
+  if (paidFuture) {
+    return {
+      ok: false,
+      reason: "has_credit_or_pass",
+      message: "You have paid lessons coming up. Please contact Study Lab Co before deleting your account.",
+    };
+  }
+
   // Release slots and seats: all remaining future active bookings are outside the notice window, so free.
   const cancelPatch = { status: "cancelled", cancelled_at: now.toISOString(), cancelled_by: "parent" };
-  for (const from of ["pass", "paid", "other"] as const) {
-    const extra = from === "pass" ? { payment_status: "unpaid" } : from === "paid" ? { payment_status: "credited" } : {};
+  for (const from of ["pass", "other"] as const) {
+    const extra = from === "pass" ? { payment_status: "unpaid" } : {};
     let q = c
       .from("bookings")
       .update({ ...cancelPatch, ...extra })
@@ -118,7 +129,7 @@ export async function deleteAccount(parentId: string, opts: { now?: Date } = {})
       .in("status", ["pending", "confirmed"])
       .gt("starts_at", now.toISOString());
     // A pass seat was paid for by the pass: its session goes back on the pass, nothing is credited.
-    q = from === "pass" ? q.not("pass_id", "is", null) : from === "paid" ? q.eq("payment_status", "paid") : q.neq("payment_status", "paid");
+    q = from === "pass" ? q.not("pass_id", "is", null) : q.is("pass_id", null);
     const r = await q;
     if (r.error) return failed("cancel future bookings", r.error);
   }

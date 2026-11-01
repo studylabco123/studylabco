@@ -110,16 +110,30 @@ describe("deleteAccount", () => {
     expect((await db.query("select 1 from auth.users where id = $1", [parentId])).rowCount).toBe(1);
   });
 
-  test("cancels future bookings beyond the window, crediting paid ones", async () => {
-    const paid = await insertBooking({ starts: "2026-11-20T10:00:00Z", status: "confirmed", paymentStatus: "paid" });
+  test("cancels unpaid future bookings beyond the window", async () => {
     const unpaid = await insertBooking({ starts: "2026-11-22T10:00:00Z", status: "pending", paymentStatus: "unpaid" });
     expect(await deleteAccount(parentId, { now: NOW })).toEqual({ ok: true });
-    const rows = (await db.query("select id, status::text, payment_status::text, cancelled_by, cancelled_at, parent_id from bookings")).rows;
-    const p = rows.find((r) => r.id === paid);
-    const u = rows.find((r) => r.id === unpaid);
-    expect(p).toMatchObject({ status: "cancelled", payment_status: "credited", cancelled_by: "parent", parent_id: null });
-    expect(p!.cancelled_at).not.toBeNull();
-    expect(u).toMatchObject({ status: "cancelled", payment_status: "unpaid", cancelled_by: "parent" });
+    const u = (await db.query("select status::text, payment_status::text, cancelled_by, cancelled_at, parent_id from bookings where id = $1", [unpaid])).rows[0];
+    expect(u).toMatchObject({ status: "cancelled", payment_status: "unpaid", cancelled_by: "parent", parent_id: null });
+    expect(u.cancelled_at).not.toBeNull();
+  });
+
+  test("a paid future lesson not booked with a pass refuses deletion (the family is owed that money)", async () => {
+    const paid = await insertBooking({ starts: "2026-11-20T10:00:00Z", status: "confirmed", paymentStatus: "paid" });
+    const unpaid = await insertBooking({ starts: "2026-11-22T10:00:00Z", status: "pending", paymentStatus: "unpaid" });
+    const res = await deleteAccount(parentId, { now: NOW });
+    expect(res).toMatchObject({ ok: false, reason: "has_credit_or_pass" });
+    if (!res.ok) expect(res.message).toContain("Please contact Study Lab Co before deleting your account.");
+    const rows = (await db.query("select id, status::text, payment_status::text from bookings")).rows;
+    expect(rows.find((r) => r.id === paid)).toMatchObject({ status: "confirmed", payment_status: "paid" });
+    expect(rows.find((r) => r.id === unpaid)).toMatchObject({ status: "pending" });
+    expect((await db.query("select 1 from auth.users where id = $1", [parentId])).rowCount).toBe(1);
+    expect((await db.query("select 1 from ledger where kind = 'credit'")).rows).toEqual([]);
+  });
+
+  test("a paid past lesson does not block deletion", async () => {
+    await insertBooking({ starts: "2026-11-05T10:00:00Z", status: "attended", paymentStatus: "paid" });
+    expect(await deleteAccount(parentId, { now: NOW })).toEqual({ ok: true });
   });
 
   test("(the pass expired after booking) a future group-pass seat is cancelled back onto the pass, never credited", async () => {
