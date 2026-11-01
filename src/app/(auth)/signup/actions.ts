@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { commonAuthMessage } from "@/lib/auth/errors";
 import { signupSchema } from "@/lib/auth/validation";
 import { turnstileToken } from "@/lib/auth/turnstile-token";
+import { notifyNewSignup } from "@/lib/email/notifications";
 import { POLICY_VERSION } from "@/lib/policy";
 import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -91,6 +92,7 @@ export async function signUp(_prev: SignupState, formData: FormData): Promise<Si
       console.error("signup: could not record consents", consents.error ?? profile.error);
       return { formError: "Something went wrong creating your account. Please try again.", values };
     }
+    await notifyNewSignup({ name: input.full_name, email: input.email, phone: input.phone });
   }
 
   redirect(`/verify?email=${encodeURIComponent(input.email)}`);

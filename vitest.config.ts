@@ -12,7 +12,7 @@ const testEnv = (): Record<string, string> => {
 };
 
 const alias = { "@": fileURLToPath(new URL("./src", import.meta.url)) };
-// DB tests import server-only modules (src/lib/booking/service.ts); outside a
+// DB and unit tests import server-only modules (service.ts, the cron route); outside a
 // React Server Components build "server-only" throws, so use its no-op entry.
 const dbAlias = {
   ...alias,
@@ -20,11 +20,13 @@ const dbAlias = {
 };
 
 export default defineConfig({
+  // tsconfig has jsx "preserve" for Next; tests that render email templates need a real transform.
+  oxc: { jsx: { runtime: "automatic" } },
   resolve: { alias },
   test: {
     projects: [
       {
-        resolve: { alias },
+        resolve: { alias: dbAlias },
         test: { name: "unit", include: ["tests/unit/**/*.test.ts"] },
       },
       {

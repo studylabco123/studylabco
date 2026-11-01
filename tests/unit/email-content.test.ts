@@ -1,0 +1,181 @@
+import { createElement } from "react";
+import { render } from "@react-email/components";
+import { describe, expect, it } from "vitest";
+import { TEMPLATES, type TemplateName } from "@/lib/email/registry";
+import { BookingConfirmed } from "@/lib/email/templates/BookingConfirmed";
+import type { SessionLine } from "@/lib/email/types";
+
+const BANK = { accountName: "Study Lab Co", sortCode: "04-00-04", accountNumber: "12345678" };
+const START = new Date("2026-11-10T16:00:00Z");
+const line = (over: Partial<SessionLine> = {}): SessionLine => ({
+  reference: "SLC-1001",
+  title: "1-to-1 lesson",
+  childName: "Sam",
+  startsAt: START,
+  endsAt: new Date(START.getTime() + 3600_000),
+  location: "tutor_place",
+  status: "confirmed",
+  pricePence: 2500,
+  travelPence: 0,
+  ...over,
+});
+const html = (el: React.ReactElement) => render(el);
+
+describe("BookingConfirmed", () => {
+  it("includes SLC reference, £ total, bank details and teaching address for tutor_place", async () => {
+    const out = await html(
+      createElement(BookingConfirmed, {
+        parentName: "Pat",
+        sessions: [line()],
+        totalPence: 2500,
+        bank: BANK,
+        teachingAddress: "1 Teaching Road, Blackburn",
+        meetingLink: null,
+        blockReference: null,
+      }),
+    );
+    expect(out).toContain("SLC-1001");
+    expect(out).toContain("£25");
+    expect(out).toContain("12345678");
+    expect(out).toContain("04-00-04");
+    expect(out).toContain("Study Lab Co");
+    expect(out).toContain("1 Teaching Road, Blackburn");
+    expect(out).toContain("use reference SLC-1001");
+    // 10 Nov 2026 16:00 UTC is 4pm GMT; cancellation deadline is 48h earlier.
+    expect(out).toContain("Free cancellation until Sunday 8 November at 4:00pm. After that a late cancellation fee of £25 applies.");
+    expect(out).not.toMatch(/online/i);
+  });
+
+  it("never includes teaching address for group bookings", async () => {
+    const out = await html(
+      createElement(BookingConfirmed, {
+        parentName: "Pat",
+        sessions: [line({ title: "Saturday group", location: "group_venue", venue: null })],
+        totalPence: 1800,
+        bank: BANK,
+        teachingAddress: "1 Teaching Road, Blackburn",
+        meetingLink: "https://meet.example/abc",
+        blockReference: null,
+      }),
+    );
+    expect(out).not.toContain("1 Teaching Road");
+    expect(out).not.toContain("meet.example");
+    expect(out).toContain("Location confirmed on booking");
+  });
+
+  it("never shows the teaching address or bank details for a pending home visit", async () => {
+    const out = await html(
+      createElement(BookingConfirmed, {
+        parentName: "Pat",
+        sessions: [line({ location: "home_visit", status: "pending", homeAddress: "9 Home Street", travelPence: 500 })],
+        totalPence: 3000,
+        bank: BANK,
+        teachingAddress: "1 Teaching Road, Blackburn",
+        meetingLink: null,
+        blockReference: null,
+      }),
+    );
+    expect(out).not.toContain("1 Teaching Road");
+    expect(out).toContain("9 Home Street");
+    expect(out).toContain("approve");
+  });
+
+  it("omits bank details for declined or cancelled bookings and shows the meeting link only for online", async () => {
+    const declined = await html(
+      createElement(BookingConfirmed, {
+        parentName: "Pat",
+        sessions: [line({ status: "declined" })],
+        totalPence: 2500,
+        bank: BANK,
+        teachingAddress: null,
+        meetingLink: null,
+        blockReference: null,
+      }),
+    );
+    expect(declined).not.toContain("12345678");
+    const online = await html(
+      createElement(BookingConfirmed, {
+        parentName: "Pat",
+        sessions: [line({ location: "online" })],
+        totalPence: 2500,
+        bank: BANK,
+        teachingAddress: "1 Teaching Road",
+        meetingLink: "https://meet.example/abc",
+        blockReference: null,
+      }),
+    );
+    expect(online).toContain("https://meet.example/abc");
+    expect(online).not.toContain("1 Teaching Road");
+  });
+});
+
+const sample: { [K in TemplateName]: Parameters<(typeof TEMPLATES)[K]["component"]>[0] } = {
+  booking_confirmed: {
+    parentName: "Pat",
+    sessions: [line()],
+    totalPence: 2500,
+    bank: BANK,
+    teachingAddress: "1 Teaching Road",
+    meetingLink: null,
+    blockReference: null,
+  },
+  home_visit_decision: {
+    parentName: "Pat",
+    decision: "approved",
+    session: line({ location: "home_visit", homeAddress: "9 Home Street", travelPence: 500 }),
+    bank: BANK,
+  },
+  free_cancel_reminder: { parentName: "Pat", session: line(), teachingAddress: "1 Teaching Road", meetingLink: null },
+  lesson_reminder: { parentName: "Pat", session: line(), teachingAddress: "1 Teaching Road", meetingLink: null },
+  cancellation_receipt: { parentName: "Pat", session: line(), outcome: "late", wasPaid: false },
+  group_cancelled: { parentName: "Pat", session: line({ title: "Saturday group", location: "group_venue" }), credited: true },
+  block_payment_reminder: {
+    parentName: "Pat",
+    reference: "SLC-1002",
+    totalPence: 10200,
+    weeks: 6,
+    holdExpiresAt: START,
+    bank: BANK,
+  },
+  contact_message: { name: "Lee", email: "lee@example.test", phone: null, message: "Hello there" },
+  admin_new_booking: { title: "New booking", lines: ["Pat booked a lesson"] },
+  admin_home_visit_request: { title: "Home visit request - needs approval", lines: ["x"] },
+  admin_late_cancellation: { title: "Late cancellation", lines: ["x"] },
+  admin_new_signup: { title: "New sign-up", lines: ["x"] },
+  admin_block_hold_expired: { title: "Block hold expired", lines: ["x"] },
+};
+
+describe("all templates", () => {
+  const names = Object.keys(TEMPLATES) as TemplateName[];
+
+  it("covers every registered template", () => {
+    expect(Object.keys(sample).sort()).toEqual([...names].sort());
+  });
+
+  it('no template contains "fine" or "penalty"', async () => {
+    for (const name of names) {
+      const def = TEMPLATES[name] as { component: (p: never) => React.ReactElement };
+      const out = await html(def.component(sample[name] as never));
+      expect(out, name).not.toMatch(/\bfine\b|penalt/i);
+    }
+  });
+
+  it("transactional templates have no unsubscribe link, and every footer has the business details", async () => {
+    for (const name of names) {
+      const def = TEMPLATES[name] as { component: (p: never) => React.ReactElement };
+      const out = await html(def.component(sample[name] as never));
+      expect(out, name).not.toMatch(/unsubscribe/i);
+      expect(out, name).toContain("Study Lab Co");
+      expect(out, name).toContain("/contact");
+      expect(out, name).toContain("studylabco123@gmail.com");
+    }
+  });
+
+  it("never mentions online lessons for in-person bookings", async () => {
+    for (const name of names) {
+      const def = TEMPLATES[name] as { component: (p: never) => React.ReactElement };
+      const out = await html(def.component(sample[name] as never));
+      expect(out, name).not.toMatch(/online/i);
+    }
+  });
+});
